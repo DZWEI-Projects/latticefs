@@ -1,6 +1,6 @@
 # CLI Reference
 
-This document lists every CLI command, subcommand, and its arguments, with examples.
+This document lists every CLI command, subcommand, and its arguments, with examples and example output.
 
 ## Global flags
 - `-v`, `-vv` — increase verbosity
@@ -10,6 +10,14 @@ This document lists every CLI command, subcommand, and its arguments, with examp
 Example:
 ```bash
 lfs --repo /tmp/latticefs -v status
+```
+
+Example output:
+```text
+Objects: 3
+Versions: 3
+Chunks: 12
+Chunk bytes: 98312
 ```
 
 ## System commands
@@ -22,12 +30,25 @@ Example:
 lfs init
 ```
 
+Example output:
+```text
+Initialized repository at /path/to/repo
+```
+
 ### `lfs status`
 Show repository statistics.
 
 Example:
 ```bash
 lfs status
+```
+
+Example output:
+```text
+Objects: 12
+Versions: 15
+Chunks: 84
+Chunk bytes: 2459012
 ```
 
 ### `lfs gc`
@@ -38,6 +59,11 @@ Example:
 lfs gc
 ```
 
+Example output:
+```text
+GC removed 0 chunks
+```
+
 ### `lfs verify [<ref>] [--deep]`
 Verify data integrity for all objects or a specific object.
 
@@ -45,9 +71,24 @@ Arguments:
 - `<ref>` — object ID or alias (optional)
 - `--deep` — verify all versions instead of current only
 
-Example:
+Example (all objects, current versions):
 ```bash
-lfs verify --deep
+lfs verify
+```
+
+Example output:
+```text
+Verified 12 objects
+```
+
+Example (single object, deep):
+```bash
+lfs verify <object-id> --deep
+```
+
+Example output:
+```text
+Verified <object-id>
 ```
 
 ## Object management
@@ -64,6 +105,11 @@ Example:
 lfs add ./report.pdf --tag project:phoenix
 ```
 
+Example output:
+```text
+Added object <object-id>
+```
+
 ### `lfs import <path> [--tag <key:value>...]`
 Import a directory or file tree.
 
@@ -76,12 +122,22 @@ Example:
 lfs import ~/Documents --tag project:demo
 ```
 
+Example output:
+```text
+Import completed successfully
+```
+
 ### `lfs tag <ref> <key:value>...`
 Add tags to an object.
 
 Example:
 ```bash
-lfs tag <object-id> priority:high
+lfs tag <object-id> priority:high owner:benn
+```
+
+Example output:
+```text
+Tagged <object-id>
 ```
 
 ### `lfs untag <ref> <key>`
@@ -90,6 +146,11 @@ Remove a tag by key.
 Example:
 ```bash
 lfs untag <object-id> priority
+```
+
+Example output:
+```text
+Untagged <object-id>
 ```
 
 ### `lfs link <object-a> <link-type> <object-b>`
@@ -107,6 +168,11 @@ Example:
 lfs link <a> derived-from <b>
 ```
 
+Example output:
+```text
+Linked <a> -> <b> (derived-from)
+```
+
 ### `lfs get <ref> --output <path> [--ucan <token>]`
 Write object content to a file.
 
@@ -120,12 +186,22 @@ Example:
 lfs get <object-id> --output ~/Downloads/out.bin
 ```
 
+Example output:
+```text
+Wrote /Users/you/Downloads/out.bin
+```
+
 ### `lfs cat <ref>`
 Print object content to stdout.
 
 Example:
 ```bash
 lfs cat <object-id>
+```
+
+Example output:
+```text
+hello latticefs
 ```
 
 ## Versioning
@@ -141,15 +217,51 @@ Example:
 lfs versions <object-id> --graph
 ```
 
+Example output:
+```text
+v1 <version-id> parent=none size=1234 state=approved
+v2 <version-id> parent=<version-id> size=1240 state=approved
+```
+
 ### `lfs diff <ref@v1> <ref@v2>` or `lfs diff <ref> <v1> <v2>`
 Diff two versions (text or binary). The versions can be from the **same object** or **different objects**.
 
 - Use `lfs diff <ref@v1> <ref@v2>` to compare any two versions (even across objects).
 - Use `lfs diff <ref> <v1> <v2>` as shorthand when both versions belong to the same object.
 
-Example:
+Example (explicit refs):
 ```bash
 lfs diff <object-id>@v1 <object-id>@v2
+```
+
+Example output:
+```text
+--- left
++++ right
+@@
+-hello latticefs
++hello latticefs v2
+```
+
+Example (shorthand for same object):
+```bash
+lfs diff <object-id> v1 v2
+```
+
+Example output:
+```text
+No differences
+```
+
+Example (different objects):
+```bash
+lfs diff <object-a>@v1 <object-b>@v1
+```
+
+Example output:
+```text
+Binary diff: left=1024 bytes right=980 bytes
+First differing byte at offset 12
 ```
 
 ### `lfs restore <ref> <version>`
@@ -160,12 +272,22 @@ Example:
 lfs restore <object-id> v1
 ```
 
+Example output:
+```text
+Restored <object-id> to new version <version-id>
+```
+
 ### `lfs checkout <ref@version>`
 Set the object’s current version pointer.
 
 Example:
 ```bash
 lfs checkout <object-id>@v2
+```
+
+Example output:
+```text
+Checked out <object-id> to <version-id>
 ```
 
 ## Views
@@ -178,12 +300,31 @@ Example:
 lfs view create "Projects" --query "tag:project"
 ```
 
+Example output:
+```text
+Created view Projects
+```
+
 ### `lfs view list`
 List built‑in and dynamic views.
 
 Example:
 ```bash
 lfs view list
+```
+
+Example output:
+```text
+Built-in views:
+- Recent: Objects updated within the last 7 days
+- Projects: Objects tagged as projects
+- Drafts: Objects in draft state
+- Pending Review: Objects pending review
+- Approved: Approved objects
+- All Objects: All objects in the repository
+
+Dynamic views:
+- Projects: tag:project
 ```
 
 ### `lfs view delete <name>`
@@ -194,12 +335,34 @@ Example:
 lfs view delete "Projects"
 ```
 
+Example output:
+```text
+Deleted view Projects
+```
+
 ### `lfs view explain <ref> [--query '<lql>'] [--view <name>]`
 Explain why an object matches a query or view.
 
-Example:
+Example (explicit query):
 ```bash
 lfs view explain <object-id> --query "tag:project:phoenix"
+```
+
+Example output:
+```text
+Object <object-id>: MATCHED
+✓ tag:project:phoenix (actual: tag:project:phoenix)
+```
+
+Example (named view):
+```bash
+lfs view explain <object-id> --view "Projects"
+```
+
+Example output:
+```text
+Object <object-id>: MATCHED
+✓ tag:project (actual: tag:project:phoenix)
 ```
 
 ## Sharing
@@ -217,12 +380,25 @@ Example:
 lfs share <object-id> --to <did:key:...> --cap read --expires 7d
 ```
 
+Example output:
+```text
+Shared object <object-id>
+CID: <capability-cid>
+UCAN: <ucan-token>
+```
+
 ### `lfs share snapshot <view-name> --to <pubkey> [--cap <perm>] [--expires <dur>]`
 Create and share a view snapshot.
 
 Example:
 ```bash
 lfs share snapshot "Projects" --to <did:key:...>
+```
+
+Example output:
+```text
+Snapshot shared. CID: <capability-cid>
+UCAN: <ucan-token>
 ```
 
 ### `lfs shares list`
@@ -233,12 +409,29 @@ Example:
 lfs shares list
 ```
 
+Example output:
+```text
+<capability-cid>
+  subject: did:key:z6M...
+  perms: latticefs:read
+```
+
+Example output (none):
+```text
+No shares
+```
+
 ### `lfs revoke <capability-id|token> [--reason <text>]`
 Revoke a UCAN capability.
 
 Example:
 ```bash
 lfs revoke <capability-cid>
+```
+
+Example output:
+```text
+Revoked capability <capability-cid>
 ```
 
 ## Policies
@@ -251,6 +444,11 @@ Example:
 lfs policy create project-collab --template project-collab
 ```
 
+Example output:
+```text
+Created policy project-collab
+```
+
 ### `lfs policy apply <ref> <policy-name>`
 Attach a policy to an object.
 
@@ -259,12 +457,22 @@ Example:
 lfs policy apply <object-id> project-collab
 ```
 
+Example output:
+```text
+Applied policy project-collab to <object-id>
+```
+
 ### `lfs policy remove <ref> <policy-name>`
 Remove a policy from an object.
 
 Example:
 ```bash
 lfs policy remove <object-id> project-collab
+```
+
+Example output:
+```text
+Removed policy project-collab from <object-id>
 ```
 
 ## Trust & quarantine
@@ -277,6 +485,11 @@ Example:
 lfs trust get <object-id>
 ```
 
+Example output:
+```text
+<object-id>: 25 (quarantined)
+```
+
 ### `lfs trust set <ref> <trusted|untrusted|quarantined|approved|score>`
 Set trust level for an object.
 
@@ -285,12 +498,28 @@ Example:
 lfs trust set <object-id> quarantined
 ```
 
+Example output:
+```text
+Set trust <object-id> -> 0
+```
+
 ### `lfs quarantine list`
 List quarantined objects.
 
 Example:
 ```bash
 lfs quarantine list
+```
+
+Example output:
+```text
+<object-id>
+<object-id>
+```
+
+Example output (none):
+```text
+No quarantined objects
 ```
 
 ## Export
@@ -302,9 +531,34 @@ Arguments:
 - `--mode tree` — export to directory tree (default)
 - `--mode archive` — export to tar archive
 
-Example:
+Example (single object):
 ```bash
 lfs export <object-id> --output ~/Exports/out.bin
+```
+
+Example output:
+```text
+Exported <object-id>
+```
+
+Example (view to directory):
+```bash
+lfs export "Projects" --output ~/Exports/projects --mode tree
+```
+
+Example output:
+```text
+Exported Projects
+```
+
+Example (view to archive):
+```bash
+lfs export "Projects" --output ~/Exports/projects.tar --mode archive
+```
+
+Example output:
+```text
+Exported Projects
 ```
 
 ## FUSE mount
@@ -317,10 +571,20 @@ Example:
 lfs --fuse mount ~/Lattice
 ```
 
+Example output:
+```text
+(no output on success)
+```
+
 ### `lfs unmount [<mount-point>]`
 Unmount the filesystem.
 
 Example:
 ```bash
 lfs unmount ~/Lattice
+```
+
+Example output:
+```text
+(no output on success)
 ```
