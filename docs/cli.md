@@ -141,8 +141,11 @@ Example:
 lfs versions <object-id> --graph
 ```
 
-### `lfs diff <ref@v1> <ref@v2>`
-Diff two versions of the same object (text or binary).
+### `lfs diff <ref@v1> <ref@v2>` or `lfs diff <ref> <v1> <v2>`
+Diff two versions (text or binary). The versions can be from the **same object** or **different objects**.
+
+- Use `lfs diff <ref@v1> <ref@v2>` to compare any two versions (even across objects).
+- Use `lfs diff <ref> <v1> <v2>` as shorthand when both versions belong to the same object.
 
 Example:
 ```bash

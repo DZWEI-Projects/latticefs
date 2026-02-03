@@ -7,15 +7,18 @@ use super::common::parse_ref_with_version;
 
 #[derive(Args, Debug)]
 pub struct DiffArgs {
-    /// First reference (ref@version)
-    pub left: String,
-    /// Second reference (ref@version)
-    pub right: String,
+    /// References to diff. Use either:
+    ///   lfs diff <ref@v1> <ref@v2>
+    /// or
+    ///   lfs diff <ref> <v1> <v2>
+    #[arg(required = true, num_args = 2..=3)]
+    pub refs: Vec<String>,
 }
 
 pub async fn run(repo: LatticeRepo, args: DiffArgs) -> Result<()> {
-    let left = read_ref_with_version(&repo, &args.left).await?;
-    let right = read_ref_with_version(&repo, &args.right).await?;
+    let (left_ref, right_ref) = normalize_refs(&args.refs)?;
+    let left = read_ref_with_version(&repo, &left_ref).await?;
+    let right = read_ref_with_version(&repo, &right_ref).await?;
 
     if left == right {
         println!("No differences");
@@ -47,6 +50,33 @@ pub async fn run(repo: LatticeRepo, args: DiffArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn normalize_refs(refs: &[String]) -> Result<(String, String)> {
+    if refs.len() == 2 {
+        return Ok((refs[0].clone(), refs[1].clone()));
+    }
+
+    if refs.len() == 3 {
+        let object_ref = refs[0].trim();
+        let v1 = refs[1].trim();
+        let v2 = refs[2].trim();
+
+        if object_ref.is_empty() || v1.is_empty() || v2.is_empty() {
+            return Err(anyhow::anyhow!("diff requires a reference and two versions"));
+        }
+        if v1.contains('@') || v2.contains('@') {
+            return Err(anyhow::anyhow!(
+                "diff with three arguments expects versions only (no '@')"
+            ));
+        }
+
+        let left = format!("{}@{}", object_ref, v1);
+        let right = format!("{}@{}", object_ref, v2);
+        return Ok((left, right));
+    }
+
+    Err(anyhow::anyhow!("diff requires two or three arguments"))
 }
 
 async fn read_ref_with_version(repo: &LatticeRepo, reference: &str) -> Result<Vec<u8>> {

@@ -103,4 +103,32 @@ fn cli_flow_basic() {
         .assert()
         .success()
         .stdout(predicate::str::contains("No differences"));
+
+    // diff shorthand (same object)
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["diff", &object_id, "v1", "v1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No differences"));
+
+    // diff across objects
+    let other_path = temp.path().join("other.txt");
+    fs::write(&other_path, b"hello different\n").unwrap();
+    let other_output = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", other_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(other_output.status.success());
+    let other_stdout = String::from_utf8_lossy(&other_output.stdout);
+    let other_id = other_stdout
+        .split_whitespace()
+        .last()
+        .expect("object id")
+        .to_string();
+
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([&format!("diff"), &format!("{}@v1", object_id), &format!("{}@v1", other_id)])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("---"));
 }
