@@ -2,6 +2,7 @@
 
 ## Table of Contents
 - [Build process and Cargo profiles](build.md)
+- [CLI command reference](cli.md)
 - [FUSE setup, runtime flag, troubleshooting](fuse.md)
 - [Repository directory layout](storage-layout.md)
 - [On-disk encoding map](storage-encoding.md)
