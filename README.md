@@ -2,6 +2,16 @@
 
 LatticeFS is a post-file filesystem with immutable, versioned objects, content-addressed storage, semantic graph links, and query-backed views. It ships as a Rust CLI and (optionally) exposes a read-only FUSE mount.
 
+## Repo layout
+```
+/ (repo root)
+├── base/       # Rust library: storage, model, query, views, FUSE, import/export
+├── cli/        # Rust CLI binary (lfs)
+├── services/   # Go services (share/sync)
+├── specs/      # PRD and protocol specifications
+├── docs/       # Documentation
+```
+
 ## Build
 
 ### CLI only (no FUSE)
@@ -12,6 +22,11 @@ cargo build -p cli
 ### CLI with FUSE support
 ```bash
 cargo build -p cli --features latticefs-base/fuse
+```
+
+### Release build
+```bash
+cargo build -p cli --release
 ```
 
 ## Run
@@ -44,7 +59,14 @@ lfs --fuse mount ~/Lattice
 
 If you run `lfs mount` without `--fuse`, it will fail with a clear error message. If you build without the fuse feature, mounting will also fail and instruct you to rebuild with the feature.
 
-For details and OS-specific requirements, see `docs/fuse.md`.
+## Docs
+- [Documentation index](docs/index.md)
+- [Build process and Cargo profiles](docs/build.md)
+- [FUSE setup and troubleshooting](docs/fuse.md)
+- [Storage layout](docs/storage-layout.md)
+- [Storage encoding map](docs/storage-encoding.md)
+- [Configuration](docs/config.md)
+- [CLI identities](docs/identity.md)
 
 ## Tests
 
