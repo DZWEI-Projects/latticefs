@@ -1,0 +1,87 @@
+use anyhow::{Context, Result};
+use clap::{Args, Subcommand};
+use latticefs_base::model::{Policy, PolicyTemplate};
+use latticefs_base::LatticeRepo;
+
+use super::common::resolve_object_id;
+
+#[derive(Subcommand, Debug)]
+pub enum PolicyCommand {
+    Create(CreateArgs),
+    Apply(ApplyArgs),
+    Remove(RemoveArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct PolicyArgs {
+    #[command(subcommand)]
+    pub command: PolicyCommand,
+}
+
+#[derive(Args, Debug)]
+pub struct CreateArgs {
+    pub name: String,
+    #[arg(long)]
+    pub template: String,
+}
+
+#[derive(Args, Debug)]
+pub struct ApplyArgs {
+    pub reference: String,
+    pub policy: String,
+}
+
+#[derive(Args, Debug)]
+pub struct RemoveArgs {
+    pub reference: String,
+    pub policy: String,
+}
+
+pub async fn run(repo: LatticeRepo, cmd: PolicyCommand) -> Result<()> {
+    match cmd {
+        PolicyCommand::Create(args) => create(repo, args).await,
+        PolicyCommand::Apply(args) => apply(repo, args).await,
+        PolicyCommand::Remove(args) => remove(repo, args).await,
+    }
+}
+
+async fn create(repo: LatticeRepo, args: CreateArgs) -> Result<()> {
+    let template: PolicyTemplate = args
+        .template
+        .parse()
+        .map_err(|e: String| anyhow::anyhow!(e))?;
+    let policy = Policy::from_template(args.name.clone(), template);
+    repo.metadata.store_policy(&policy)?;
+    println!("Created policy {}", policy.name);
+    Ok(())
+}
+
+async fn apply(repo: LatticeRepo, args: ApplyArgs) -> Result<()> {
+    let object_id = resolve_object_id(&repo, &args.reference)?;
+    let policy = repo.metadata.load_policy(&args.policy)?;
+
+    let mut object = repo
+        .metadata
+        .load_object(&object_id)
+        .with_context(|| format!("Object not found: {}", object_id))?;
+    object.add_policy(policy.id);
+    repo.metadata.store_object(&object)?;
+
+    println!("Applied policy {} to {}", policy.name, object_id);
+    Ok(())
+}
+
+async fn remove(repo: LatticeRepo, args: RemoveArgs) -> Result<()> {
+    let object_id = resolve_object_id(&repo, &args.reference)?;
+    let policy = repo.metadata.load_policy(&args.policy)?;
+
+    let mut object = repo
+        .metadata
+        .load_object(&object_id)
+        .with_context(|| format!("Object not found: {}", object_id))?;
+    object.policy_refs.retain(|id| *id != policy.id);
+    repo.metadata.store_object(&object)?;
+
+    println!("Removed policy {} from {}", policy.name, object_id);
+    Ok(())
+}

@@ -124,6 +124,14 @@ impl Attenuation {
         }
     }
 
+    /// Create an attenuation for an arbitrary resource URI.
+    pub fn for_resource(resource: String, permission: Permission) -> Self {
+        Self {
+            with: resource,
+            can: permission,
+        }
+    }
+
     /// Parse the object ID from the resource URI.
     pub fn object_id(&self) -> Option<ObjectID> {
         if self.with.starts_with("latticefs:object:") {
@@ -337,6 +345,36 @@ impl Capability {
             nbf: Some(now),
             nnc: Some(uuid::Uuid::now_v7().to_string()),
             att: vec![Attenuation::for_object(object_id, permission)],
+            prf: vec![],
+            fct: Some(Facts {
+                version: Some("0.1".to_string()),
+                ..Default::default()
+            }),
+        };
+
+        Self::sign(header, payload, issuer)
+    }
+
+    /// Create a new capability for an arbitrary resource URI (e.g., view snapshot).
+    pub fn create_for_resource(
+        issuer: &Identity,
+        audience: &PublicKey,
+        resource: String,
+        permission: Permission,
+        expires_in: Duration,
+    ) -> Result<Self> {
+        let now = current_timestamp();
+        let exp = now + expires_in.as_secs();
+
+        let header = UcanHeader::default();
+        let payload = UcanPayload {
+            iss: issuer.did(),
+            aud: audience.did(),
+            sub: Some(resource.clone()),
+            exp,
+            nbf: Some(now),
+            nnc: Some(uuid::Uuid::now_v7().to_string()),
+            att: vec![Attenuation::for_resource(resource, permission)],
             prf: vec![],
             fct: Some(Facts {
                 version: Some("0.1".to_string()),
@@ -573,6 +611,14 @@ impl Capability {
             .att
             .iter()
             .any(|a| a.with == object_uri && a.can.includes(&permission))
+    }
+
+    /// Check if this capability grants a specific permission for a resource URI.
+    pub fn has_permission_for_resource(&self, resource: &str, permission: Permission) -> bool {
+        self.payload
+            .att
+            .iter()
+            .any(|a| a.with == resource && a.can.includes(&permission))
     }
 
     /// Get the object ID this capability refers to (if any).

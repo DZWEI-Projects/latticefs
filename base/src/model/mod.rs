@@ -8,6 +8,6 @@ pub mod tag;
 pub use dag::VersionDAG;
 pub use link::{Link, LinkID, LinkType};
 pub use object::{KeyID, MetadataPartition, Object, ObjectID, ObjectType, Version, VersionID};
-pub use policy::PolicyID;
+pub use policy::{Policy, PolicyID, PolicyTemplate, Requirement};
 pub use state::State;
 pub use tag::{timestamp_now, ActorID, Tag, Timestamp};
