@@ -53,6 +53,13 @@ impl VersionID {
         VersionID(uuid)
     }
 
+    pub fn from_bytes(bytes: &[u8]) -> crate::error::Result<Self> {
+        let uuid = Uuid::from_slice(bytes).map_err(|e| {
+            crate::error::LatticeError::Serialization(format!("Invalid VersionID bytes: {}", e))
+        })?;
+        Ok(VersionID(uuid))
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
