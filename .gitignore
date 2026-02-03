@@ -1,0 +1,151 @@
+# Rust
+# Compiled files
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo
+Cargo.lock  # For libraries, but keep for binaries
+# Uncomment if you want to ignore Cargo.lock for workspace members:
+# **/Cargo.lock
+
+# Go
+# Binaries
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+/vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDE and Editor files
+# VSCode
+.vscode/
+*.code-workspace
+
+# Cursor
+.cursor/
+
+# IntelliJ IDEA / GoLand
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Build artifacts
+*.o
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# Coverage reports
+coverage/
+*.coverprofile
+*.coverage
+htmlcov/
+.nyc_output/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Miscellaneous
+*.orig
+.cache/
+dist/
+build/

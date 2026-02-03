@@ -1,0 +1,20 @@
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+blake3 = "1"
+uuid = { version = "1", features = ["v7"] }
+sled = "0.34"
+thiserror = "1"
+anyhow = "1"
+ed25519-dalek = "2"
+aes-gcm = "0.10"
+fuser = "0.14"
+tracing = "0.1"
+
+[package]
+name = "base"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
