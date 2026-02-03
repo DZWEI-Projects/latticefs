@@ -12,10 +12,26 @@ This document explains how versioning works and walks through two hands-on examp
 CLI commands involved:
 
 - `lfs revise <object-id> <file> [-m <message>]` — create a new version from file content
+- `lfs state set <object-id>[@version] <state>` — set version workflow state
 - `lfs versions <object-id>` — list versions
 - `lfs diff <object-id>@v1 <object-id>@v2` — compare two versions of the same object
 - `lfs checkout <object-id>@v2` — set the current version pointer
 - `lfs restore <object-id> v1` — create a new version from an older one
+
+Version states:
+- `draft` — default for new versions
+- `review` — pending review
+- `approved` — accepted/vetted
+- `discarded` — auto-set when a draft is superseded by a new version
+- `sealed` — locks the object against further updates
+- `archived` — deprecated
+
+Auto-advance rules when a new version is created:
+- If the previous version is `review`, it becomes `approved`.
+- If the previous version is `draft`, it becomes `discarded`.
+
+Locking rule:
+- If the current version is `sealed`, creating a new version fails with a clear error.
 
 ## Tutorial 1: Basic version lifecycle (restore + checkout)
 
@@ -97,3 +113,4 @@ Notes:
 
 - `lfs revise` creates a **new version** under the same object ID (no duplicate objects).
 - Linking objects with `lfs link ... replaces ...` is still useful to represent **lineage across distinct objects**, but it does **not** create a new version.
+ - You can set states explicitly with `lfs state set`, but auto-advance still applies when creating a new version.

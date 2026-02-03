@@ -95,6 +95,10 @@ async fn main() -> Result<()> {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::diff::run(repo, args).await?;
         }
+        commands::Command::State(cmd) => {
+            let repo = commands::common::open_repo(cli.repo.clone())?;
+            commands::state::run(repo, cmd.command).await?;
+        }
         commands::Command::View(cmd) => {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::view::run(repo, cmd.command).await?;

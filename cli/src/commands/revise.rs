@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::model::Version;
 use latticefs_base::LatticeRepo;
 use std::path::PathBuf;
 use tokio::io::AsyncReadExt;
@@ -30,7 +29,7 @@ pub async fn run(repo: LatticeRepo, args: ReviseArgs) -> Result<()> {
     }
 
     let object_id = resolve_object_id(&repo, &args.reference)?;
-    let mut object = repo
+    repo
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
@@ -51,24 +50,7 @@ pub async fn run(repo: LatticeRepo, args: ReviseArgs) -> Result<()> {
             .await
             .with_context(|| format!("Failed to read {}", path.display()))?
     };
-    let manifest = repo.chunks.store_object(&data).await?;
-    let manifest_hash = repo.metadata.store_manifest(&manifest)?;
-
-    let version = Version::new(
-        object_id,
-        Some(object.current_version),
-        manifest.merkle_root,
-        manifest_hash,
-        actor,
-        data.len() as u64,
-        manifest.chunks.len() as u32,
-        args.message.clone(),
-    );
-
-    object.add_version(version.id);
-    repo.metadata.store_version(&version)?;
-    repo.metadata.store_object(&object)?;
-
+    let version = repo.add_version_from_bytes(&object_id, &data, actor, args.message.clone()).await?;
     println!("Revised {} to new version {}", object_id, version.id);
     Ok(())
 }

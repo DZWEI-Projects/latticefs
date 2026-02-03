@@ -28,6 +28,9 @@ pub enum LatticeError {
     #[error("Invalid state transition: {from} -> {to}")]
     InvalidStateTransition { from: String, to: String },
 
+    #[error("Object is sealed and cannot be updated: {id}")]
+    ObjectSealed { id: String },
+
     // Manifest errors
     #[error("Manifest not found: {hash}")]
     ManifestNotFound { hash: String },

@@ -94,7 +94,14 @@ fn cli_flow_basic() {
         .success()
         .stdout(predicate::str::contains("Revised"));
 
-    // revise content via stdin (new version)
+    // set state to review (v2)
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["state", "set", &format!("{}@v2", object_id), "review"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("draft -> review"));
+
+    // revise content via stdin (new version, auto-advance v2 -> approved)
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["revise", &object_id, "--stdin", "-m", "stdin update"])
         .write_stdin("hello latticefs v3\n")
@@ -102,12 +109,34 @@ fn cli_flow_basic() {
         .success()
         .stdout(predicate::str::contains("Revised"));
 
+    // revise again (auto-advance v3 draft -> discarded)
+    fs::write(&file_path, b"hello latticefs v4\n").unwrap();
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["revise", &object_id, file_path.to_str().unwrap(), "-m", "final update"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Revised"));
+
+    // seal current version (v4) and ensure updates are blocked
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["state", "set", &format!("{}@v4", object_id), "sealed"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("sealed"));
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["revise", &object_id, file_path.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("sealed"));
+
     // versions
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["versions", &object_id])
         .assert()
         .success()
-        .stdout(predicate::str::contains("v3"));
+        .stdout(predicate::str::contains("v4"))
+        .stdout(predicate::str::contains("state=approved"))
+        .stdout(predicate::str::contains("state=discarded"));
 
     // trust set/get
     lfs_cmd(&lattice_home, &xdg_home)

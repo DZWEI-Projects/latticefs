@@ -1,8 +1,9 @@
 //! Repository access helpers for LatticeFS.
 
-use crate::config::{Config, default_home};
+use crate::config::{default_home, Config};
 use crate::error::{LatticeError, Result};
-use crate::storage::{ChunkManifest, ChunkStore, MetadataStore};
+use crate::model::{ActorID, ObjectID, State, Version};
+use crate::storage::{ChunkManifest, ChunkStore, Hash, MetadataStore};
 use std::path::{Path, PathBuf};
 
 /// Opened LatticeFS repository.
@@ -52,6 +53,82 @@ impl LatticeRepo {
     /// Store bytes and return the manifest (chunks already written).
     pub async fn store_object_data(&self, data: &[u8]) -> Result<ChunkManifest> {
         self.chunks.store_object(data).await
+    }
+
+    /// Add a new version for an existing object using raw bytes.
+    pub async fn add_version_from_bytes(
+        &self,
+        object_id: &ObjectID,
+        data: &[u8],
+        actor: ActorID,
+        message: Option<String>,
+    ) -> Result<Version> {
+        let manifest = self.chunks.store_object(data).await?;
+        let manifest_ref = self.metadata.store_manifest(&manifest)?;
+        self.add_version_from_manifest(object_id, &manifest, manifest_ref, data.len() as u64, actor, message)
+    }
+
+    /// Add a new version for an existing object using an existing manifest.
+    pub fn add_version_from_manifest(
+        &self,
+        object_id: &ObjectID,
+        manifest: &ChunkManifest,
+        manifest_ref: Hash,
+        size_bytes: u64,
+        actor: ActorID,
+        message: Option<String>,
+    ) -> Result<Version> {
+        let mut object = self.metadata.load_object(object_id)?;
+        let mut current = self.metadata.load_version(&object.current_version)?;
+
+        if current.state == State::Sealed {
+            return Err(LatticeError::ObjectSealed {
+                id: object_id.to_string(),
+            });
+        }
+
+        let mut updated_current = false;
+        match current.state {
+            State::Review => {
+                current.transition_state(State::Approved).map_err(|_| {
+                    LatticeError::InvalidStateTransition {
+                        from: "review".to_string(),
+                        to: "approved".to_string(),
+                    }
+                })?;
+                updated_current = true;
+            }
+            State::Draft => {
+                current.transition_state(State::Discarded).map_err(|_| {
+                    LatticeError::InvalidStateTransition {
+                        from: "draft".to_string(),
+                        to: "discarded".to_string(),
+                    }
+                })?;
+                updated_current = true;
+            }
+            _ => {}
+        }
+
+        if updated_current {
+            self.metadata.store_version(&current)?;
+        }
+
+        let version = Version::new(
+            *object_id,
+            Some(object.current_version),
+            manifest.merkle_root,
+            manifest_ref,
+            actor,
+            size_bytes,
+            manifest.chunks.len() as u32,
+            message,
+        );
+
+        object.add_version(version.id);
+        self.metadata.store_version(&version)?;
+        self.metadata.store_object(&object)?;
+        Ok(version)
     }
 }
 

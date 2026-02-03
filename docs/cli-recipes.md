@@ -160,6 +160,25 @@ Goal: write new content from stdin (useful in pipelines).
 cat ./report.md | lfs revise <object-id> --stdin -m "fix typos"
 ```
 
+## Set version state / lock updates
+Old way: use manual conventions like “FINAL” in filenames.
+
+LatticeFS way: set explicit version states.
+
+Goal: mark a version as review.
+
+```bash
+lfs state set <object-id>@v2 review
+```
+
+Goal: seal the current version (prevents new versions).
+
+```bash
+lfs state set <object-id> sealed
+```
+
+Note: when a version is `sealed`, attempts to create a new version will fail.
+
 ## Create and use views
 Old way: build directory trees as “views” (often duplicating files).
 

@@ -33,6 +33,8 @@ pub enum Token {
     Draft,
     Review,
     Approved,
+    Discarded,
+    Sealed,
     Archived,
 
     // Trust levels
@@ -94,6 +96,8 @@ impl std::fmt::Display for Token {
             Token::Draft => write!(f, "draft"),
             Token::Review => write!(f, "review"),
             Token::Approved => write!(f, "approved"),
+            Token::Discarded => write!(f, "discarded"),
+            Token::Sealed => write!(f, "sealed"),
             Token::Archived => write!(f, "archived"),
             Token::Untrusted => write!(f, "untrusted"),
             Token::Quarantined => write!(f, "quarantined"),
@@ -402,6 +406,8 @@ impl<'a> Lexer<'a> {
                             "draft" => Token::Draft,
                             "review" => Token::Review,
                             "approved" => Token::Approved,
+                            "discarded" => Token::Discarded,
+                            "sealed" => Token::Sealed,
                             "archived" => Token::Archived,
                             "untrusted" => Token::Untrusted,
                             "quarantined" => Token::Quarantined,

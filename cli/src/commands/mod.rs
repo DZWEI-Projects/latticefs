@@ -13,6 +13,7 @@ pub mod mount;
 pub mod policy;
 pub mod revoke;
 pub mod revise;
+pub mod state;
 pub mod share;
 pub mod shares;
 pub mod system;
@@ -37,6 +38,7 @@ pub enum Command {
     Restore(versions::RestoreArgs),
     Checkout(checkout::CheckoutArgs),
     Revise(revise::ReviseArgs),
+    State(state::StateArgs),
     View(view::ViewArgs),
     Share(share::ShareCommand),
     Revoke(revoke::RevokeArgs),

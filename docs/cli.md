@@ -265,6 +265,32 @@ v1 <version-id> parent=none size=1234 state=approved
 v2 <version-id> parent=<version-id> size=1240 state=approved
 ```
 
+### `lfs state set <ref>[@version] <state>`
+Set the workflow state for a specific version (defaults to current version when no `@version` is provided).
+
+Valid states: `draft`, `review`, `approved`, `discarded`, `sealed`, `archived`.
+Setting a version to `sealed` prevents new versions from being created while it is current.
+
+Example (explicit version):
+```bash
+lfs state set <object-id>@v2 review
+```
+
+Example output:
+```text
+Set state draft -> review for <version-id>
+```
+
+Example (current version):
+```bash
+lfs state set <object-id> sealed
+```
+
+Example output:
+```text
+Set state draft -> sealed for <version-id>
+```
+
 ### `lfs diff <ref@v1> <ref@v2>` or `lfs diff <ref> <v1> <v2>`
 Diff two versions (text or binary). The versions can be from the **same object** or **different objects**.
 

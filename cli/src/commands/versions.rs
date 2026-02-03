@@ -64,26 +64,21 @@ pub async fn restore(repo: LatticeRepo, args: RestoreArgs) -> Result<()> {
         Err(_) => [0u8; 32],
     };
 
-    let mut object = repo
+    repo
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
     let target = repo.metadata.load_version(&version_id)?;
+    let manifest = repo.metadata.load_manifest(&target.manifest_ref)?;
 
-    let new_version = Version::new(
-        object_id,
-        Some(object.current_version),
-        target.chunk_root,
+    let new_version = repo.add_version_from_manifest(
+        &object_id,
+        &manifest,
         target.manifest_ref,
-        actor,
         target.size_bytes,
-        target.chunk_count,
+        actor,
         Some(format!("restore {}", version_id)),
-    );
-
-    object.add_version(new_version.id);
-    repo.metadata.store_version(&new_version)?;
-    repo.metadata.store_object(&object)?;
+    )?;
 
     println!("Restored {} to new version {}", object_id, new_version.id);
     Ok(())

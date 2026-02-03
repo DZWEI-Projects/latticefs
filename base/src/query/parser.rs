@@ -222,6 +222,14 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 State::Approved
             }
+            Token::Discarded => {
+                self.advance()?;
+                State::Discarded
+            }
+            Token::Sealed => {
+                self.advance()?;
+                State::Sealed
+            }
             Token::Archived => {
                 self.advance()?;
                 State::Archived
@@ -230,7 +238,7 @@ impl<'a> Parser<'a> {
                 return Err(LatticeError::ParseError {
                     position: self.lexer.position(),
                     message: format!(
-                        "Expected state value (draft|review|approved|archived), got {:?}",
+                        "Expected state value (draft|review|approved|discarded|sealed|archived), got {:?}",
                         self.current
                     ),
                 })
