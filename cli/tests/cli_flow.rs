@@ -50,13 +50,6 @@ fn cli_flow_basic() {
         .to_string();
     uuid::Uuid::parse_str(&object_id).expect("valid uuid");
 
-    // versions
-    lfs_cmd(&lattice_home, &xdg_home)
-        .args(["versions", &object_id])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("v1"));
-
     // view create
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["view", "create", "Images", "--query", "type:text/plain"])
@@ -86,6 +79,29 @@ fn cli_flow_basic() {
     let exported = fs::read(&export_path).unwrap();
     assert_eq!(exported, b"hello latticefs\n");
 
+    // revise content (new version)
+    fs::write(&file_path, b"hello latticefs v2\n").unwrap();
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["revise", &object_id, file_path.to_str().unwrap(), "-m", "update"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Revised"));
+
+    // revise content via stdin (new version)
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["revise", &object_id, "--stdin", "-m", "stdin update"])
+        .write_stdin("hello latticefs v3\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Revised"));
+
+    // versions
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["versions", &object_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("v3"));
+
     // trust set/get
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["trust", "set", &object_id, "quarantined"])
@@ -97,16 +113,16 @@ fn cli_flow_basic() {
         .success()
         .stdout(predicate::str::contains("quarantined"));
 
-    // diff
+    // diff (explicit refs)
     lfs_cmd(&lattice_home, &xdg_home)
-        .args(["diff", &format!("{}@v1", object_id), &format!("{}@v1", object_id)])
+        .args(["diff", &format!("{}@v1", object_id), &format!("{}@v2", object_id)])
         .assert()
         .success()
-        .stdout(predicate::str::contains("No differences"));
+        .stdout(predicate::str::contains("---"));
 
     // diff shorthand (same object)
     lfs_cmd(&lattice_home, &xdg_home)
-        .args(["diff", &object_id, "v1", "v1"])
+        .args(["diff", &object_id, "v2", "v2"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No differences"));

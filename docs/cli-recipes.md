@@ -137,6 +137,23 @@ Goal: move “current” pointer to a specific version.
 lfs checkout <object-id>@v2
 ```
 
+## Update object content (new version)
+Old way: edit a file in place, with no history unless you make a copy.
+
+LatticeFS way: create a new **version** under the same object ID.
+
+Goal: write new content for an existing object.
+
+```bash
+lfs revise <object-id> ./report.md -m "fix typos"
+```
+
+Goal: write new content from stdin (useful in pipelines).
+
+```bash
+cat ./report.md | lfs revise <object-id> --stdin -m "fix typos"
+```
+
 ## Create and use views
 Old way: build directory trees as “views” (often duplicating files).
 

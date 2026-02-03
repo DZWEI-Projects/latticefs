@@ -206,6 +206,29 @@ hello latticefs
 
 ## Versioning
 
+### `lfs revise <ref> <file> [-m <message>]` or `lfs revise <ref> --stdin [-m <message>]`
+Create a **new version** for an existing object using the content of a file or stdin.
+
+Example:
+```bash
+lfs revise <object-id> ./report.md -m "fix typos"
+```
+
+Example output:
+```text
+Revised <object-id> to new version <version-id>
+```
+
+Example (stdin):
+```bash
+cat ./report.md | lfs revise <object-id> --stdin -m "fix typos"
+```
+
+Example output:
+```text
+Revised <object-id> to new version <version-id>
+```
+
 ### `lfs versions <ref> [--graph]`
 List versions for an object.
 

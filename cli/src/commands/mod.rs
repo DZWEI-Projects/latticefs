@@ -12,6 +12,7 @@ pub mod link;
 pub mod mount;
 pub mod policy;
 pub mod revoke;
+pub mod revise;
 pub mod share;
 pub mod shares;
 pub mod system;
@@ -33,6 +34,7 @@ pub enum Command {
     Diff(diff::DiffArgs),
     Restore(versions::RestoreArgs),
     Checkout(checkout::CheckoutArgs),
+    Revise(revise::ReviseArgs),
     View(view::ViewArgs),
     Share(share::ShareCommand),
     Revoke(revoke::RevokeArgs),
