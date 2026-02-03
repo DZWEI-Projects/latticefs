@@ -44,6 +44,7 @@ pub enum Token {
     Within,
     Before,
     After,
+    Between,
 
     // Comparison operators
     Eq, // =
@@ -64,6 +65,7 @@ pub enum Token {
     Identifier(String),
     Number(i64),
     Duration(Duration),
+    Timestamp(String),
     String(String),
 
     // End of input
@@ -99,6 +101,7 @@ impl std::fmt::Display for Token {
             Token::Within => write!(f, "within"),
             Token::Before => write!(f, "before"),
             Token::After => write!(f, "after"),
+            Token::Between => write!(f, "between"),
             Token::Eq => write!(f, "="),
             Token::Ne => write!(f, "!="),
             Token::Gt => write!(f, ">"),
@@ -113,6 +116,7 @@ impl std::fmt::Display for Token {
             Token::Identifier(s) => write!(f, "{}", s),
             Token::Number(n) => write!(f, "{}", n),
             Token::Duration(d) => write!(f, "{}s", d.as_secs()),
+            Token::Timestamp(s) => write!(f, "{}", s),
             Token::String(s) => write!(f, "\"{}\"", s),
             Token::Eof => write!(f, "EOF"),
         }
@@ -201,6 +205,21 @@ impl<'a> Lexer<'a> {
             }
         }
         self.input[start..self.pos].parse().unwrap_or(0)
+    }
+
+    /// Read a timestamp-like token starting at the current position.
+    fn read_timestamp(&mut self) -> String {
+        let start = self.pos;
+        while let Some(c) = self.peek() {
+            if c.is_ascii_digit()
+                || matches!(c, '-' | 'T' | ':' | 'Z' | '+' | '.')
+            {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.input[start..self.pos].to_string()
     }
 
     /// Read a string literal.
@@ -315,6 +334,13 @@ impl<'a> Lexer<'a> {
                     _ if c.is_ascii_digit() => {
                         let num = self.read_number();
 
+                        // If next char indicates timestamp, read full timestamp.
+                        if matches!(self.peek(), Some('-' | 'T' | ':' | 'Z' | '+' | '.')) {
+                            let mut timestamp = num.to_string();
+                            timestamp.push_str(&self.read_timestamp());
+                            return Ok(Token::Timestamp(timestamp));
+                        }
+
                         // Check for duration suffix
                         if let Some(suffix) = self.peek() {
                             let duration = match suffix {
@@ -383,6 +409,7 @@ impl<'a> Lexer<'a> {
                             "within" => Token::Within,
                             "before" => Token::Before,
                             "after" => Token::After,
+                            "between" => Token::Between,
                             _ => Token::Identifier(ident),
                         };
 
@@ -501,6 +528,19 @@ mod tests {
         let mut lexer = Lexer::new("123 456");
         assert_eq!(lexer.next_token().unwrap(), Token::Number(123));
         assert_eq!(lexer.next_token().unwrap(), Token::Number(456));
+    }
+
+    #[test]
+    fn test_timestamp() {
+        let mut lexer = Lexer::new("2025-01-15 2025-01-15T10:30:00Z");
+        assert_eq!(
+            lexer.next_token().unwrap(),
+            Token::Timestamp("2025-01-15".to_string())
+        );
+        assert_eq!(
+            lexer.next_token().unwrap(),
+            Token::Timestamp("2025-01-15T10:30:00Z".to_string())
+        );
     }
 
     #[test]

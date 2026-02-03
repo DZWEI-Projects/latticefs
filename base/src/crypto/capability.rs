@@ -151,6 +151,130 @@ pub struct Facts {
     pub custom: std::collections::HashMap<String, serde_json::Value>,
 }
 
+/// Revocation entry for a UCAN capability.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Revocation {
+    /// CID of the revoked UCAN.
+    pub ucan_cid: String,
+    /// Revocation time (Unix seconds).
+    pub revoked_at: u64,
+    /// DID of revoker.
+    pub revoked_by: String,
+    /// Optional reason.
+    pub reason: Option<String>,
+    /// Signature over the revocation payload.
+    pub signature: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RevocationPayload<'a> {
+    ucan_cid: &'a str,
+    revoked_at: u64,
+    revoked_by: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: &'a Option<String>,
+}
+
+impl Revocation {
+    /// Create a signed revocation entry.
+    pub fn new(ucan_cid: String, revoker: &Identity, reason: Option<String>) -> Result<Self> {
+        let revoked_at = current_timestamp();
+        let revoked_by = revoker.did();
+
+        let payload = RevocationPayload {
+            ucan_cid: &ucan_cid,
+            revoked_at,
+            revoked_by: &revoked_by,
+            reason: &reason,
+        };
+
+        let bytes = serde_json::to_vec(&payload)
+            .map_err(|e| LatticeError::Serialization(format!("Revocation serialize: {}", e)))?;
+
+        let signature = revoker.sign(&bytes).to_bytes().to_vec();
+
+        Ok(Self {
+            ucan_cid,
+            revoked_at,
+            revoked_by,
+            reason,
+            signature,
+        })
+    }
+
+    /// Verify the revocation signature.
+    pub fn verify(&self) -> Result<()> {
+        let payload = RevocationPayload {
+            ucan_cid: &self.ucan_cid,
+            revoked_at: self.revoked_at,
+            revoked_by: &self.revoked_by,
+            reason: &self.reason,
+        };
+
+        let bytes = serde_json::to_vec(&payload)
+            .map_err(|e| LatticeError::Serialization(format!("Revocation serialize: {}", e)))?;
+
+        let issuer_key = public_key_from_did(&self.revoked_by)?;
+        let signature_bytes: [u8; 64] = self
+            .signature
+            .as_slice()
+            .try_into()
+            .map_err(|_| LatticeError::InvalidRevocationSignature)?;
+        let signature = Signature::from_bytes(&signature_bytes);
+
+        issuer_key
+            .verify(bytes.as_ref(), &signature)
+            .map_err(|_| LatticeError::InvalidRevocationSignature)
+    }
+}
+
+/// In-memory revocation list.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RevocationList {
+    pub revocations: Vec<Revocation>,
+}
+
+impl RevocationList {
+    /// Add a revocation (verifies signature).
+    pub fn add(&mut self, revocation: Revocation) -> Result<()> {
+        revocation.verify()?;
+        if !self
+            .revocations
+            .iter()
+            .any(|r| r.ucan_cid == revocation.ucan_cid)
+        {
+            self.revocations.push(revocation);
+        }
+        Ok(())
+    }
+
+    /// Check if a CID is revoked (verifies signature).
+    pub fn is_revoked(&self, cid: &str) -> Result<bool> {
+        if let Some(revocation) = self.revocations.iter().find(|r| r.ucan_cid == cid) {
+            revocation.verify()?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+}
+
+/// Interface for revocation checking.
+pub trait RevocationChecker {
+    fn is_revoked(&self, cid: &str) -> Result<bool>;
+}
+
+impl RevocationChecker for RevocationList {
+    fn is_revoked(&self, cid: &str) -> Result<bool> {
+        self.is_revoked(cid)
+    }
+}
+
+impl RevocationChecker for crate::storage::MetadataStore {
+    fn is_revoked(&self, cid: &str) -> Result<bool> {
+        crate::storage::MetadataStore::is_revoked(self, cid)
+    }
+}
+
 /// UCAN payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UcanPayload {
@@ -223,6 +347,12 @@ impl Capability {
         Self::sign(header, payload, issuer)
     }
 
+    /// Compute the CID of this capability (BLAKE3 of token).
+    pub fn cid(&self) -> String {
+        let hash = blake3::hash(self.token.as_bytes());
+        hex::encode(hash.as_bytes())
+    }
+
     /// Sign a UCAN with the given header and payload.
     fn sign(header: UcanHeader, payload: UcanPayload, issuer: &Identity) -> Result<Self> {
         let header_json = serde_json::to_string(&header)
@@ -282,7 +412,7 @@ impl Capability {
     /// Validate the capability.
     ///
     /// Checks signature, expiration, and proof chain.
-    pub fn validate(&self) -> Result<()> {
+    pub fn validate<R: RevocationChecker>(&self, revocations: &R) -> Result<()> {
         // Check signature
         self.verify_signature()?;
 
@@ -299,8 +429,13 @@ impl Capability {
             }
         }
 
+        // Check revocation
+        if revocations.is_revoked(&self.cid())? {
+            return Err(LatticeError::CapabilityRevoked);
+        }
+
         // Verify proof chain
-        self.verify_proof_chain(0)?;
+        self.verify_proof_chain(0, revocations)?;
 
         Ok(())
     }
@@ -326,7 +461,7 @@ impl Capability {
     }
 
     /// Verify the proof chain recursively.
-    fn verify_proof_chain(&self, depth: usize) -> Result<()> {
+    fn verify_proof_chain<R: RevocationChecker>(&self, depth: usize, revocations: &R) -> Result<()> {
         if depth > MAX_PROOF_CHAIN_DEPTH {
             return Err(LatticeError::InvalidProofChain(format!(
                 "Proof chain too deep: max {} levels",
@@ -338,7 +473,7 @@ impl Capability {
             let proof = Capability::parse(proof_token)?;
 
             // Validate the proof
-            proof.validate()?;
+            proof.validate(revocations)?;
 
             // Verify delegation chain: this UCAN's issuer must be the proof's audience
             if self.payload.iss != proof.payload.aud {
@@ -362,7 +497,7 @@ impl Capability {
             }
 
             // Recursively verify the proof's chain
-            proof.verify_proof_chain(depth + 1)?;
+            proof.verify_proof_chain(depth + 1, revocations)?;
         }
 
         Ok(())
@@ -377,7 +512,11 @@ impl Capability {
         new_audience: &PublicKey,
         attenuated_permission: Permission,
         expires_in: Duration,
+        revocations: &impl RevocationChecker,
     ) -> Result<Self> {
+        // Ensure this capability is valid before delegating.
+        self.validate(revocations)?;
+
         // Verify the delegator is the audience of this UCAN
         if delegator.did() != self.payload.aud {
             return Err(LatticeError::Unauthorized {
@@ -436,6 +575,58 @@ impl Capability {
             .any(|a| a.with == object_uri && a.can.includes(&permission))
     }
 
+    /// Get the object ID this capability refers to (if any).
+    pub fn object_id(&self) -> Option<ObjectID> {
+        if let Some(sub) = &self.payload.sub {
+            if let Some(id) = object_id_from_resource(sub) {
+                return Some(id);
+            }
+        }
+
+        self.payload
+            .att
+            .iter()
+            .find_map(|a| object_id_from_resource(&a.with))
+    }
+
+    /// Create a signed revocation for this capability.
+    pub fn revoke<R: RevocationChecker>(
+        &self,
+        revoker: &Identity,
+        reason: Option<String>,
+        admin_capability: Option<&Capability>,
+        revocations: &R,
+    ) -> Result<Revocation> {
+        if revoker.did() != self.payload.iss {
+            let admin = admin_capability.ok_or_else(|| LatticeError::Unauthorized {
+                permission: "revoke".to_string(),
+                object: "capability".to_string(),
+            })?;
+
+            admin.validate(revocations)?;
+
+            if admin.payload.aud != revoker.did() {
+                return Err(LatticeError::Unauthorized {
+                    permission: "revoke".to_string(),
+                    object: "capability".to_string(),
+                });
+            }
+
+            let object_id = self.object_id().ok_or_else(|| LatticeError::InvalidPredicate(
+                "Capability missing object subject".to_string(),
+            ))?;
+
+            if !admin.has_permission(&object_id, Permission::Admin) {
+                return Err(LatticeError::Unauthorized {
+                    permission: "admin".to_string(),
+                    object: object_id.to_string(),
+                });
+            }
+        }
+
+        Revocation::new(self.cid(), revoker, reason)
+    }
+
     /// Get the issuer's DID.
     pub fn issuer(&self) -> &str {
         &self.payload.iss
@@ -463,6 +654,17 @@ fn current_timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+fn object_id_from_resource(resource: &str) -> Option<ObjectID> {
+    if resource.starts_with("latticefs:object:") {
+        let id_str = &resource[17..];
+        uuid::Uuid::parse_str(id_str)
+            .ok()
+            .map(ObjectID::from_uuid)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -523,7 +725,8 @@ mod tests {
         )
         .unwrap();
 
-        assert!(cap.validate().is_ok());
+        let revocations = RevocationList::default();
+        assert!(cap.validate(&revocations).is_ok());
     }
 
     #[test]
@@ -543,7 +746,11 @@ mod tests {
         .unwrap();
 
         assert!(cap.is_expired());
-        assert!(matches!(cap.validate(), Err(LatticeError::CapabilityExpired)));
+        let revocations = RevocationList::default();
+        assert!(matches!(
+            cap.validate(&revocations),
+            Err(LatticeError::CapabilityExpired)
+        ));
     }
 
     #[test]
@@ -565,11 +772,17 @@ mod tests {
 
         // Bob delegates to Charlie with Read permission (attenuation)
         let charlie_cap = bob_cap
-            .delegate(&bob, &charlie, Permission::Read, Duration::from_secs(1800))
+            .delegate(
+                &bob,
+                &charlie,
+                Permission::Read,
+                Duration::from_secs(1800),
+                &RevocationList::default(),
+            )
             .unwrap();
 
         // Validate the delegated capability
-        assert!(charlie_cap.validate().is_ok());
+        assert!(charlie_cap.validate(&RevocationList::default()).is_ok());
         assert!(charlie_cap.has_permission(&object_id, Permission::Read));
         assert!(!charlie_cap.has_permission(&object_id, Permission::Write));
     }
@@ -592,7 +805,13 @@ mod tests {
         .unwrap();
 
         // Bob tries to delegate to Charlie with Write permission (escalation - should fail)
-        let result = bob_cap.delegate(&bob, &charlie, Permission::Write, Duration::from_secs(1800));
+        let result = bob_cap.delegate(
+            &bob,
+            &charlie,
+            Permission::Write,
+            Duration::from_secs(1800),
+            &RevocationList::default(),
+        );
 
         assert!(matches!(result, Err(LatticeError::InvalidAttenuation { .. })));
     }
@@ -641,8 +860,100 @@ mod tests {
         .unwrap();
 
         // Mallory (not the audience) tries to delegate
-        let result = bob_cap.delegate(&mallory, &charlie, Permission::Read, Duration::from_secs(1800));
+        let result = bob_cap.delegate(
+            &mallory,
+            &charlie,
+            Permission::Read,
+            Duration::from_secs(1800),
+            &RevocationList::default(),
+        );
 
         assert!(matches!(result, Err(LatticeError::Unauthorized { .. })));
+    }
+
+    #[test]
+    fn test_revocation_signature() {
+        let alice = Identity::generate("alice");
+        let object_id = ObjectID::new();
+
+        let cap = Capability::create(
+            &alice,
+            &PublicKey::new(Identity::generate("bob").verifying_key),
+            &object_id,
+            Permission::Read,
+            Duration::from_secs(3600),
+        )
+        .unwrap();
+
+        let revocation = cap
+            .revoke(&alice, Some("test".to_string()), None, &RevocationList::default())
+            .unwrap();
+
+        assert!(revocation.verify().is_ok());
+    }
+
+    #[test]
+    fn test_revocation_blocks_validation() {
+        let alice = Identity::generate("alice");
+        let bob = PublicKey::new(Identity::generate("bob").verifying_key);
+        let object_id = ObjectID::new();
+
+        let cap = Capability::create(
+            &alice,
+            &bob,
+            &object_id,
+            Permission::Read,
+            Duration::from_secs(3600),
+        )
+        .unwrap();
+
+        let mut revocations = RevocationList::default();
+        let rev = cap
+            .revoke(&alice, None, None, &RevocationList::default())
+            .unwrap();
+        revocations.add(rev).unwrap();
+
+        assert!(matches!(
+            cap.validate(&revocations),
+            Err(LatticeError::CapabilityRevoked)
+        ));
+    }
+
+    #[test]
+    fn test_revocation_cascades() {
+        let alice = Identity::generate("alice");
+        let bob = Identity::generate("bob");
+        let charlie = PublicKey::new(Identity::generate("charlie").verifying_key);
+        let object_id = ObjectID::new();
+
+        let parent = Capability::create(
+            &alice,
+            &PublicKey::new(bob.verifying_key),
+            &object_id,
+            Permission::Write,
+            Duration::from_secs(3600),
+        )
+        .unwrap();
+
+        let child = parent
+            .delegate(
+                &bob,
+                &charlie,
+                Permission::Read,
+                Duration::from_secs(1800),
+                &RevocationList::default(),
+            )
+            .unwrap();
+
+        let mut revocations = RevocationList::default();
+        let rev = parent
+            .revoke(&alice, None, None, &RevocationList::default())
+            .unwrap();
+        revocations.add(rev).unwrap();
+
+        assert!(matches!(
+            child.validate(&revocations),
+            Err(LatticeError::CapabilityRevoked)
+        ));
     }
 }

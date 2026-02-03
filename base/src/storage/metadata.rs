@@ -14,6 +14,9 @@ pub struct MetadataStore {
     tags: Tree,
     #[allow(dead_code)] // Used in Phase 3
     links: Tree,
+    capabilities: Tree,
+    revocations: Tree,
+    aliases: Tree,
 }
 
 impl MetadataStore {
@@ -26,6 +29,9 @@ impl MetadataStore {
         let manifests = db.open_tree("manifests")?;
         let tags = db.open_tree("tags")?;
         let links = db.open_tree("links")?;
+        let capabilities = db.open_tree("capabilities")?;
+        let revocations = db.open_tree("revocations")?;
+        let aliases = db.open_tree("aliases")?;
 
         Ok(MetadataStore {
             db,
@@ -34,6 +40,9 @@ impl MetadataStore {
             manifests,
             tags,
             links,
+            capabilities,
+            revocations,
+            aliases,
         })
     }
 
@@ -177,6 +186,23 @@ impl MetadataStore {
         }
     }
 
+    /// Set an alias for an object (overwrites existing alias).
+    pub fn set_alias(&self, alias: &str, object_id: &[u8]) -> Result<()> {
+        self.aliases.insert(alias.as_bytes(), object_id)?;
+        Ok(())
+    }
+
+    /// Resolve an alias to an object ID.
+    pub fn resolve_alias(&self, alias: &str) -> Result<Option<Vec<u8>>> {
+        Ok(self.aliases.get(alias.as_bytes())?.map(|v| v.to_vec()))
+    }
+
+    /// Delete an alias.
+    pub fn delete_alias(&self, alias: &str) -> Result<()> {
+        self.aliases.remove(alias.as_bytes())?;
+        Ok(())
+    }
+
     /// Flush all pending writes to disk
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
@@ -216,11 +242,92 @@ impl MetadataStore {
                 .map_err(LatticeError::from)
         })
     }
+
+    /// Store a capability token by its CID.
+    pub fn store_capability(&self, capability: &crate::crypto::Capability) -> Result<()> {
+        let cid = capability.cid();
+        self.capabilities
+            .insert(cid.as_bytes(), capability.token.as_bytes())?;
+        Ok(())
+    }
+
+    /// Load a capability token by its CID.
+    pub fn load_capability(&self, cid: &str) -> Result<crate::crypto::Capability> {
+        let data = self
+            .capabilities
+            .get(cid.as_bytes())?
+            .ok_or_else(|| LatticeError::CapabilityNotFound {
+                cid: cid.to_string(),
+            })?;
+
+        let token = std::str::from_utf8(&data)
+            .map_err(|e| LatticeError::Serialization(format!("Invalid UTF-8 token: {}", e)))?;
+
+        crate::crypto::Capability::parse(token)
+    }
+
+    /// Delete a capability token by its CID.
+    pub fn delete_capability(&self, cid: &str) -> Result<()> {
+        self.capabilities.remove(cid.as_bytes())?;
+        Ok(())
+    }
+
+    /// Store a revocation entry.
+    pub fn store_revocation(&self, revocation: &crate::crypto::Revocation) -> Result<()> {
+        let data = serde_json::to_vec(revocation)
+            .map_err(|e| LatticeError::Serialization(format!("Revocation serialize: {}", e)))?;
+        self.revocations
+            .insert(revocation.ucan_cid.as_bytes(), data)?;
+        Ok(())
+    }
+
+    /// Load a revocation entry by CID.
+    pub fn load_revocation(&self, cid: &str) -> Result<crate::crypto::Revocation> {
+        let data = self
+            .revocations
+            .get(cid.as_bytes())?
+            .ok_or_else(|| LatticeError::RevocationNotFound {
+                cid: cid.to_string(),
+            })?;
+
+        let revocation: crate::crypto::Revocation = serde_json::from_slice(&data).map_err(|e| {
+            LatticeError::Serialization(format!("Revocation deserialize: {}", e))
+        })?;
+
+        Ok(revocation)
+    }
+
+    /// Check if a capability CID is revoked (verifies signature).
+    pub fn is_revoked(&self, cid: &str) -> Result<bool> {
+        match self.revocations.get(cid.as_bytes())? {
+            Some(data) => {
+                let revocation: crate::crypto::Revocation =
+                    serde_json::from_slice(&data).map_err(|e| {
+                        LatticeError::Serialization(format!("Revocation deserialize: {}", e))
+                    })?;
+                revocation.verify()?;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    /// Iterate over all revocations.
+    pub fn iter_revocations(&self) -> impl Iterator<Item = Result<crate::crypto::Revocation>> + '_ {
+        self.revocations.iter().map(|item| {
+            item.map_err(LatticeError::from).and_then(|(_k, v)| {
+                serde_json::from_slice::<crate::crypto::Revocation>(&v).map_err(|e| {
+                    LatticeError::Serialization(format!("Revocation deserialize: {}", e))
+                })
+            })
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::{Capability, Identity, Permission, PublicKey, RevocationList};
     use crate::storage::chunks::{ChunkManifest, ChunkRef};
 
     #[test]
@@ -270,5 +377,74 @@ mod tests {
 
         let results = store.query_by_tag(tag).unwrap();
         assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn test_capability_store_load() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let issuer = Identity::generate("alice");
+        let audience = PublicKey::new(Identity::generate("bob").verifying_key);
+        let object_id = crate::model::ObjectID::new();
+
+        let cap = Capability::create(
+            &issuer,
+            &audience,
+            &object_id,
+            Permission::Read,
+            std::time::Duration::from_secs(3600),
+        )
+        .unwrap();
+
+        store.store_capability(&cap).unwrap();
+        let loaded = store.load_capability(&cap.cid()).unwrap();
+        assert_eq!(loaded.token, cap.token);
+    }
+
+    #[test]
+    fn test_revocation_store() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let issuer = Identity::generate("alice");
+        let audience = PublicKey::new(Identity::generate("bob").verifying_key);
+        let object_id = crate::model::ObjectID::new();
+
+        let cap = Capability::create(
+            &issuer,
+            &audience,
+            &object_id,
+            Permission::Read,
+            std::time::Duration::from_secs(3600),
+        )
+        .unwrap();
+
+        let revocation = cap
+            .revoke(&issuer, None, None, &RevocationList::default())
+            .unwrap();
+
+        store.store_revocation(&revocation).unwrap();
+        assert!(store.is_revoked(&cap.cid()).unwrap());
+
+        let loaded = store.load_revocation(&cap.cid()).unwrap();
+        assert_eq!(loaded.ucan_cid, revocation.ucan_cid);
+        assert!(loaded.verify().is_ok());
+    }
+
+    #[test]
+    fn test_alias_store_resolve() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let object_id = crate::model::ObjectID::new();
+        let alias = "project-readme";
+
+        store.set_alias(alias, object_id.as_bytes()).unwrap();
+        let resolved = store.resolve_alias(alias).unwrap().unwrap();
+        assert_eq!(resolved, object_id.as_bytes());
+
+        store.delete_alias(alias).unwrap();
+        assert!(store.resolve_alias(alias).unwrap().is_none());
     }
 }

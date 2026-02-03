@@ -7,6 +7,8 @@ use crate::error::{LatticeError, Result};
 use crate::model::{ObjectID, State};
 use crate::query::ast::*;
 use crate::query::lexer::{Lexer, Token};
+use time::format_description::well_known::Rfc3339;
+use time::{Date, Month, OffsetDateTime, Time};
 
 /// LQL Parser.
 pub struct Parser<'a> {
@@ -74,24 +76,32 @@ impl<'a> Parser<'a> {
         Ok(Query { expr, order, limit })
     }
 
-    /// Parse: expr = term ((AND | OR) term)*
+    /// Parse: expr = or_expr
     fn parse_expr(&mut self) -> Result<Expr> {
+        self.parse_or()
+    }
+
+    /// Parse: or_expr = and_expr (OR and_expr)*
+    fn parse_or(&mut self) -> Result<Expr> {
+        let mut left = self.parse_and()?;
+
+        while matches!(self.current(), Token::Or) {
+            self.advance()?;
+            let right = self.parse_and()?;
+            left = Expr::or(left, right);
+        }
+
+        Ok(left)
+    }
+
+    /// Parse: and_expr = term (AND term)*
+    fn parse_and(&mut self) -> Result<Expr> {
         let mut left = self.parse_term()?;
 
-        loop {
-            match self.current() {
-                Token::And => {
-                    self.advance()?;
-                    let right = self.parse_term()?;
-                    left = Expr::and(left, right);
-                }
-                Token::Or => {
-                    self.advance()?;
-                    let right = self.parse_term()?;
-                    left = Expr::or(left, right);
-                }
-                _ => break,
-            }
+        while matches!(self.current(), Token::And) {
+            self.advance()?;
+            let right = self.parse_term()?;
+            left = Expr::and(left, right);
         }
 
         Ok(left)
@@ -157,7 +167,29 @@ impl<'a> Parser<'a> {
         self.expect(Token::Type)?;
         self.expect(Token::Colon)?;
 
-        let major = self.parse_identifier()?;
+        // Support type:* (match all)
+        let major = if self.check(&Token::Star) {
+            self.advance()?;
+            return Ok(Predicate::Type {
+                mime: MimePattern {
+                    major: "*".to_string(),
+                    minor: None,
+                },
+            });
+        } else {
+            self.parse_identifier()?
+        };
+
+        if !self.check(&Token::Slash) {
+            // Shorthand: type:pdf -> application/pdf
+            return Ok(Predicate::Type {
+                mime: MimePattern {
+                    major: "application".to_string(),
+                    minor: Some(major),
+                },
+            });
+        }
+
         self.expect(Token::Slash)?;
 
         let minor = if self.check(&Token::Star) {
@@ -236,6 +268,10 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 TrustLevel::Numeric(n as u8)
             }
+            Token::Identifier(s) if s.to_lowercase() == "medium" => {
+                self.advance()?;
+                TrustLevel::Numeric(50)
+            }
             _ => {
                 return Err(LatticeError::ParseError {
                     position: self.lexer.position(),
@@ -279,33 +315,49 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 TimeOp::After
             }
+            Token::Between => {
+                self.advance()?;
+                TimeOp::Between
+            }
             _ => {
                 return Err(LatticeError::ParseError {
                     position: self.lexer.position(),
                     message: format!(
-                        "Expected time operator (within|before|after), got {:?}",
+                        "Expected time operator (within|before|after|between), got {:?}",
                         self.current
                     ),
                 })
             }
         };
 
-        let value = match self.current() {
-            Token::Duration(d) => {
-                let d = *d;
-                self.advance()?;
-                TimeValue::Duration(d)
+        let value = match op {
+            TimeOp::Within => {
+                let duration = match self.current() {
+                    Token::Duration(d) => {
+                        let d = *d;
+                        self.advance()?;
+                        d
+                    }
+                    _ => {
+                        return Err(LatticeError::ParseError {
+                            position: self.lexer.position(),
+                            message: format!(
+                                "Expected duration after 'within', got {:?}",
+                                self.current
+                            ),
+                        })
+                    }
+                };
+                TimeValue::Duration(duration)
             }
-            Token::Number(n) => {
-                let n = *n;
-                self.advance()?;
-                TimeValue::Timestamp(n)
+            TimeOp::Before | TimeOp::After => {
+                let timestamp = self.parse_timestamp_value()?;
+                TimeValue::Timestamp(timestamp)
             }
-            _ => {
-                return Err(LatticeError::ParseError {
-                    position: self.lexer.position(),
-                    message: format!("Expected duration or timestamp, got {:?}", self.current),
-                })
+            TimeOp::Between => {
+                let start = self.parse_timestamp_value()?;
+                let end = self.parse_timestamp_value()?;
+                TimeValue::Range { start, end }
             }
         };
 
@@ -349,6 +401,12 @@ impl<'a> Parser<'a> {
     /// Parse an object reference.
     fn parse_object_ref(&mut self) -> Result<ObjectRef> {
         match self.current() {
+            Token::Ref => {
+                // Allow references(ref:...) style
+                self.advance()?;
+                self.expect(Token::Colon)?;
+                self.parse_object_ref()
+            }
             Token::Identifier(s) => {
                 // Could be UUID or hash
                 let s = s.clone();
@@ -380,8 +438,7 @@ impl<'a> Parser<'a> {
             Token::String(s) => {
                 let s = s.clone();
                 self.advance()?;
-                // String could be alias or hash
-                Ok(ObjectRef::Hash(s))
+                Ok(ObjectRef::Alias(s))
             }
             _ => Err(LatticeError::ParseError {
                 position: self.lexer.position(),
@@ -498,6 +555,99 @@ impl<'a> Parser<'a> {
             }),
         }
     }
+
+    /// Parse a timestamp value and return Unix microseconds.
+    fn parse_timestamp_value(&mut self) -> Result<i64> {
+        let raw = match self.current() {
+            Token::Timestamp(s) => {
+                let s = s.clone();
+                self.advance()?;
+                s
+            }
+            Token::String(s) => {
+                let s = s.clone();
+                self.advance()?;
+                s
+            }
+            Token::Number(n) => {
+                let n = *n;
+                self.advance()?;
+                // Treat bare numbers as epoch seconds
+                return Ok(n * 1_000_000);
+            }
+            _ => {
+                return Err(LatticeError::ParseError {
+                    position: self.lexer.position(),
+                    message: format!("Expected timestamp, got {:?}", self.current),
+                })
+            }
+        };
+
+        parse_timestamp_to_micros(&raw).map_err(|e| LatticeError::ParseError {
+            position: self.lexer.position(),
+            message: format!("Invalid timestamp '{}': {}", raw, e),
+        })
+    }
+}
+
+fn parse_timestamp_to_micros(raw: &str) -> Result<i64> {
+    // RFC3339 / ISO 8601
+    if raw.contains('T') || raw.ends_with('Z') || raw.contains('+') || raw.contains(':') {
+        let dt = OffsetDateTime::parse(raw, &Rfc3339)
+            .map_err(|e| LatticeError::Serialization(format!("RFC3339 parse error: {}", e)))?;
+        return Ok(dt.unix_timestamp() * 1_000_000 + i64::from(dt.nanosecond() / 1000));
+    }
+
+    // YYYY-MM-DD
+    if raw.len() == 10 && raw.as_bytes().get(4) == Some(&b'-') && raw.as_bytes().get(7) == Some(&b'-') {
+        let year: i32 = raw[0..4].parse().map_err(|_| {
+            LatticeError::Serialization("Invalid year in date".to_string())
+        })?;
+        let month: u8 = raw[5..7].parse().map_err(|_| {
+            LatticeError::Serialization("Invalid month in date".to_string())
+        })?;
+        let day: u8 = raw[8..10].parse().map_err(|_| {
+            LatticeError::Serialization("Invalid day in date".to_string())
+        })?;
+
+        let date = Date::from_calendar_date(
+            year,
+            Month::try_from(month).map_err(|_| {
+                LatticeError::Serialization("Invalid month in date".to_string())
+            })?,
+            day,
+        )
+        .map_err(|e| LatticeError::Serialization(format!("Invalid date: {}", e)))?;
+
+        let dt = date.with_time(Time::MIDNIGHT).assume_utc();
+        return Ok(dt.unix_timestamp() * 1_000_000);
+    }
+
+    // YYYY-MM (start of month)
+    if raw.len() == 7 && raw.as_bytes().get(4) == Some(&b'-') {
+        let year: i32 = raw[0..4].parse().map_err(|_| {
+            LatticeError::Serialization("Invalid year in date".to_string())
+        })?;
+        let month: u8 = raw[5..7].parse().map_err(|_| {
+            LatticeError::Serialization("Invalid month in date".to_string())
+        })?;
+
+        let date = Date::from_calendar_date(
+            year,
+            Month::try_from(month).map_err(|_| {
+                LatticeError::Serialization("Invalid month in date".to_string())
+            })?,
+            1,
+        )
+        .map_err(|e| LatticeError::Serialization(format!("Invalid date: {}", e)))?;
+
+        let dt = date.with_time(Time::MIDNIGHT).assume_utc();
+        return Ok(dt.unix_timestamp() * 1_000_000);
+    }
+
+    Err(LatticeError::Serialization(
+        "Unsupported timestamp format".to_string(),
+    ))
 }
 
 /// Parse an LQL query string.
@@ -701,6 +851,18 @@ mod tests {
     }
 
     #[test]
+    fn test_ref_alias() {
+        let query = parse("ref:\"project-readme\"").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Ref { reference }) => {
+                assert!(matches!(reference, ObjectRef::Alias(_)));
+            }
+            _ => panic!("Expected ref predicate"),
+        }
+    }
+
+    #[test]
     fn test_parse_error() {
         let result = parse("tag:");
         assert!(result.is_err());
@@ -709,6 +871,76 @@ mod tests {
     #[test]
     fn test_trust_numeric() {
         let query = parse("trust >= 50").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Trust { op, level }) => {
+                assert_eq!(op, CompareOp::Ge);
+                assert_eq!(level, TrustLevel::Numeric(50));
+            }
+            _ => panic!("Expected trust predicate"),
+        }
+    }
+
+    #[test]
+    fn test_operator_precedence() {
+        let query = parse("tag:a OR tag:b AND tag:c").unwrap();
+
+        match query.expr {
+            Expr::Or(left, right) => {
+                assert!(matches!(*left, Expr::Predicate(Predicate::Tag { .. })));
+                assert!(matches!(*right, Expr::And(_, _)));
+            }
+            _ => panic!("Expected OR with AND on right due to precedence"),
+        }
+    }
+
+    #[test]
+    fn test_time_between() {
+        let query = parse("updated between 2025-01-01 2025-02-01").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Time { op, value, .. }) => {
+                assert_eq!(op, TimeOp::Between);
+                match value {
+                    TimeValue::Range { start, end } => {
+                        assert!(start < end);
+                    }
+                    _ => panic!("Expected range value"),
+                }
+            }
+            _ => panic!("Expected time predicate"),
+        }
+    }
+
+    #[test]
+    fn test_type_any() {
+        let query = parse("type:*").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Type { mime }) => {
+                assert_eq!(mime.major, "*");
+                assert_eq!(mime.minor, None);
+            }
+            _ => panic!("Expected type predicate"),
+        }
+    }
+
+    #[test]
+    fn test_type_shorthand_pdf() {
+        let query = parse("type:pdf").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Type { mime }) => {
+                assert_eq!(mime.major, "application");
+                assert_eq!(mime.minor, Some("pdf".to_string()));
+            }
+            _ => panic!("Expected type predicate"),
+        }
+    }
+
+    #[test]
+    fn test_trust_medium() {
+        let query = parse("trust >= medium").unwrap();
 
         match query.expr {
             Expr::Predicate(Predicate::Trust { op, level }) => {
