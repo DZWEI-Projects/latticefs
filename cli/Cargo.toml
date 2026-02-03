@@ -18,3 +18,8 @@ walkdir = "2.5"
 uuid = { version = "1", features = ["v4", "v7"] }
 dirs = "5.0"
 hex = "0.4"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3"

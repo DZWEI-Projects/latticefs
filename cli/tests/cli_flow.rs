@@ -1,0 +1,106 @@
+use assert_cmd::Command;
+use predicates::prelude::*;
+use std::fs;
+use std::path::PathBuf;
+use tempfile::TempDir;
+
+fn setup_env(temp: &TempDir) -> (PathBuf, PathBuf) {
+    let lattice_home = temp.path().join(".latticefs");
+    let xdg_home = temp.path().join("xdg");
+    fs::create_dir_all(&lattice_home).unwrap();
+    fs::create_dir_all(&xdg_home).unwrap();
+    (lattice_home, xdg_home)
+}
+
+fn lfs_cmd(lattice_home: &PathBuf, xdg_home: &PathBuf) -> Command {
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("cli"));
+    cmd.env("LATTICE_HOME", lattice_home);
+    cmd.env("XDG_CONFIG_HOME", xdg_home);
+    cmd.env("LFS_KEY_PASSWORD", "test-password");
+    cmd
+}
+
+#[test]
+fn cli_flow_basic() {
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    // init
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Initialized repository"));
+
+    // create a file
+    let file_path = temp.path().join("hello.txt");
+    fs::write(&file_path, b"hello latticefs\n").unwrap();
+
+    // add file
+    let output = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", file_path.to_str().unwrap(), "--tag", "project:phoenix"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let object_id = stdout
+        .split_whitespace()
+        .last()
+        .expect("object id")
+        .to_string();
+    uuid::Uuid::parse_str(&object_id).expect("valid uuid");
+
+    // versions
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["versions", &object_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("v1"));
+
+    // view create
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["view", "create", "Images", "--query", "type:text/plain"])
+        .assert()
+        .success();
+
+    // view list
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["view", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Images"));
+
+    // view explain
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["view", "explain", &object_id, "--query", "tag:project:phoenix"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("tag:project:phoenix"));
+
+    // export
+    let export_path = temp.path().join("out.txt");
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["export", &object_id, "--output", export_path.to_str().unwrap()])
+        .assert()
+        .success();
+    let exported = fs::read(&export_path).unwrap();
+    assert_eq!(exported, b"hello latticefs\n");
+
+    // trust set/get
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["trust", "set", &object_id, "quarantined"])
+        .assert()
+        .success();
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["trust", "get", &object_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("quarantined"));
+
+    // diff
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["diff", &format!("{}@v1", object_id), &format!("{}@v1", object_id)])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No differences"));
+}
