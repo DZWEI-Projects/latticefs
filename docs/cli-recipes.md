@@ -69,6 +69,12 @@ Goal: add tags later.
 lfs tag <object-id> priority:high owner:benn
 ```
 
+Goal: list tags on an object.
+
+```bash
+lfs tags <object-id>
+```
+
 Goal: remove a tag key.
 
 ```bash

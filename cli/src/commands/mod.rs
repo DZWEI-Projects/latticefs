@@ -17,6 +17,7 @@ pub mod share;
 pub mod shares;
 pub mod system;
 pub mod tag;
+pub mod tags;
 pub mod trust;
 pub mod untag;
 pub mod versions;
@@ -26,6 +27,7 @@ pub mod view;
 pub enum Command {
     Add(add::AddArgs),
     Tag(tag::TagArgs),
+    Tags(tags::TagsArgs),
     Untag(untag::UntagArgs),
     Link(link::LinkArgs),
     Get(get::GetArgs),

@@ -140,6 +140,25 @@ Example output:
 Tagged <object-id>
 ```
 
+### `lfs tags <ref>`
+List all tags for an object.
+
+Example:
+```bash
+lfs tags <object-id>
+```
+
+Example output:
+```text
+project:phoenix
+owner:benn
+```
+
+Example output (none):
+```text
+No tags
+```
+
 ### `lfs untag <ref> <key>`
 Remove a tag by key.
 

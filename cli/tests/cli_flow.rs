@@ -50,6 +50,13 @@ fn cli_flow_basic() {
         .to_string();
     uuid::Uuid::parse_str(&object_id).expect("valid uuid");
 
+    // tags list
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["tags", &object_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("project:phoenix"));
+
     // view create
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["view", "create", "Images", "--query", "type:text/plain"])

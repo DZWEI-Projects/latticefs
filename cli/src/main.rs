@@ -55,6 +55,10 @@ async fn main() -> Result<()> {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::tag::run(repo, args).await?;
         }
+        commands::Command::Tags(args) => {
+            let repo = commands::common::open_repo(cli.repo.clone())?;
+            commands::tags::run(repo, args).await?;
+        }
         commands::Command::Untag(args) => {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::untag::run(repo, args).await?;
