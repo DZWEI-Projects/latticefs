@@ -57,6 +57,14 @@ fn cli_flow_basic() {
         .success()
         .stdout(predicate::str::contains("project:phoenix"));
 
+    // meta (auto tags + text)
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["meta", &object_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auto:mimetype:text/plain"))
+        .stdout(predicate::str::contains("hello latticefs"));
+
     // view create
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["view", "create", "Images", "--query", "type:text/plain"])

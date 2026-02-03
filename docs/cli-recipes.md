@@ -98,6 +98,27 @@ Goal: print object content to stdout.
 lfs cat <object-id>
 ```
 
+## Read extracted metadata
+Old way: inspect EXIF/ID3 with separate tools or scripts.
+
+LatticeFS way: read extracted metadata and text directly from the repo.
+
+Goal: view extracted metadata (auto tags + text).
+
+```bash
+lfs meta <object-id>
+```
+
+Notes:
+`lfs tags` shows all tags (including user tags). `lfs meta` focuses on auto‑extracted metadata and text.
+EXIF and ID3 appear as `auto:exif:*` and `auto:id3:*` tags.
+
+Goal: show all tags, not just auto tags.
+
+```bash
+lfs meta <object-id> --tags --all-tags
+```
+
 ## See object versions
 Old way: keep “report-final-final.pdf” copies.
 

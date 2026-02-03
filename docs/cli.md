@@ -141,7 +141,7 @@ Tagged <object-id>
 ```
 
 ### `lfs tags <ref>`
-List all tags for an object.
+List **all tags** for an object (user tags, system tags, and auto-extracted tags).
 
 Example:
 ```bash
@@ -190,6 +190,41 @@ lfs link <a> derived-from <b>
 Example output:
 ```text
 Linked <a> -> <b> (derived-from)
+```
+
+### `lfs meta <ref> [--tags] [--text] [--all-tags]`
+Show extracted metadata for an object.
+
+By default it prints **auto‑extracted tags** (`auto:*`) and **extracted text** if present.
+Use `--all-tags` to include non‑auto tags too.
+EXIF and ID3 are surfaced as `auto:exif:*` and `auto:id3:*` tags.
+
+Example:
+```bash
+lfs meta <object-id>
+```
+
+Example output:
+```text
+Tags:
+- auto:mimetype:text/plain
+- auto:text:true
+
+Text:
+hello latticefs
+```
+
+Example (tags only, include user tags too):
+```bash
+lfs meta <object-id> --tags --all-tags
+```
+
+Example output:
+```text
+Tags:
+- auto:mimetype:text/plain
+- auto:text:true
+- project:phoenix
 ```
 
 ### `lfs get <ref> --output <path> [--ucan <token>]`

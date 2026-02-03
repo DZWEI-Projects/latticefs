@@ -9,6 +9,7 @@ pub mod export;
 pub mod get;
 pub mod import;
 pub mod link;
+pub mod meta;
 pub mod mount;
 pub mod policy;
 pub mod revoke;
@@ -31,6 +32,7 @@ pub enum Command {
     Tags(tags::TagsArgs),
     Untag(untag::UntagArgs),
     Link(link::LinkArgs),
+    Meta(meta::MetaArgs),
     Get(get::GetArgs),
     Cat(cat::CatArgs),
     Versions(versions::VersionsArgs),
