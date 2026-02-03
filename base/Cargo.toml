@@ -17,6 +17,16 @@ bincode = "1"
 hex = "0.4"
 fastcdc = "3"
 
+# Phase 2: Crypto dependencies
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+aes-gcm = "0.10"
+keyring = "2.3"
+rand = "0.8"
+argon2 = "0.5"
+base64 = "0.22"
+bs58 = "0.5"
+dirs = "5.0"
+
 [dev-dependencies]
 proptest = "1"
 tempfile = "3"

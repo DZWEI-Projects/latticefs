@@ -53,6 +53,61 @@ pub enum LatticeError {
     // Hex decoding errors
     #[error("Hex decode error: {0}")]
     HexDecode(#[from] hex::FromHexError),
+
+    // Crypto errors (Phase 2)
+    #[error("Identity not found: {name}")]
+    IdentityNotFound { name: String },
+
+    #[error("Keyring error: {0}")]
+    Keyring(String),
+
+    #[error("Encryption failed: {0}")]
+    Encryption(String),
+
+    #[error("Decryption failed: {0}")]
+    Decryption(String),
+
+    #[error("Invalid signature")]
+    InvalidSignature,
+
+    // Capability errors (Phase 2)
+    #[error("Capability expired")]
+    CapabilityExpired,
+
+    #[error("Capability revoked")]
+    CapabilityRevoked,
+
+    #[error("Capability not yet valid")]
+    CapabilityNotYetValid,
+
+    #[error("Invalid capability attenuation: cannot escalate from {from} to {to}")]
+    InvalidAttenuation { from: String, to: String },
+
+    #[error("Invalid proof chain: {0}")]
+    InvalidProofChain(String),
+
+    #[error("Unauthorized: missing {permission} permission for {object}")]
+    Unauthorized { permission: String, object: String },
+
+    // Query errors (Phase 2)
+    #[error("Parse error at position {position}: {message}")]
+    ParseError { position: usize, message: String },
+
+    #[error("Query timeout after {seconds}s")]
+    QueryTimeout { seconds: u64 },
+
+    #[error("Traversal depth exceeded: max {max} hops")]
+    TraversalDepthExceeded { max: usize },
+
+    #[error("Invalid predicate: {0}")]
+    InvalidPredicate(String),
+
+    // View errors (Phase 2)
+    #[error("View not found: {name}")]
+    ViewNotFound { name: String },
+
+    #[error("Invalid view query: {0}")]
+    InvalidViewQuery(String),
 }
 
 pub type Result<T> = std::result::Result<T, LatticeError>;
