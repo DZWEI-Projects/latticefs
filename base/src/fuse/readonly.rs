@@ -363,6 +363,8 @@ impl Filesystem for LatticeFS {
         _fh: u64,
         offset: i64,
         size: u32,
+        _flags: i32,
+        _lock_owner: Option<u64>,
         reply: ReplyData,
     ) {
         let object_id = match self.object_id_for_inode(ino) {
