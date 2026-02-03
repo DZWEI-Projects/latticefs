@@ -4,7 +4,7 @@
 //! as objects are added, modified, or removed.
 
 use crate::error::Result;
-use crate::model::ObjectID;
+use crate::model::{Object, ObjectID, State, Version};
 use crate::query::{parse, Query, QueryEvaluator};
 use crate::storage::MetadataStore;
 use serde::{Deserialize, Serialize};
@@ -143,13 +143,37 @@ impl<'a> DynamicView<'a> {
 
     /// Apply configuration filters to results.
     fn apply_config_filters(&self, mut results: Vec<ObjectID>) -> Result<Vec<ObjectID>> {
+        // Filter out archived objects unless explicitly included
+        if !self.config.include_archived {
+            results.retain(|id| {
+                self.load_object(id)
+                    .and_then(|object| self.load_version(&object.current_version))
+                    .map(|version| version.state != State::Archived)
+                    .unwrap_or(false)
+            });
+        }
+
+        // Enforce minimum trust level if configured
+        if let Some(min_trust) = self.config.min_trust_level {
+            results.retain(|id| {
+                self.load_object(id)
+                    .map(|object| {
+                        object
+                            .tags
+                            .iter()
+                            .find(|t| t.key == "sys:trust")
+                            .and_then(|t| t.value.parse::<u8>().ok())
+                            .unwrap_or(75)
+                    })
+                    .map(|trust| trust >= min_trust)
+                    .unwrap_or(false)
+            });
+        }
+
         // Apply max_results if set (query limit might already have been applied)
         if let Some(max) = self.config.max_results {
             results.truncate(max);
         }
-
-        // Note: archived and trust filtering would be applied here
-        // In a full implementation, these would filter based on object metadata
 
         Ok(results)
     }
@@ -173,6 +197,28 @@ impl<'a> DynamicView<'a> {
     /// Get the number of cached results (if any).
     pub fn cached_count(&self) -> Option<usize> {
         self.cache.as_ref().map(|c| c.results.len())
+    }
+
+    fn load_object(&self, id: &ObjectID) -> Result<Object> {
+        let bytes = self.store.load_object_bytes(id.as_bytes())?;
+        let object: Object = bincode::deserialize(&bytes).map_err(|e| {
+            crate::error::LatticeError::Serialization(format!(
+                "Failed to deserialize object: {}",
+                e
+            ))
+        })?;
+        Ok(object)
+    }
+
+    fn load_version(&self, id: &crate::model::VersionID) -> Result<Version> {
+        let bytes = self.store.load_version_bytes(id.as_bytes())?;
+        let version: Version = bincode::deserialize(&bytes).map_err(|e| {
+            crate::error::LatticeError::Serialization(format!(
+                "Failed to deserialize version: {}",
+                e
+            ))
+        })?;
+        Ok(version)
     }
 }
 

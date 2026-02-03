@@ -4,8 +4,9 @@
 //! Per LFS-002 section 8.
 
 use crate::error::{LatticeError, Result};
-use crate::model::{Object, ObjectID, State, Tag, Version};
+use crate::model::{LinkType, Object, ObjectID, State, Tag, Version};
 use crate::query::ast::*;
+use crate::storage::content::hex_to_hash;
 use crate::storage::MetadataStore;
 use std::collections::HashSet;
 
@@ -233,19 +234,15 @@ impl<'a> QueryEvaluator<'a> {
                         let threshold = now - (d.as_secs() as i64 * 1_000_000);
                         timestamp >= threshold
                     }
-                    (TimeOp::Before, TimeValue::Timestamp(t)) => {
-                        timestamp < *t * 1_000_000 // Convert to microseconds
-                    }
-                    (TimeOp::After, TimeValue::Timestamp(t)) => {
-                        timestamp > *t * 1_000_000
-                    }
-                    (TimeOp::Before, TimeValue::Duration(d)) => {
-                        let threshold = now - (d.as_secs() as i64 * 1_000_000);
-                        timestamp < threshold
-                    }
-                    (TimeOp::After, TimeValue::Duration(d)) => {
-                        let threshold = now - (d.as_secs() as i64 * 1_000_000);
-                        timestamp > threshold
+                    (TimeOp::Before, TimeValue::Timestamp(t)) => timestamp < *t,
+                    (TimeOp::After, TimeValue::Timestamp(t)) => timestamp > *t,
+                    (TimeOp::Between, TimeValue::Range { start, end }) => {
+                        let (min, max) = if start <= end {
+                            (*start, *end)
+                        } else {
+                            (*end, *start)
+                        };
+                        timestamp >= min && timestamp <= max
                     }
                     _ => false,
                 };
@@ -269,9 +266,29 @@ impl<'a> QueryEvaluator<'a> {
                     result.insert(*id);
                 }
             }
-            ObjectRef::Hash(_hash) => {
+            ObjectRef::Hash(hash) => {
                 // Search for objects with matching content hash
-                // This would require an index in practice
+                // This scans versions since we don't have a hash index yet
+                if let Ok(hash_bytes) = hex_to_hash(hash) {
+                    for item in self.store.iter_all_versions() {
+                        let (_key_bytes, value_bytes) = item?;
+                        let version: Version = bincode::deserialize(&value_bytes).map_err(|e| {
+                            LatticeError::Serialization(format!(
+                                "Failed to deserialize version: {}",
+                                e
+                            ))
+                        })?;
+
+                        if version.chunk_root == hash_bytes || version.manifest_ref == hash_bytes {
+                            result.insert(version.object_id);
+                        }
+                    }
+                }
+            }
+            ObjectRef::Alias(alias) => {
+                if let Some(id) = self.resolve_alias(alias)? {
+                    result.insert(id);
+                }
             }
             ObjectRef::Tag(path) => {
                 // Return objects matching the tag
@@ -291,6 +308,9 @@ impl<'a> QueryEvaluator<'a> {
         for object_id in self.get_all_object_ids()? {
             if let Ok(object) = self.load_object(&object_id) {
                 for link in &object.links {
+                    if link.link_type != LinkType::References {
+                        continue;
+                    }
                     // Check if link target is in our target set
                     if let Ok(uuid) = uuid::Uuid::from_slice(&link.target) {
                         let link_target = ObjectID::from_uuid(uuid);
@@ -327,6 +347,9 @@ impl<'a> QueryEvaluator<'a> {
                 // Find all objects this object links to
                 if let Ok(object) = self.load_object(&object_id) {
                     for link in &object.links {
+                        if !link_type_in_closure(&link.link_type) {
+                            continue;
+                        }
                         if let Ok(uuid) = uuid::Uuid::from_slice(&link.target) {
                             let link_target = ObjectID::from_uuid(uuid);
                             if !visited.contains(&link_target) {
@@ -358,9 +381,34 @@ impl<'a> QueryEvaluator<'a> {
                 set.insert(*id);
                 Ok(set)
             }
-            ObjectRef::Hash(_hash) => {
-                // In practice, would look up by content hash
-                Ok(HashSet::new())
+            ObjectRef::Hash(hash) => {
+                // Resolve by content hash
+                if let Ok(hash_bytes) = hex_to_hash(hash) {
+                    let mut set = HashSet::new();
+                    for item in self.store.iter_all_versions() {
+                        let (_key_bytes, value_bytes) = item?;
+                        let version: Version = bincode::deserialize(&value_bytes).map_err(|e| {
+                            LatticeError::Serialization(format!(
+                                "Failed to deserialize version: {}",
+                                e
+                            ))
+                        })?;
+
+                        if version.chunk_root == hash_bytes || version.manifest_ref == hash_bytes {
+                            set.insert(version.object_id);
+                        }
+                    }
+                    Ok(set)
+                } else {
+                    Ok(HashSet::new())
+                }
+            }
+            ObjectRef::Alias(alias) => {
+                let mut set = HashSet::new();
+                if let Some(id) = self.resolve_alias(alias)? {
+                    set.insert(id);
+                }
+                Ok(set)
             }
             ObjectRef::Tag(path) => self.evaluate_tag_predicate(path),
         }
@@ -456,6 +504,32 @@ impl<'a> QueryEvaluator<'a> {
         })?;
         Ok(version)
     }
+
+    fn resolve_alias(&self, alias: &str) -> Result<Option<ObjectID>> {
+        let bytes = match self.store.resolve_alias(alias)? {
+            Some(bytes) => bytes,
+            None => return Ok(None),
+        };
+
+        if bytes.len() != 16 {
+            return Err(LatticeError::Serialization(format!(
+                "Invalid alias object id length: {}",
+                bytes.len()
+            )));
+        }
+
+        let uuid = uuid::Uuid::from_slice(&bytes).map_err(|e| {
+            LatticeError::Serialization(format!("Invalid alias object id: {}", e))
+        })?;
+        Ok(Some(ObjectID::from_uuid(uuid)))
+    }
+}
+
+fn link_type_in_closure(link_type: &LinkType) -> bool {
+    matches!(
+        link_type,
+        LinkType::DerivedFrom | LinkType::References | LinkType::BelongsTo | LinkType::Replaces
+    )
 }
 
 #[cfg(test)]
@@ -603,5 +677,22 @@ mod tests {
         let results = evaluator.execute(&query).unwrap();
 
         assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_ref_alias_query() {
+        let temp_dir = tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let obj1 = create_test_object(&store, vec![("project", "phoenix")]).unwrap();
+        store.set_alias("project-readme", obj1.as_bytes()).unwrap();
+
+        let evaluator = QueryEvaluator::new(&store);
+        let query = crate::query::parser::parse("ref:\"project-readme\"").unwrap();
+
+        let results = evaluator.execute(&query).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert!(results.contains(&obj1));
     }
 }

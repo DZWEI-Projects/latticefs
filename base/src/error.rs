@@ -80,11 +80,20 @@ pub enum LatticeError {
     #[error("Capability not yet valid")]
     CapabilityNotYetValid,
 
+    #[error("Capability not found: {cid}")]
+    CapabilityNotFound { cid: String },
+
+    #[error("Revocation not found: {cid}")]
+    RevocationNotFound { cid: String },
+
     #[error("Invalid capability attenuation: cannot escalate from {from} to {to}")]
     InvalidAttenuation { from: String, to: String },
 
     #[error("Invalid proof chain: {0}")]
     InvalidProofChain(String),
+
+    #[error("Invalid revocation signature")]
+    InvalidRevocationSignature,
 
     #[error("Unauthorized: missing {permission} permission for {object}")]
     Unauthorized { permission: String, object: String },

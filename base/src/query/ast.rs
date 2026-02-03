@@ -264,6 +264,8 @@ pub enum TimeOp {
     Before,
     /// After a timestamp.
     After,
+    /// Between two timestamps (inclusive).
+    Between,
 }
 
 impl std::fmt::Display for TimeOp {
@@ -272,6 +274,7 @@ impl std::fmt::Display for TimeOp {
             TimeOp::Within => write!(f, "within"),
             TimeOp::Before => write!(f, "before"),
             TimeOp::After => write!(f, "after"),
+            TimeOp::Between => write!(f, "between"),
         }
     }
 }
@@ -281,8 +284,10 @@ impl std::fmt::Display for TimeOp {
 pub enum TimeValue {
     /// Duration (e.g., "7d").
     Duration(Duration),
-    /// Absolute timestamp (Unix seconds).
+    /// Absolute timestamp (Unix microseconds).
     Timestamp(i64),
+    /// Inclusive range of timestamps (Unix microseconds).
+    Range { start: i64, end: i64 },
 }
 
 /// Object reference for traversal predicates.
@@ -294,6 +299,8 @@ pub enum ObjectRef {
     Hash(String),
     /// Tag-based reference.
     Tag(Vec<String>),
+    /// Alias reference.
+    Alias(String),
 }
 
 impl std::fmt::Display for ObjectRef {
@@ -302,6 +309,7 @@ impl std::fmt::Display for ObjectRef {
             ObjectRef::Id(id) => write!(f, "{}", id),
             ObjectRef::Hash(h) => write!(f, "{}", h),
             ObjectRef::Tag(path) => write!(f, "tag:{}", path.join(":")),
+            ObjectRef::Alias(alias) => write!(f, "\"{}\"", alias),
         }
     }
 }

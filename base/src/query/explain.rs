@@ -4,10 +4,14 @@
 //! Per LFS-002 section 8.6 - Explainability.
 
 use crate::error::Result;
-use crate::model::{Object, ObjectID, Tag, Version};
+use crate::model::{LinkType, Object, ObjectID, Tag, Version};
 use crate::query::ast::*;
 use crate::storage::MetadataStore;
+use crate::storage::content::hex_to_hash;
 use std::fmt;
+
+/// Maximum traversal depth for graph queries.
+const MAX_TRAVERSAL_DEPTH: usize = 10;
 
 /// Explanation for why an object matched or didn't match a query.
 #[derive(Debug, Clone)]
@@ -258,8 +262,16 @@ impl<'a> Explainer<'a> {
                         let threshold = now - (d.as_secs() as i64 * 1_000_000);
                         timestamp >= threshold
                     }
-                    (TimeOp::Before, TimeValue::Timestamp(t)) => timestamp < *t * 1_000_000,
-                    (TimeOp::After, TimeValue::Timestamp(t)) => timestamp > *t * 1_000_000,
+                    (TimeOp::Before, TimeValue::Timestamp(t)) => timestamp < *t,
+                    (TimeOp::After, TimeValue::Timestamp(t)) => timestamp > *t,
+                    (TimeOp::Between, TimeValue::Range { start, end }) => {
+                        let (min, max) = if start <= end {
+                            (*start, *end)
+                        } else {
+                            (*end, *start)
+                        };
+                        timestamp >= min && timestamp <= max
+                    }
                     _ => false,
                 };
 
@@ -284,7 +296,12 @@ impl<'a> Explainer<'a> {
             Predicate::Ref { reference } => {
                 let matched = match reference {
                     ObjectRef::Id(id) => id == object_id,
-                    _ => false, // Would need more context
+                    ObjectRef::Alias(alias) => {
+                        self.resolve_alias(alias)?
+                            .map(|resolved| &resolved == object_id)
+                            .unwrap_or(false)
+                    }
+                    _ => false, // Hash resolution requires content lookup
                 };
 
                 Ok(Reason::Predicate {
@@ -297,6 +314,9 @@ impl<'a> Explainer<'a> {
             Predicate::References { target } => {
                 let target_ids = self.resolve_object_ref(target)?;
                 let refs_target = object.links.iter().any(|link| {
+                    if link.link_type != LinkType::References {
+                        return false;
+                    }
                     uuid::Uuid::from_slice(&link.target)
                         .ok()
                         .map(|uuid| target_ids.contains(&ObjectID::from_uuid(uuid)))
@@ -306,6 +326,7 @@ impl<'a> Explainer<'a> {
                 let link_targets: Vec<String> = object
                     .links
                     .iter()
+                    .filter(|l| l.link_type == LinkType::References)
                     .filter_map(|l| {
                         uuid::Uuid::from_slice(&l.target)
                             .ok()
@@ -325,19 +346,13 @@ impl<'a> Explainer<'a> {
             }
 
             Predicate::Closure { root } => {
-                // For closure, we just report if the object is in the closure
-                // Full closure computation is expensive, so we give a simple answer
-                let root_ids = self.resolve_object_ref(root)?;
-                let is_root = root_ids.contains(object_id);
+                let closure_ids = self.compute_closure(root)?;
+                let matched = closure_ids.contains(object_id);
 
                 Ok(Reason::Predicate {
-                    matched: is_root, // Simplified - full closure check would be needed
+                    matched,
                     description: format!("closure({})", root),
-                    actual_value: if is_root {
-                        Some("is root of closure".to_string())
-                    } else {
-                        Some("may be in closure (requires traversal)".to_string())
-                    },
+                    actual_value: Some(format!("closure size: {}", closure_ids.len())),
                 })
             }
         }
@@ -361,7 +376,10 @@ impl<'a> Explainer<'a> {
     }
 
     /// Resolve an object reference to a set of IDs.
-    fn resolve_object_ref(&self, reference: &ObjectRef) -> Result<std::collections::HashSet<ObjectID>> {
+    fn resolve_object_ref(
+        &self,
+        reference: &ObjectRef,
+    ) -> Result<std::collections::HashSet<ObjectID>> {
         use std::collections::HashSet;
 
         match reference {
@@ -370,7 +388,27 @@ impl<'a> Explainer<'a> {
                 set.insert(*id);
                 Ok(set)
             }
-            ObjectRef::Hash(_) => Ok(HashSet::new()),
+            ObjectRef::Hash(hash) => {
+                if let Ok(hash_bytes) = hex_to_hash(hash) {
+                    let mut set = HashSet::new();
+                    for item in self.store.iter_all_versions() {
+                        let (_key_bytes, value_bytes) = item?;
+                        let version: Version = bincode::deserialize(&value_bytes).map_err(|e| {
+                            crate::error::LatticeError::Serialization(format!(
+                                "Failed to deserialize version: {}",
+                                e
+                            ))
+                        })?;
+
+                        if version.chunk_root == hash_bytes || version.manifest_ref == hash_bytes {
+                            set.insert(version.object_id);
+                        }
+                    }
+                    Ok(set)
+                } else {
+                    Ok(HashSet::new())
+                }
+            }
             ObjectRef::Tag(path) => {
                 let tag_key = path.join(":");
                 let matching_ids = self.store.query_by_tag(&tag_key)?;
@@ -385,7 +423,61 @@ impl<'a> Explainer<'a> {
                 }
                 Ok(result)
             }
+            ObjectRef::Alias(alias) => {
+                let mut set = HashSet::new();
+                if let Some(id) = self.resolve_alias(alias)? {
+                    set.insert(id);
+                }
+                Ok(set)
+            }
         }
+    }
+
+    fn compute_closure(&self, root: &ObjectRef) -> Result<std::collections::HashSet<ObjectID>> {
+        use std::collections::HashSet;
+
+        let root_ids = self.resolve_object_ref(root)?;
+        let mut result = HashSet::new();
+        let mut visited = HashSet::new();
+        let mut queue: Vec<ObjectID> = root_ids.into_iter().collect();
+        let mut depth = 0;
+
+        while !queue.is_empty() && depth < MAX_TRAVERSAL_DEPTH {
+            let mut next_queue = Vec::new();
+
+            for object_id in queue {
+                if visited.contains(&object_id) {
+                    continue;
+                }
+                visited.insert(object_id);
+                result.insert(object_id);
+
+                if let Ok(object) = self.load_object(&object_id) {
+                    for link in &object.links {
+                        if !link_type_in_closure(&link.link_type) {
+                            continue;
+                        }
+                        if let Ok(uuid) = uuid::Uuid::from_slice(&link.target) {
+                            let link_target = ObjectID::from_uuid(uuid);
+                            if !visited.contains(&link_target) {
+                                next_queue.push(link_target);
+                            }
+                        }
+                    }
+                }
+            }
+
+            queue = next_queue;
+            depth += 1;
+        }
+
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return Err(crate::error::LatticeError::TraversalDepthExceeded {
+                max: MAX_TRAVERSAL_DEPTH,
+            });
+        }
+
+        Ok(result)
     }
 
     /// Load an object by ID.
@@ -411,6 +503,25 @@ impl<'a> Explainer<'a> {
         })?;
         Ok(version)
     }
+
+    fn resolve_alias(&self, alias: &str) -> Result<Option<ObjectID>> {
+        let bytes = match self.store.resolve_alias(alias)? {
+            Some(bytes) => bytes,
+            None => return Ok(None),
+        };
+
+        if bytes.len() != 16 {
+            return Err(crate::error::LatticeError::Serialization(format!(
+                "Invalid alias object id length: {}",
+                bytes.len()
+            )));
+        }
+
+        let uuid = uuid::Uuid::from_slice(&bytes).map_err(|e| {
+            crate::error::LatticeError::Serialization(format!("Invalid alias object id: {}", e))
+        })?;
+        Ok(Some(ObjectID::from_uuid(uuid)))
+    }
 }
 
 /// Check if a reason indicates a match.
@@ -421,6 +532,13 @@ fn reason_matched(reason: &Reason) -> bool {
         Reason::Not { matched, .. } => *matched,
         Reason::Predicate { matched, .. } => *matched,
     }
+}
+
+fn link_type_in_closure(link_type: &LinkType) -> bool {
+    matches!(
+        link_type,
+        LinkType::DerivedFrom | LinkType::References | LinkType::BelongsTo | LinkType::Replaces
+    )
 }
 
 #[cfg(test)]

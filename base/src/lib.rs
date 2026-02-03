@@ -11,6 +11,7 @@ pub use error::{LatticeError, Result};
 // Crypto types
 pub use crypto::{
     Capability, EncryptedData, Identity, KeyManager, KeyStorage, ObjectKey, Permission, PublicKey,
+    Revocation, RevocationChecker, RevocationList,
 };
 
 // Model types
