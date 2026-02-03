@@ -6,11 +6,13 @@ use std::path::Path;
 
 /// Metadata store using sled embedded database
 pub struct MetadataStore {
+    #[allow(dead_code)]
     db: Db,
     objects: Tree,
     versions: Tree,
     manifests: Tree,
     tags: Tree,
+    #[allow(dead_code)] // Used in Phase 3
     links: Tree,
 }
 
@@ -179,6 +181,40 @@ impl MetadataStore {
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
         Ok(())
+    }
+
+    /// Iterate over all version IDs for a given object.
+    ///
+    /// This scans all versions and filters by object_id.
+    /// Returns the raw bytes of each matching VersionID.
+    pub fn iter_versions_for_object(&self, object_id: &[u8]) -> Result<Vec<Vec<u8>>> {
+        let mut matching_versions = Vec::new();
+
+        for item in self.versions.iter() {
+            let (key, value) = item?;
+
+            // Deserialize the version to check its object_id
+            let version: crate::model::Version = bincode::deserialize(&value).map_err(|e| {
+                LatticeError::Serialization(format!("Failed to deserialize version: {}", e))
+            })?;
+
+            if version.object_id.as_bytes() == object_id {
+                matching_versions.push(key.to_vec());
+            }
+        }
+
+        Ok(matching_versions)
+    }
+
+    /// Iterate over all versions in the store.
+    ///
+    /// Returns an iterator over (VersionID bytes, Version bytes) pairs.
+    pub fn iter_all_versions(&self) -> impl Iterator<Item = Result<(Vec<u8>, Vec<u8>)>> + '_ {
+        self.versions.iter().map(|result| {
+            result
+                .map(|(k, v)| (k.to_vec(), v.to_vec()))
+                .map_err(LatticeError::from)
+        })
     }
 }
 
