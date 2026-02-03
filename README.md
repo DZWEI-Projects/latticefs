@@ -72,6 +72,9 @@ If you run `lfs mount` without `--fuse`, it will fail with a clear error message
 - [Build process and Cargo profiles](docs/build.md)
 - [CLI command reference](docs/cli.md)
 - [CLI recipes (Do This → Run That)](docs/cli-recipes.md)
+- [Versioning guide](docs/versioning.md)
+- [Listing objects](docs/object-listing.md)
+- [Views](docs/views.md)
 - [FUSE setup and troubleshooting](docs/fuse.md)
 - [Storage layout](docs/storage-layout.md)
 - [Storage encoding map](docs/storage-encoding.md)
@@ -85,3 +88,5 @@ Run the CLI end-to-end smoke test:
 ```bash
 cargo test -p cli cli_flow_basic -- --nocapture
 ```
+
+**shrinnnggg**
