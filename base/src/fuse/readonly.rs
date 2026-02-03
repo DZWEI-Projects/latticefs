@@ -22,18 +22,15 @@ enum ViewKind {
 
 pub struct LatticeFS {
     repo: LatticeRepo,
-    runtime: tokio::runtime::Runtime,
     inode_cache: Mutex<LruCache<u64, ObjectID>>,
     object_cache: Mutex<LruCache<ObjectID, u64>>,
 }
 
 impl LatticeFS {
     pub fn new(repo: LatticeRepo) -> Self {
-        let runtime = tokio::runtime::Runtime::new().expect("failed to create runtime");
         let capacity = NonZeroUsize::new(10_000).expect("non-zero");
         Self {
             repo,
-            runtime,
             inode_cache: Mutex::new(LruCache::new(capacity)),
             object_cache: Mutex::new(LruCache::new(capacity)),
         }
@@ -399,7 +396,7 @@ impl Filesystem for LatticeFS {
             }
         };
 
-        let data = match self.runtime.block_on(self.repo.chunks.retrieve_object(&manifest)) {
+        let data = match self.repo.chunks.retrieve_object_sync(&manifest) {
             Ok(d) => d,
             Err(_) => {
                 reply.error(libc::EIO);
