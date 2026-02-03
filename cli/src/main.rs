@@ -10,6 +10,9 @@ struct Cli {
     /// Increase verbosity (-v, -vv)
     #[arg(short, long, action = clap::ArgAction::Count, global = true)]
     verbose: u8,
+    /// Enable FUSE operations (required for mount)
+    #[arg(long, global = true)]
+    fuse: bool,
     /// Override repository path
     #[arg(long, global = true)]
     repo: Option<PathBuf>,
@@ -113,6 +116,11 @@ async fn main() -> Result<()> {
             commands::trust::quarantine(repo, cmd.command).await?;
         }
         commands::Command::Mount(args) => {
+            if !cli.fuse {
+                return Err(anyhow::anyhow!(
+                    "FUSE disabled. Re-run with --fuse to mount, and ensure macFUSE/libfuse is installed."
+                ));
+            }
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::mount::run_mount(repo, args).await?;
         }
