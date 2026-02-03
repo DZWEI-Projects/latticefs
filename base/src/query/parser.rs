@@ -7,7 +7,6 @@ use crate::error::{LatticeError, Result};
 use crate::model::{ObjectID, State};
 use crate::query::ast::*;
 use crate::query::lexer::{Lexer, Token};
-use std::time::Duration;
 
 /// LQL Parser.
 pub struct Parser<'a> {
@@ -510,6 +509,7 @@ pub fn parse(input: &str) -> Result<Query> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn test_simple_tag() {
@@ -590,7 +590,7 @@ mod tests {
 
     #[test]
     fn test_and_expression() {
-        let query = parse("tag:project AND type:pdf").unwrap();
+        let query = parse("tag:project AND type:application/pdf").unwrap();
 
         match query.expr {
             Expr::And(left, right) => {

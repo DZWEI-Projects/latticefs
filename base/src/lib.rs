@@ -1,7 +1,9 @@
 pub mod crypto;
 pub mod error;
 pub mod model;
+pub mod query;
 pub mod storage;
+pub mod views;
 
 // Re-export commonly used types
 pub use error::{LatticeError, Result};
@@ -21,4 +23,16 @@ pub use model::{
 pub use storage::{
     chunk_data, compute_hash, compute_merkle_root, hash_to_hex, hex_to_hash, ChunkBoundary,
     ChunkManifest, ChunkRef, ChunkStore, Hash, MetadataStore,
+};
+
+// Query types
+pub use query::{
+    parse, CompareOp, Explanation, Explainer, Expr, Lexer, MimePattern, ObjectRef, OrderBy,
+    Parser, Predicate, Query, QueryEvaluator, Reason, SortDirection, SortField, TimeField, TimeOp,
+    TimeValue, Token, TrustLevel,
+};
+
+// View types
+pub use views::{
+    BuiltinView, BuiltinViews, DynamicView, View, ViewConfig, ViewID, ViewSnapshot, ViewStore,
 };

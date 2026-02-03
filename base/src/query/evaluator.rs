@@ -4,7 +4,7 @@
 //! Per LFS-002 section 8.
 
 use crate::error::{LatticeError, Result};
-use crate::model::{Object, ObjectID, State, Tag, Version, VersionDAG};
+use crate::model::{Object, ObjectID, State, Tag, Version};
 use crate::query::ast::*;
 use crate::storage::MetadataStore;
 use std::collections::HashSet;
@@ -141,11 +141,9 @@ impl<'a> QueryEvaluator<'a> {
             if let Ok(object) = self.load_object(&object_id) {
                 // Check for auto:mimetype tag
                 for tag in &object.tags {
-                    if tag.key == "auto:mimetype" {
-                        if mime.matches(&tag.value) {
-                            result.insert(object_id);
-                            break;
-                        }
+                    if tag.key == "auto:mimetype" && mime.matches(&tag.value) {
+                        result.insert(object_id);
+                        break;
                     }
                 }
             }
@@ -294,9 +292,8 @@ impl<'a> QueryEvaluator<'a> {
             if let Ok(object) = self.load_object(&object_id) {
                 for link in &object.links {
                     // Check if link target is in our target set
-                    if let Ok(link_target) = ObjectID::from_uuid(
-                        uuid::Uuid::from_slice(&link.target).unwrap_or_default(),
-                    ) {
+                    if let Ok(uuid) = uuid::Uuid::from_slice(&link.target) {
+                        let link_target = ObjectID::from_uuid(uuid);
                         if target_ids.contains(&link_target) {
                             result.insert(object_id);
                             break;
@@ -330,9 +327,8 @@ impl<'a> QueryEvaluator<'a> {
                 // Find all objects this object links to
                 if let Ok(object) = self.load_object(&object_id) {
                     for link in &object.links {
-                        if let Ok(link_target) =
-                            ObjectID::from_uuid(uuid::Uuid::from_slice(&link.target).unwrap_or_default())
-                        {
+                        if let Ok(uuid) = uuid::Uuid::from_slice(&link.target) {
+                            let link_target = ObjectID::from_uuid(uuid);
                             if !visited.contains(&link_target) {
                                 next_queue.push(link_target);
                             }
@@ -430,7 +426,7 @@ impl<'a> QueryEvaluator<'a> {
         // Iterate through all objects in the store
         // In a real implementation, this would be more efficient
         for item in self.store.iter_all_versions() {
-            let (key_bytes, value_bytes) = item?;
+            let (_key_bytes, value_bytes) = item?;
 
             // Deserialize the version to get the object_id
             let version: Version = bincode::deserialize(&value_bytes).map_err(|e| {
@@ -495,7 +491,7 @@ mod tests {
         let mut object = Object::new(ObjectType::Blob, version_id, test_actor());
         object.id = object_id;
 
-        for (key, value) in tags {
+        for (key, value) in &tags {
             object.add_tag(Tag::new(key.to_string(), value.to_string(), test_actor()));
         }
 
@@ -507,7 +503,7 @@ mod tests {
         store.store_version_bytes(version_id.as_bytes(), &version_bytes)?;
 
         // Add to tag index
-        for (key, value) in tags {
+        for (key, value) in &tags {
             let tag_key = format!("{}:{}", key, value);
             store.add_to_tag_index(&tag_key, object_id.as_bytes())?;
         }

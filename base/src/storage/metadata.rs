@@ -6,11 +6,13 @@ use std::path::Path;
 
 /// Metadata store using sled embedded database
 pub struct MetadataStore {
+    #[allow(dead_code)]
     db: Db,
     objects: Tree,
     versions: Tree,
     manifests: Tree,
     tags: Tree,
+    #[allow(dead_code)] // Used in Phase 3
     links: Tree,
 }
 

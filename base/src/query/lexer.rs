@@ -46,19 +46,19 @@ pub enum Token {
     After,
 
     // Comparison operators
-    Eq,       // =
-    Ne,       // !=
-    Gt,       // >
-    Lt,       // <
-    Ge,       // >=
-    Le,       // <=
+    Eq, // =
+    Ne, // !=
+    Gt, // >
+    Lt, // <
+    Ge, // >=
+    Le, // <=
 
     // Punctuation
-    Colon,    // :
-    LParen,   // (
-    RParen,   // )
-    Slash,    // /
-    Star,     // *
+    Colon,  // :
+    LParen, // (
+    RParen, // )
+    Slash,  // /
+    Star,   // *
 
     // Literals
     Identifier(String),
@@ -147,9 +147,9 @@ impl<'a> Lexer<'a> {
     }
 
     /// Peek at the next character without advancing.
-    fn peek_next(&self) -> Option<char> {
-        self.chars.get(self.pos + 1).copied()
-    }
+    // fn peek_next(&self) -> Option<char> {
+    //     self.chars.get(self.pos + 1).copied()
+    // }
 
     /// Advance to the next character.
     fn advance(&mut self) -> Option<char> {
@@ -565,10 +565,13 @@ mod tests {
 
     #[test]
     fn test_complex_query() {
-        let mut lexer = Lexer::new("tag:project:phoenix AND type:pdf AND updated within 7d SORT updated DESC LIMIT 10");
+        let mut lexer = Lexer::new(
+            "tag:project:phoenix AND type:application/pdf AND updated within 7d SORT updated DESC LIMIT 10",
+        );
         let tokens = lexer.tokenize().unwrap();
 
-        assert_eq!(tokens.len(), 17);
+        // tag, :, project, :, phoenix, AND, type, :, application, /, pdf, AND, updated, within, 7d, SORT, updated, DESC, LIMIT, 10
+        assert_eq!(tokens.len(), 20);
         assert_eq!(tokens[0], Token::Tag);
         assert_eq!(tokens[5], Token::And);
         assert_eq!(tokens[11], Token::And);

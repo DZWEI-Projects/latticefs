@@ -4,7 +4,7 @@
 //! Per LFS-002 section 8.6 - Explainability.
 
 use crate::error::Result;
-use crate::model::{Object, ObjectID, State, Tag, Version};
+use crate::model::{Object, ObjectID, Tag, Version};
 use crate::query::ast::*;
 use crate::storage::MetadataStore;
 use std::fmt;
@@ -576,7 +576,7 @@ mod tests {
 
         let explainer = Explainer::new(&store);
         let query =
-            crate::query::parser::parse("tag:project:phoenix AND NOT tag:archived").unwrap();
+            crate::query::parser::parse("tag:project:phoenix AND NOT tag:deleted").unwrap();
 
         let explanation = explainer.explain(&object_id, &query).unwrap();
 
