@@ -136,9 +136,7 @@ impl Attenuation {
     pub fn object_id(&self) -> Option<ObjectID> {
         if self.with.starts_with("latticefs:object:") {
             let id_str = &self.with[17..];
-            uuid::Uuid::parse_str(id_str)
-                .ok()
-                .map(ObjectID::from_uuid)
+            uuid::Uuid::parse_str(id_str).ok().map(ObjectID::from_uuid)
         } else {
             None
         }
@@ -373,7 +371,9 @@ impl Capability {
         permission: Permission,
         expires_in: Duration,
     ) -> Result<Self> {
-        Self::create_for_resource_with_facts(issuer, audience, resource, permission, expires_in, None)
+        Self::create_for_resource_with_facts(
+            issuer, audience, resource, permission, expires_in, None,
+        )
     }
 
     /// Create a new capability for an arbitrary resource URI with optional facts.
@@ -519,7 +519,11 @@ impl Capability {
     }
 
     /// Verify the proof chain recursively.
-    fn verify_proof_chain<R: RevocationChecker>(&self, depth: usize, revocations: &R) -> Result<()> {
+    fn verify_proof_chain<R: RevocationChecker>(
+        &self,
+        depth: usize,
+        revocations: &R,
+    ) -> Result<()> {
         if depth > MAX_PROOF_CHAIN_DEPTH {
             return Err(LatticeError::InvalidProofChain(format!(
                 "Proof chain too deep: max {} levels",
@@ -542,9 +546,11 @@ impl Capability {
 
             // Verify attenuation: capabilities must be subset of proof
             for att in &self.payload.att {
-                let proof_has_permission = proof.payload.att.iter().any(|p| {
-                    p.with == att.with && p.can.includes(&att.can)
-                });
+                let proof_has_permission = proof
+                    .payload
+                    .att
+                    .iter()
+                    .any(|p| p.with == att.with && p.can.includes(&att.can));
 
                 if !proof_has_permission {
                     return Err(LatticeError::InvalidAttenuation {
@@ -678,9 +684,9 @@ impl Capability {
                 });
             }
 
-            let object_id = self.object_id().ok_or_else(|| LatticeError::InvalidPredicate(
-                "Capability missing object subject".to_string(),
-            ))?;
+            let object_id = self.object_id().ok_or_else(|| {
+                LatticeError::InvalidPredicate("Capability missing object subject".to_string())
+            })?;
 
             if !admin.has_permission(&object_id, Permission::Admin) {
                 return Err(LatticeError::Unauthorized {
@@ -731,11 +737,8 @@ fn current_timestamp() -> u64 {
 }
 
 fn object_id_from_resource(resource: &str) -> Option<ObjectID> {
-    if resource.starts_with("latticefs:object:") {
-        let id_str = &resource[17..];
-        uuid::Uuid::parse_str(id_str)
-            .ok()
-            .map(ObjectID::from_uuid)
+    if let Some(id_str) = resource.strip_prefix("latticefs:object:") {
+        uuid::Uuid::parse_str(id_str).ok().map(ObjectID::from_uuid)
     } else {
         None
     }
@@ -887,7 +890,10 @@ mod tests {
             &RevocationList::default(),
         );
 
-        assert!(matches!(result, Err(LatticeError::InvalidAttenuation { .. })));
+        assert!(matches!(
+            result,
+            Err(LatticeError::InvalidAttenuation { .. })
+        ));
     }
 
     #[test]
@@ -960,7 +966,12 @@ mod tests {
         .unwrap();
 
         let revocation = cap
-            .revoke(&alice, Some("test".to_string()), None, &RevocationList::default())
+            .revoke(
+                &alice,
+                Some("test".to_string()),
+                None,
+                &RevocationList::default(),
+            )
             .unwrap();
 
         assert!(revocation.verify().is_ok());

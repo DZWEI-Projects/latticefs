@@ -45,7 +45,7 @@ pub async fn run(repo: LatticeRepo, args: MetaArgs) -> Result<()> {
                 .filter(|t| t.is_auto_generated())
                 .collect()
         };
-        tags.sort_by(|a, b| a.full_path().cmp(&b.full_path()));
+        tags.sort_by_key(|a| a.full_path());
 
         println!("Tags:");
         if tags.is_empty() {

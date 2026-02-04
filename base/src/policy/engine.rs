@@ -49,11 +49,7 @@ impl PolicyEngine {
     }
 
     /// Evaluate policies for a specific action (most restrictive wins).
-    pub fn evaluate(
-        &self,
-        policies: &[Policy],
-        context: &PolicyContext<'_>,
-    ) -> PolicyDecision {
+    pub fn evaluate(&self, policies: &[Policy], context: &PolicyContext<'_>) -> PolicyDecision {
         let mut allowed: BTreeSet<Permission> = BTreeSet::from([
             Permission::Read,
             Permission::Comment,
@@ -85,13 +81,11 @@ impl PolicyEngine {
             }
 
             // External share restrictions.
-            if context.external_share && !policy.external_share {
-                if allowed.remove(&Permission::Share) {
-                    reasons.push(format!(
-                        "policy '{}' blocks external sharing",
-                        policy.name
-                    ));
-                }
+            if context.external_share
+                && !policy.external_share
+                && allowed.remove(&Permission::Share)
+            {
+                reasons.push(format!("policy '{}' blocks external sharing", policy.name));
             }
 
             // Requirement constraints.
@@ -135,9 +129,7 @@ impl PolicyEngine {
             } else {
                 decision.reasons.join("; ")
             };
-            return Err(LatticeError::PolicyViolation {
-                reason,
-            });
+            return Err(LatticeError::PolicyViolation { reason });
         }
 
         Ok(())
