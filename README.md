@@ -75,6 +75,7 @@ If you run `lfs mount` without `--fuse`, it will fail with a clear error message
 - [Versioning guide](docs/versioning.md)
 - [Listing objects](docs/object-listing.md)
 - [Views](docs/views.md)
+- [Guided workflows](docs/workflows.md)
 - [FUSE setup and troubleshooting](docs/fuse.md)
 - [Storage layout](docs/storage-layout.md)
 - [Storage encoding map](docs/storage-encoding.md)

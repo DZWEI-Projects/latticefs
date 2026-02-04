@@ -7,6 +7,7 @@
 - [Versioning guide](versioning.md)
 - [Listing objects](object-listing.md)
 - [Views](views.md)
+- [Guided workflows](workflows.md)
 - [FUSE setup, runtime flag, troubleshooting](fuse.md)
 - [Repository directory layout](storage-layout.md)
 - [On-disk encoding map](storage-encoding.md)
