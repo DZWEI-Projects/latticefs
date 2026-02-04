@@ -16,7 +16,7 @@ import (
 const (
     ucanVersion          = "0.10.0"
     maxProofChainDepth   = 10
-    clockSkewSeconds int = 300
+    clockSkewSeconds int64 = 300
 )
 
 type UcanHeader struct {
@@ -116,10 +116,10 @@ func validateUcan(token string, revocations *RevocationIndex, depth int) (*Ucan,
     }
 
     now := time.Now().Unix()
-    if now >= ucan.Payload.Exp+int64(clockSkewSeconds) {
+    if now >= ucan.Payload.Exp+clockSkewSeconds {
         return nil, errors.New("capability expired")
     }
-    if ucan.Payload.Nbf != nil && now+int64(clockSkewSeconds) < *ucan.Payload.Nbf {
+    if ucan.Payload.Nbf != nil && now+clockSkewSeconds < *ucan.Payload.Nbf {
         return nil, errors.New("capability not yet valid")
     }
 
