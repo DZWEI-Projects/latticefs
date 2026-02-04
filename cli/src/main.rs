@@ -135,6 +135,10 @@ async fn main() -> Result<()> {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::trust::quarantine(repo, cmd.command).await?;
         }
+        commands::Command::Stats(cmd) => {
+            let repo = commands::common::open_repo(cli.repo.clone())?;
+            commands::stats::run(repo, cmd.command).await?;
+        }
         commands::Command::Mount(args) => {
             if !cli.fuse {
                 return Err(anyhow::anyhow!(

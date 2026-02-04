@@ -19,6 +19,7 @@ pub mod state;
 pub mod share;
 pub mod shares;
 pub mod system;
+pub mod stats;
 pub mod tag;
 pub mod tags;
 pub mod trust;
@@ -49,6 +50,7 @@ pub enum Command {
     Policy(policy::PolicyArgs),
     Trust(trust::TrustArgs),
     Quarantine(trust::QuarantineArgs),
+    Stats(stats::StatsArgs),
     Import(import::ImportArgs),
     Export(export::ExportArgs),
     Mount(mount::MountArgs),

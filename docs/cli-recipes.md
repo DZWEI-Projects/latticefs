@@ -119,6 +119,23 @@ Goal: show all tags, not just auto tags.
 lfs meta <object-id> --tags --all-tags
 ```
 
+## Get an object checksum
+Old way: export an object to a file, then hash it with a separate tool.
+
+LatticeFS way: ask the CLI for the object checksum directly.
+
+Goal: get the content hash for the current version.
+
+```bash
+lfs stats checksum <object-id>
+```
+
+Goal: get the checksum for a specific version.
+
+```bash
+lfs stats checksum <object-id>@v2
+```
+
 ## See object versions
 Old way: keep “report-final-final.pdf” copies.
 
