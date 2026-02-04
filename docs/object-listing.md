@@ -63,7 +63,7 @@ If you build with FUSE support and use `--fuse`, you can browse views as directo
 
 ```bash
 lfs --fuse mount ~/Lattice
-ls ~/Lattice/All
+ls ~/Lattice/views/all\ objects
 ```
 
 ## Summary

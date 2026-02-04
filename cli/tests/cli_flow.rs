@@ -13,7 +13,7 @@ fn setup_env(temp: &TempDir) -> (PathBuf, PathBuf) {
 }
 
 fn lfs_cmd(lattice_home: &PathBuf, xdg_home: &PathBuf) -> Command {
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("cli"));
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("lfs"));
     cmd.env("LATTICE_HOME", lattice_home);
     cmd.env("XDG_CONFIG_HOME", xdg_home);
     cmd.env("LFS_KEY_PASSWORD", "test-password");

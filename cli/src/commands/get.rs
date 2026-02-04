@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use latticefs_base::crypto::Capability;
-use latticefs_base::model::Tag;
 use latticefs_base::LatticeRepo;
 use std::path::PathBuf;
 
 use super::common::parse_ref_with_version;
+use latticefs_base::is_quarantined_executable;
 
 #[derive(Args, Debug)]
 pub struct GetArgs {
@@ -59,20 +59,4 @@ pub async fn run(repo: LatticeRepo, args: GetArgs) -> Result<()> {
 
     println!("Wrote {}", out_path.display());
     Ok(())
-}
-
-fn trust_level(tags: &[Tag]) -> u8 {
-    tags.iter()
-        .find(|t| t.key == "sys:trust")
-        .and_then(|t| t.value.parse::<u8>().ok())
-        .unwrap_or(75)
-}
-
-fn has_executable_tag(tags: &[Tag]) -> bool {
-    tags.iter()
-        .any(|t| t.key == "auto:executable" && t.value == "true")
-}
-
-fn is_quarantined_executable(tags: &[Tag]) -> bool {
-    has_executable_tag(tags) && trust_level(tags) < 90
 }

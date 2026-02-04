@@ -6,6 +6,7 @@ pub mod import;
 pub mod model;
 pub mod query;
 pub mod repo;
+pub mod security;
 pub mod storage;
 pub mod views;
 
@@ -34,6 +35,9 @@ pub use storage::{
     chunk_data, compute_hash, compute_merkle_root, hash_to_hex, hex_to_hash, ChunkBoundary,
     ChunkManifest, ChunkRef, ChunkStore, Hash, MetadataStore,
 };
+
+// Security helpers
+pub use security::{has_executable_tag, is_quarantined_executable, trust_level};
 
 // FUSE helpers
 pub use fuse::mount_fs;

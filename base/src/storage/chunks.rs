@@ -356,6 +356,50 @@ impl ChunkStore {
 
         Ok(data)
     }
+
+    /// Retrieve a byte range from an object (blocking).
+    /// Reads only the chunks that overlap with the requested range.
+    pub fn read_range_sync(
+        &self,
+        manifest: &ChunkManifest,
+        offset: u64,
+        size: u32,
+    ) -> Result<Vec<u8>> {
+        if size == 0 || offset >= manifest.total_size {
+            return Ok(Vec::new());
+        }
+
+        let end = std::cmp::min(offset + size as u64, manifest.total_size);
+        let mut out = Vec::with_capacity((end - offset) as usize);
+
+        for chunk_ref in &manifest.chunks {
+            let chunk_start = chunk_ref.offset;
+            let chunk_end = chunk_ref.offset + chunk_ref.length as u64;
+            if chunk_end <= offset || chunk_start >= end {
+                continue;
+            }
+
+            let chunk_data = self.read_chunk_sync(&chunk_ref.hash)?;
+            if chunk_data.len() != chunk_ref.length as usize {
+                return Err(LatticeError::LengthMismatch);
+            }
+
+            let slice_start = if offset > chunk_start {
+                (offset - chunk_start) as usize
+            } else {
+                0
+            };
+            let slice_end = if end < chunk_end {
+                (end - chunk_start) as usize
+            } else {
+                chunk_data.len()
+            };
+
+            out.extend_from_slice(&chunk_data[slice_start..slice_end]);
+        }
+
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -460,5 +504,21 @@ mod tests {
         // Retrieve object
         let retrieved = store.retrieve_object(&manifest).await.unwrap();
         assert_eq!(retrieved, data);
+    }
+
+    #[test]
+    fn test_read_range_sync() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = ChunkStore::new(temp_dir.path().to_path_buf());
+
+        let data = b"Hello, LatticeFS! ".repeat(2000);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let manifest = rt.block_on(store.store_object(&data)).unwrap();
+
+        let slice = store.read_range_sync(&manifest, 5, 20).unwrap();
+        assert_eq!(slice, data[5..25].to_vec());
+
+        let empty = store.read_range_sync(&manifest, data.len() as u64 + 10, 20).unwrap();
+        assert!(empty.is_empty());
     }
 }

@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::model::Tag;
 use latticefs_base::LatticeRepo;
 use std::io::{self, Write};
 
 use super::common::parse_ref_with_version;
+use latticefs_base::is_quarantined_executable;
 
 #[derive(Args, Debug)]
 pub struct CatArgs {
@@ -34,20 +34,4 @@ pub async fn run(repo: LatticeRepo, args: CatArgs) -> Result<()> {
     let mut stdout = io::stdout();
     stdout.write_all(&data)?;
     Ok(())
-}
-
-fn trust_level(tags: &[Tag]) -> u8 {
-    tags.iter()
-        .find(|t| t.key == "sys:trust")
-        .and_then(|t| t.value.parse::<u8>().ok())
-        .unwrap_or(75)
-}
-
-fn has_executable_tag(tags: &[Tag]) -> bool {
-    tags.iter()
-        .any(|t| t.key == "auto:executable" && t.value == "true")
-}
-
-fn is_quarantined_executable(tags: &[Tag]) -> bool {
-    has_executable_tag(tags) && trust_level(tags) < 90
 }

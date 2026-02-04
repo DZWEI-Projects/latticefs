@@ -2,9 +2,10 @@
 
 use crate::error::Result;
 use crate::fuse::inode::{inode_for_view_name, InodeMapper, PROJECTS_INODE, RECENT_INODE, ROOT_INODE, VIEWS_INODE};
-use crate::model::{ObjectID, Tag};
+use crate::model::ObjectID;
 use crate::repo::LatticeRepo;
 use crate::views::{BuiltinView, BuiltinViews, DynamicView};
+use crate::{has_executable_tag, trust_level};
 use fuser::{FileAttr, FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyOpen, Request};
 use lru::LruCache;
 use std::ffi::OsStr;
@@ -396,7 +397,11 @@ impl Filesystem for LatticeFS {
             }
         };
 
-        let data = match self.repo.chunks.retrieve_object_sync(&manifest) {
+        let data = match self
+            .repo
+            .chunks
+            .read_range_sync(&manifest, offset as u64, size)
+        {
             Ok(d) => d,
             Err(_) => {
                 reply.error(libc::EIO);
@@ -404,26 +409,8 @@ impl Filesystem for LatticeFS {
             }
         };
 
-        let start = offset as usize;
-        let end = std::cmp::min(start + size as usize, data.len());
-        if start >= data.len() {
-            reply.data(&[]);
-            return;
-        }
-        reply.data(&data[start..end]);
+        reply.data(&data);
     }
-}
-
-fn trust_level(tags: &[Tag]) -> u8 {
-    tags.iter()
-        .find(|t| t.key == "sys:trust")
-        .and_then(|t| t.value.parse::<u8>().ok())
-        .unwrap_or(75)
-}
-
-fn has_executable_tag(tags: &[Tag]) -> bool {
-    tags.iter()
-        .any(|t| t.key == "auto:executable" && t.value == "true")
 }
 
 fn micros_to_systemtime(micros: i64) -> SystemTime {
