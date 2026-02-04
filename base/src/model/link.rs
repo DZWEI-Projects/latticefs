@@ -87,8 +87,7 @@ impl std::str::FromStr for LinkType {
     }
 }
 
-/// Placeholder for ObjectID (will be defined in object.rs)
-/// Using Vec<u8> for now to avoid circular dependency
+/// Placeholder for ObjectID (uses raw bytes to avoid circular dependency)
 pub type ObjectIDBytes = Vec<u8>;
 
 /// Graph link between objects

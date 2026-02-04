@@ -1,12 +1,21 @@
 pub mod crypto;
+pub mod config;
 pub mod error;
+pub mod fuse;
+pub mod import;
 pub mod model;
 pub mod query;
+pub mod repo;
+pub mod security;
 pub mod storage;
 pub mod views;
 
 // Re-export commonly used types
 pub use error::{LatticeError, Result};
+
+// Config + repo
+pub use config::{Config, FuseConfig, ImportConfig, QuotaConfig, ShareConfig, StorageConfig};
+pub use repo::LatticeRepo;
 
 // Crypto types
 pub use crypto::{
@@ -17,7 +26,8 @@ pub use crypto::{
 // Model types
 pub use model::{
     timestamp_now, ActorID, KeyID, Link, LinkID, LinkType, MetadataPartition, Object, ObjectID,
-    ObjectType, PolicyID, State, Tag, Timestamp, Version, VersionDAG, VersionID,
+    ObjectType, Policy, PolicyID, PolicyTemplate, Requirement, State, Tag, Timestamp, Version,
+    VersionDAG, VersionID,
 };
 
 // Storage types
@@ -25,6 +35,14 @@ pub use storage::{
     chunk_data, compute_hash, compute_merkle_root, hash_to_hex, hex_to_hash, ChunkBoundary,
     ChunkManifest, ChunkRef, ChunkStore, Hash, MetadataStore,
 };
+
+// Security helpers
+pub use security::{has_executable_tag, is_quarantined_executable, trust_level};
+
+// FUSE helpers
+pub use fuse::mount_fs;
+#[cfg(feature = "fuse")]
+pub use fuse::LatticeFS;
 
 // Query types
 pub use query::{

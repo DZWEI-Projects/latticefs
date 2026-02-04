@@ -3,7 +3,7 @@ Perfect — good call on renaming `core` → `base`. That avoids namespace confu
 Below is a **single unified, handoff-ready PRD** that:
 
 ✅ incorporates your rename (`base`)
-✅ merges _everything_ from the original PRD
+✅ merges *everything* from the original PRD
 ✅ includes CLI, LQL, STRIDE, migration, automation
 ✅ includes language/framework decisions
 ✅ is structured for an autonomous coding agent
@@ -377,6 +377,7 @@ Never grant — only restrict.
 
 # 15. STRIDE Threat Model
 
+
 | Threat      | Mitigation             |
 | ----------- | ---------------------- |
 | Spoofing    | signed identities      |
@@ -385,6 +386,7 @@ Never grant — only restrict.
 | Disclosure  | scoped capabilities    |
 | DoS         | quotas                 |
 | Privilege   | capability enforcement |
+
 
 Special protections:
 

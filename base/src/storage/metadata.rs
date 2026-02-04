@@ -12,8 +12,12 @@ pub struct MetadataStore {
     versions: Tree,
     manifests: Tree,
     tags: Tree,
-    #[allow(dead_code)] // Used in Phase 3
     links: Tree,
+    policies: Tree,
+    views: Tree,
+    snapshots: Tree,
+    text: Tree,
+    inodes: Tree,
     capabilities: Tree,
     revocations: Tree,
     aliases: Tree,
@@ -29,6 +33,11 @@ impl MetadataStore {
         let manifests = db.open_tree("manifests")?;
         let tags = db.open_tree("tags")?;
         let links = db.open_tree("links")?;
+        let policies = db.open_tree("policies")?;
+        let views = db.open_tree("views")?;
+        let snapshots = db.open_tree("snapshots")?;
+        let text = db.open_tree("text")?;
+        let inodes = db.open_tree("inodes")?;
         let capabilities = db.open_tree("capabilities")?;
         let revocations = db.open_tree("revocations")?;
         let aliases = db.open_tree("aliases")?;
@@ -40,6 +49,11 @@ impl MetadataStore {
             manifests,
             tags,
             links,
+            policies,
+            views,
+            snapshots,
+            text,
+            inodes,
             capabilities,
             revocations,
             aliases,
@@ -96,6 +110,23 @@ impl MetadataStore {
         Ok(data.to_vec())
     }
 
+    /// Store a typed object using bincode.
+    pub fn store_object(&self, object: &crate::model::Object) -> Result<()> {
+        let bytes = bincode::serialize(object).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to serialize object: {}", e))
+        })?;
+        self.store_object_bytes(object.id.as_bytes(), &bytes)
+    }
+
+    /// Load a typed object.
+    pub fn load_object(&self, id: &crate::model::ObjectID) -> Result<crate::model::Object> {
+        let bytes = self.load_object_bytes(id.as_bytes())?;
+        let object = bincode::deserialize(&bytes).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to deserialize object: {}", e))
+        })?;
+        Ok(object)
+    }
+
     /// Delete an object
     pub fn delete_object(&self, id: &[u8]) -> Result<()> {
         self.objects.remove(id)?;
@@ -118,6 +149,44 @@ impl MetadataStore {
             })?;
 
         Ok(data.to_vec())
+    }
+
+    /// Store a typed version using bincode.
+    pub fn store_version(&self, version: &crate::model::Version) -> Result<()> {
+        let bytes = bincode::serialize(version).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to serialize version: {}", e))
+        })?;
+        self.store_version_bytes(version.id.as_bytes(), &bytes)
+    }
+
+    /// Load a typed version.
+    pub fn load_version(&self, id: &crate::model::VersionID) -> Result<crate::model::Version> {
+        let bytes = self.load_version_bytes(id.as_bytes())?;
+        let version = bincode::deserialize(&bytes).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to deserialize version: {}", e))
+        })?;
+        Ok(version)
+    }
+
+    /// Iterate all objects as typed values.
+    pub fn iter_objects(&self) -> impl Iterator<Item = Result<crate::model::Object>> + '_ {
+        self.objects.iter().map(|item| {
+            item.map_err(LatticeError::from).and_then(|(_k, v)| {
+                bincode::deserialize::<crate::model::Object>(&v).map_err(|e| {
+                    LatticeError::Serialization(format!("Failed to deserialize object: {}", e))
+                })
+            })
+        })
+    }
+
+    /// Iterate all object IDs (raw bytes).
+    pub fn iter_object_ids(&self) -> Result<Vec<Vec<u8>>> {
+        let mut ids = Vec::new();
+        for item in self.objects.iter() {
+            let (k, _v) = item?;
+            ids.push(k.to_vec());
+        }
+        Ok(ids)
     }
 
     /// Add object to tag index
@@ -203,6 +272,176 @@ impl MetadataStore {
         Ok(())
     }
 
+    /// Store a link record.
+    pub fn store_link(&self, link: &crate::model::Link) -> Result<()> {
+        let bytes = bincode::serialize(link).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to serialize link: {}", e))
+        })?;
+        self.links.insert(link.id.as_bytes(), bytes)?;
+        Ok(())
+    }
+
+    /// Load a link record by ID.
+    pub fn load_link(&self, id: &crate::model::LinkID) -> Result<crate::model::Link> {
+        let data = self
+            .links
+            .get(id.as_bytes())?
+            .ok_or_else(|| LatticeError::ObjectNotFound {
+                id: format!("link:{}", id),
+            })?;
+        let link = bincode::deserialize(&data).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to deserialize link: {}", e))
+        })?;
+        Ok(link)
+    }
+
+    /// Store a policy by name.
+    pub fn store_policy(&self, policy: &crate::model::Policy) -> Result<()> {
+        let bytes = bincode::serialize(policy).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to serialize policy: {}", e))
+        })?;
+        self.policies.insert(policy.name.as_bytes(), bytes)?;
+        Ok(())
+    }
+
+    /// Load a policy by name.
+    pub fn load_policy(&self, name: &str) -> Result<crate::model::Policy> {
+        let data = self
+            .policies
+            .get(name.as_bytes())?
+            .ok_or_else(|| LatticeError::ObjectNotFound {
+                id: format!("policy:{}", name),
+            })?;
+        let policy = bincode::deserialize(&data).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to deserialize policy: {}", e))
+        })?;
+        Ok(policy)
+    }
+
+    /// Delete a policy by name.
+    pub fn delete_policy(&self, name: &str) -> Result<()> {
+        self.policies.remove(name.as_bytes())?;
+        Ok(())
+    }
+
+    /// List all policies.
+    pub fn list_policies(&self) -> Result<Vec<crate::model::Policy>> {
+        let mut policies = Vec::new();
+        for item in self.policies.iter() {
+            let (_k, v) = item?;
+            let policy = bincode::deserialize(&v).map_err(|e| {
+                LatticeError::Serialization(format!("Failed to deserialize policy: {}", e))
+            })?;
+            policies.push(policy);
+        }
+        Ok(policies)
+    }
+
+    /// Store a view definition by name.
+    pub fn store_view(&self, view: &crate::views::View) -> Result<()> {
+        let bytes = bincode::serialize(view).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to serialize view: {}", e))
+        })?;
+        self.views.insert(view.name.as_bytes(), bytes)?;
+        Ok(())
+    }
+
+    /// Load a view by name.
+    pub fn load_view(&self, name: &str) -> Result<crate::views::View> {
+        let data = self
+            .views
+            .get(name.as_bytes())?
+            .ok_or_else(|| LatticeError::ViewNotFound {
+                name: name.to_string(),
+            })?;
+        let view = bincode::deserialize(&data).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
+        })?;
+        Ok(view)
+    }
+
+    /// Delete a view by name.
+    pub fn delete_view(&self, name: &str) -> Result<()> {
+        self.views.remove(name.as_bytes())?;
+        Ok(())
+    }
+
+    /// List all views.
+    pub fn list_views(&self) -> Result<Vec<crate::views::View>> {
+        let mut views = Vec::new();
+        for item in self.views.iter() {
+            let (_k, v) = item?;
+            let view = bincode::deserialize(&v).map_err(|e| {
+                LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
+            })?;
+            views.push(view);
+        }
+        Ok(views)
+    }
+
+    /// Store a view snapshot.
+    pub fn store_snapshot(&self, snapshot: &crate::views::ViewSnapshot) -> Result<()> {
+        let bytes = bincode::serialize(snapshot).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to serialize snapshot: {}", e))
+        })?;
+        self.snapshots.insert(snapshot.id.to_string().as_bytes(), bytes)?;
+        Ok(())
+    }
+
+    /// Load a snapshot by ID string.
+    pub fn load_snapshot(&self, id: &str) -> Result<crate::views::ViewSnapshot> {
+        let data = self
+            .snapshots
+            .get(id.as_bytes())?
+            .ok_or_else(|| LatticeError::ObjectNotFound {
+                id: format!("snapshot:{}", id),
+            })?;
+        let snapshot = bincode::deserialize(&data).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to deserialize snapshot: {}", e))
+        })?;
+        Ok(snapshot)
+    }
+
+    /// List all snapshots.
+    pub fn list_snapshots(&self) -> Result<Vec<crate::views::ViewSnapshot>> {
+        let mut snapshots = Vec::new();
+        for item in self.snapshots.iter() {
+            let (_k, v) = item?;
+            let snapshot = bincode::deserialize(&v).map_err(|e| {
+                LatticeError::Serialization(format!("Failed to deserialize snapshot: {}", e))
+            })?;
+            snapshots.push(snapshot);
+        }
+        Ok(snapshots)
+    }
+
+    /// Store extracted text content for an object.
+    pub fn store_text(&self, object_id: &crate::model::ObjectID, text: &str) -> Result<()> {
+        self.text.insert(object_id.as_bytes(), text.as_bytes())?;
+        Ok(())
+    }
+
+    /// Load extracted text for an object.
+    pub fn load_text(&self, object_id: &crate::model::ObjectID) -> Result<Option<String>> {
+        Ok(self
+            .text
+            .get(object_id.as_bytes())?
+            .map(|v| String::from_utf8_lossy(&v).to_string()))
+    }
+
+    /// Store an inode mapping (u64 -> object id bytes).
+    pub fn store_inode_mapping(&self, inode: u64, object_id: &[u8]) -> Result<()> {
+        let key = inode.to_be_bytes();
+        self.inodes.insert(key, object_id)?;
+        Ok(())
+    }
+
+    /// Load an inode mapping (u64 -> object id bytes).
+    pub fn load_inode_mapping(&self, inode: u64) -> Result<Option<Vec<u8>>> {
+        let key = inode.to_be_bytes();
+        Ok(self.inodes.get(key)?.map(|v| v.to_vec()))
+    }
+
     /// Flush all pending writes to disk
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
@@ -270,6 +509,18 @@ impl MetadataStore {
     pub fn delete_capability(&self, cid: &str) -> Result<()> {
         self.capabilities.remove(cid.as_bytes())?;
         Ok(())
+    }
+
+    /// List all stored capabilities.
+    pub fn list_capabilities(&self) -> Result<Vec<(String, String)>> {
+        let mut caps = Vec::new();
+        for item in self.capabilities.iter() {
+            let (k, v) = item?;
+            let cid = String::from_utf8_lossy(&k).to_string();
+            let token = String::from_utf8_lossy(&v).to_string();
+            caps.push((cid, token));
+        }
+        Ok(caps)
     }
 
     /// Store a revocation entry.

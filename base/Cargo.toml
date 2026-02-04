@@ -28,6 +28,23 @@ bs58 = "0.5"
 dirs = "5.0"
 time = { version = "0.3", features = ["parsing", "formatting"] }
 
+# Phase 3: Import/Export, FUSE, config
+mime_guess = "2.0"
+exif = { package = "kamadak-exif", version = "0.5" }
+id3 = "1.13"
+pdf-extract = "0.7"
+lopdf = "0.33"
+walkdir = "2.5"
+toml = "0.8"
+fuser = { version = "0.14", optional = true }
+lru = "0.12"
+tar = "0.4"
+libc = "0.2"
+
+[features]
+default = []
+fuse = ["fuser"]
+
 [dev-dependencies]
 proptest = "1"
 tempfile = "3"

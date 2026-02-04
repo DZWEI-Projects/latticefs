@@ -1,0 +1,259 @@
+//! Import and export module for LatticeFS.
+
+pub mod chunker;
+pub mod metadata;
+pub mod scanner;
+
+use crate::error::{LatticeError, Result};
+use crate::model::{ActorID, Object, ObjectID, ObjectType, Tag, Version, VersionID};
+use crate::repo::LatticeRepo;
+use crate::views::{BuiltinView, BuiltinViews, DynamicView};
+use std::path::Path;
+
+#[derive(Debug, Clone)]
+pub struct ImportOptions {
+    pub tags: Vec<String>,
+    pub extract_exif: bool,
+    pub extract_id3: bool,
+    pub extract_text: bool,
+    pub actor: ActorID,
+}
+
+impl Default for ImportOptions {
+    fn default() -> Self {
+        Self {
+            tags: Vec::new(),
+            extract_exif: true,
+            extract_id3: true,
+            extract_text: true,
+            actor: [0u8; 32],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ImportReport {
+    pub files: usize,
+    pub objects: usize,
+    pub bytes: u64,
+    pub errors: Vec<String>,
+}
+
+/// Import a path (file or directory) into the repository.
+pub async fn import_path(repo: &LatticeRepo, path: &Path, options: &ImportOptions) -> Result<ImportReport> {
+    let files = scanner::scan_path(path)?;
+    let mut report = ImportReport::default();
+
+    for entry in files {
+        report.files += 1;
+        report.bytes += entry.size;
+        match import_file(repo, &entry.path, options).await {
+            Ok(_) => report.objects += 1,
+            Err(err) => report.errors.push(format!("{}: {}", entry.path.display(), err)),
+        }
+    }
+
+    Ok(report)
+}
+
+/// Import a single file.
+pub async fn import_file(repo: &LatticeRepo, path: &Path, options: &ImportOptions) -> Result<ObjectID> {
+    let data = tokio::fs::read(path).await?;
+    let manifest = repo.chunks.store_object(&data).await?;
+    let manifest_hash = repo.metadata.store_manifest(&manifest)?;
+
+    let object_id = ObjectID::new();
+    let version = Version::new(
+        object_id,
+        None,
+        manifest.merkle_root,
+        manifest_hash,
+        options.actor,
+        data.len() as u64,
+        manifest.chunks.len() as u32,
+        None,
+    );
+
+    let mut object = Object::new(ObjectType::Blob, version.id, options.actor);
+    object.id = object_id;
+
+    // User-provided tags
+    for tag_str in &options.tags {
+        let tag = Tag::parse(tag_str, options.actor)?;
+        object.add_tag(tag);
+    }
+
+    // Extract metadata
+    let meta_opts = metadata::MetadataOptions::from_import(options);
+    let extracted = metadata::extract_metadata(path, options.actor, &meta_opts)?;
+    for tag in extracted.tags {
+        object.add_tag(tag);
+    }
+
+    // Store object + version
+    repo.metadata.store_object(&object)?;
+    repo.metadata.store_version(&version)?;
+
+    // Tag index updates
+    for tag in &object.tags {
+        repo.metadata.add_to_tag_index(&tag.full_path(), object.id.as_bytes())?;
+    }
+
+    // Store extracted text if any
+    if let Some(text) = extracted.text {
+        repo.metadata.store_text(&object_id, &text)?;
+    }
+
+    Ok(object_id)
+}
+
+/// Export mode for object/view export.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportMode {
+    Tree,
+    Archive,
+}
+
+impl std::str::FromStr for ExportMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "tree" => Ok(ExportMode::Tree),
+            "archive" => Ok(ExportMode::Archive),
+            _ => Err(format!("Unknown export mode: {}", s)),
+        }
+    }
+}
+
+/// Export a single object (by ID) to a file or directory.
+pub async fn export_object(
+    repo: &LatticeRepo,
+    object_id: &ObjectID,
+    version_id: Option<VersionID>,
+    output: &Path,
+    mode: ExportMode,
+) -> Result<()> {
+    let (data, filename) = read_object_bytes(repo, object_id, version_id).await?;
+
+    match mode {
+        ExportMode::Tree => {
+            let out_path = if output.is_dir() {
+                output.join(filename)
+            } else {
+                output.to_path_buf()
+            };
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(out_path, data)?;
+        }
+        ExportMode::Archive => {
+            let file = std::fs::File::create(output)?;
+            let mut builder = tar::Builder::new(file);
+            append_tar_entry(&mut builder, &filename, &data)?;
+            builder.finish()?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Export a view (built-in or dynamic) to tree or archive.
+pub async fn export_view(
+    repo: &LatticeRepo,
+    view_name: &str,
+    output: &Path,
+    mode: ExportMode,
+) -> Result<()> {
+    let object_ids = resolve_view(repo, view_name)?;
+
+    match mode {
+        ExportMode::Tree => {
+            std::fs::create_dir_all(output)?;
+            for object_id in object_ids {
+                let (data, filename) = read_object_bytes(repo, &object_id, None).await?;
+                let out_path = output.join(filename);
+                if let Some(parent) = out_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(out_path, data)?;
+            }
+        }
+        ExportMode::Archive => {
+            let file = std::fs::File::create(output)?;
+            let mut builder = tar::Builder::new(file);
+            for object_id in object_ids {
+                let (data, filename) = read_object_bytes(repo, &object_id, None).await?;
+                append_tar_entry(&mut builder, &filename, &data)?;
+            }
+            builder.finish()?;
+        }
+    }
+
+    Ok(())
+}
+
+fn append_tar_entry(builder: &mut tar::Builder<std::fs::File>, name: &str, data: &[u8]) -> Result<()> {
+    let mut header = tar::Header::new_gnu();
+    header.set_size(data.len() as u64);
+    header.set_mode(0o444);
+    header.set_cksum();
+    builder.append_data(&mut header, name, data)?;
+    Ok(())
+}
+
+fn resolve_view(repo: &LatticeRepo, view_name: &str) -> Result<Vec<ObjectID>> {
+    if let Some(builtin) = BuiltinView::by_name(view_name) {
+        let builtin_views = BuiltinViews::new(&repo.metadata);
+        return builtin_views.evaluate(builtin);
+    }
+
+    let view = repo.metadata.load_view(view_name)?;
+    let mut dynamic = DynamicView::new(&view.query, &repo.metadata)?;
+    Ok(dynamic.evaluate()?)
+}
+
+async fn read_object_bytes(
+    repo: &LatticeRepo,
+    object_id: &ObjectID,
+    version_id: Option<VersionID>,
+) -> Result<(Vec<u8>, String)> {
+    let object = repo.metadata.load_object(object_id)?;
+    let version = match version_id {
+        Some(v) => repo.metadata.load_version(&v)?,
+        None => repo.metadata.load_version(&object.current_version)?,
+    };
+    if version.object_id != *object_id {
+        return Err(LatticeError::VersionNotFound {
+            id: format!("{}", version.id),
+        });
+    }
+
+    let manifest = repo.metadata.load_manifest(&version.manifest_ref)?;
+    let data = repo.chunks.retrieve_object(&manifest).await?;
+    Ok((data, object_id.to_string()))
+}
+
+/// Export an object or view, auto-detecting by reference name.
+pub async fn export_ref(
+    repo: &LatticeRepo,
+    reference: &str,
+    output: &Path,
+    mode: ExportMode,
+) -> Result<()> {
+    if let Ok(uuid) = uuid::Uuid::parse_str(reference) {
+        let object_id = ObjectID::from_uuid(uuid);
+        return export_object(repo, &object_id, None, output, mode).await;
+    }
+
+    export_view(repo, reference, output, mode).await
+}
+
+/// Resolve a ref string to an ObjectID (UUID) if possible.
+pub fn resolve_object_id(reference: &str) -> Result<ObjectID> {
+    let uuid = uuid::Uuid::parse_str(reference).map_err(|e| {
+        LatticeError::Serialization(format!("Invalid object reference '{}': {}", reference, e))
+    })?;
+    Ok(ObjectID::from_uuid(uuid))
+}
