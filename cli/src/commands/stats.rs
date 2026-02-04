@@ -391,3 +391,41 @@ fn decode_b64_tag(tag: &Tag) -> Option<String> {
     let decoded = URL_SAFE_NO_PAD.decode(tag.value.as_bytes()).ok()?;
     String::from_utf8(decoded).ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_actor() -> [u8; 32] {
+        [0u8; 32]
+    }
+
+    #[test]
+    fn test_format_tag_decodes_b64() {
+        let encoded = URL_SAFE_NO_PAD.encode("Report Final (v1).txt".as_bytes());
+        let tag = Tag::new("auto:filename_b64".to_string(), encoded, test_actor());
+        assert_eq!(
+            format_tag(&tag, false),
+            "auto:filename_b64:Report Final (v1).txt"
+        );
+    }
+
+    #[test]
+    fn test_format_tag_raw_includes_encoded() {
+        let encoded = URL_SAFE_NO_PAD.encode("Report Final (v1).txt".as_bytes());
+        let tag = Tag::new("auto:filename_b64".to_string(), encoded.clone(), test_actor());
+        assert_eq!(
+            format_tag(&tag, true),
+            format!(
+                "auto:filename_b64:{} (decoded: Report Final (v1).txt)",
+                encoded
+            )
+        );
+    }
+
+    #[test]
+    fn test_format_tag_non_b64() {
+        let tag = Tag::new("project".to_string(), "phoenix".to_string(), test_actor());
+        assert_eq!(format_tag(&tag, false), "project:phoenix");
+    }
+}
