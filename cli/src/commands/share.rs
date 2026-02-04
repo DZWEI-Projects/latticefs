@@ -19,7 +19,7 @@ pub struct ShareCommand {
     pub cap: String,
     /// Recipient public key (DID:key or hex)
     #[arg(long, global = true)]
-    pub to: String,
+    pub to: Option<String>,
     /// Expiration duration (e.g., 7d, 1h)
     #[arg(long, default_value = "7d", global = true)]
     pub expires: String,
@@ -40,6 +40,9 @@ pub struct ShareSnapshotArgs {
 }
 
 pub async fn run(repo: LatticeRepo, command: ShareCommand) -> Result<()> {
+    let to = command
+        .to
+        .ok_or_else(|| anyhow::anyhow!("share requires --to argument"))?;
     if let Some(sub) = command.subcommand {
         match sub {
             ShareSubcommand::Snapshot(args) => {
@@ -47,7 +50,7 @@ pub async fn run(repo: LatticeRepo, command: ShareCommand) -> Result<()> {
                     repo,
                     args,
                     command.cap,
-                    command.to,
+                    to,
                     command.expires,
                     command.password,
                 )
@@ -61,7 +64,7 @@ pub async fn run(repo: LatticeRepo, command: ShareCommand) -> Result<()> {
         let args = ShareObjectArgs {
             reference,
             cap: command.cap,
-            to: command.to,
+            to,
             expires: command.expires,
             password: command.password,
         };

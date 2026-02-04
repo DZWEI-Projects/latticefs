@@ -15,7 +15,7 @@ printf "beta\n" > "$tmp/b.txt"
 "$LFS_BIN" --repo "$repo" init
 output_a="$("$LFS_BIN" --repo "$repo" add "$tmp/a.txt" --tag project:demo)"
 object_a="$(echo "$output_a" | awk '{print $3}')"
-"$LFS_BIN" --repo "$repo" add "$tmp/b.txt" --tag project:other"
+"$LFS_BIN" --repo "$repo" add "$tmp/b.txt" --tag project:other
 
 "$LFS_BIN" --repo "$repo" view create Demo --query "tag:project:demo"
 views="$("$LFS_BIN" --repo "$repo" view list)"
