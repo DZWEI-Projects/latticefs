@@ -1,7 +1,7 @@
 use crate::crypto::{Capability, Facts, Permission, PublicKey};
 use crate::error::{LatticeError, Result};
 use crate::events::Event;
-use crate::ipc::{bind_listener, recv_message, send_message, MessageType};
+use crate::ipc::{bind_listener, recv_message, send_message, socket_path, MessageType};
 use crate::repo::LatticeRepo;
 use crate::security::is_quarantined_executable;
 use crate::KeyManager;
@@ -16,7 +16,22 @@ use super::proto as pb;
 
 pub async fn run_ipc_server(repo: LatticeRepo) -> Result<()> {
     let repo = Arc::new(repo);
+    let socket_path = socket_path(&repo);
     let listener = bind_listener(&repo).await?;
+
+    if repo.config.ipc.verbose {
+        eprintln!("✓ IPC server started successfully");
+        eprintln!("  {:<18} {}", "Socket:", socket_path.display());
+        eprintln!("  {:<18} {}", "Protocol:", "Unix domain socket");
+        eprintln!("  {:<18} {}", "Message types:", "ShareRequest, RevokeRequest, FetchRequest, StatusRequest, ShutdownRequest, SyncEvent");
+        eprintln!(
+            "  {:<18} {} MiB",
+            "Max message size:",
+            crate::ipc::MAX_MESSAGE_SIZE / (1024 * 1024)
+        );
+        eprintln!("  Listening for connections...");
+    }
+
     let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
 
     loop {
@@ -107,9 +122,11 @@ async fn handle_connection(
 async fn handle_share_request(repo: &LatticeRepo, request: pb::ShareRequest) -> pb::ShareResponse {
     let result = (|| {
         repo.enforce_rate_limit(1)?;
-        let object_id = object_id_from_bytes(&request.object_id.ok_or_else(|| {
-            LatticeError::Serialization("Missing object_id".to_string())
-        })?)?;
+        let object_id = object_id_from_bytes(
+            &request
+                .object_id
+                .ok_or_else(|| LatticeError::Serialization("Missing object_id".to_string()))?,
+        )?;
         let object = repo.metadata.load_object(&object_id)?;
 
         let permission: Permission = request.capability.parse()?;
@@ -117,20 +134,15 @@ async fn handle_share_request(repo: &LatticeRepo, request: pb::ShareRequest) -> 
         repo.authorize_object_permission(&object, permission, false)?;
 
         let audience = PublicKey::from_did(&request.audience_did)?;
-        let expires_at = request.expires_at.ok_or_else(|| {
-            LatticeError::Serialization("Missing expires_at".to_string())
-        })?;
+        let expires_at = request
+            .expires_at
+            .ok_or_else(|| LatticeError::Serialization("Missing expires_at".to_string()))?;
         let expires_in = duration_until(expires_at.micros);
         let facts = facts_from_map(request.facts);
 
         let identity = load_default_identity()?;
         let capability = Capability::create_with_facts(
-            &identity,
-            &audience,
-            &object_id,
-            permission,
-            expires_in,
-            facts,
+            &identity, &audience, &object_id, permission, expires_in, facts,
         )?;
         repo.metadata.store_capability(&capability)?;
         repo.events.emit_sync(Event::share_issued(
@@ -153,14 +165,21 @@ async fn handle_share_request(repo: &LatticeRepo, request: pb::ShareRequest) -> 
     }
 }
 
-async fn handle_revoke_request(repo: &LatticeRepo, request: pb::RevokeRequest) -> pb::RevokeResponse {
+async fn handle_revoke_request(
+    repo: &LatticeRepo,
+    request: pb::RevokeRequest,
+) -> pb::RevokeResponse {
     let result = (|| {
         repo.enforce_rate_limit(1)?;
         let cap = repo.metadata.load_capability(&request.ucan_cid)?;
         let identity = load_default_identity()?;
         let revocation = cap.revoke(
             &identity,
-            if request.reason.is_empty() { None } else { Some(request.reason.clone()) },
+            if request.reason.is_empty() {
+                None
+            } else {
+                Some(request.reason.clone())
+            },
             None,
             &repo.metadata,
         )?;
@@ -181,9 +200,11 @@ async fn handle_revoke_request(repo: &LatticeRepo, request: pb::RevokeRequest) -
 async fn handle_fetch_request(repo: &LatticeRepo, request: pb::FetchRequest) -> pb::FetchResponse {
     let result: Result<pb::ObjectData> = async {
         repo.enforce_rate_limit(1)?;
-        let object_id = object_id_from_bytes(&request.object_id.ok_or_else(|| {
-            LatticeError::Serialization("Missing object_id".to_string())
-        })?)?;
+        let object_id = object_id_from_bytes(
+            &request
+                .object_id
+                .ok_or_else(|| LatticeError::Serialization("Missing object_id".to_string()))?,
+        )?;
 
         let token = request.ucan_token.clone();
         let capability = Capability::parse(&token)?;
@@ -256,7 +277,10 @@ async fn handle_fetch_request(repo: &LatticeRepo, request: pb::FetchRequest) -> 
     }
 }
 
-async fn handle_status_request(repo: &LatticeRepo, request: pb::StatusRequest) -> Result<pb::StatusResponse> {
+async fn handle_status_request(
+    repo: &LatticeRepo,
+    request: pb::StatusRequest,
+) -> Result<pb::StatusResponse> {
     let stats = if request.include_stats {
         Some(build_stats(repo)?)
     } else {
@@ -305,7 +329,10 @@ fn count_chunks(root: std::path::PathBuf) -> (u64, u64) {
         return (0, 0);
     }
 
-    for entry in walkdir::WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(root)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file() {
             count += 1;
             if let Ok(meta) = entry.metadata() {
@@ -334,16 +361,14 @@ fn now_micros() -> i64 {
 }
 
 fn object_id_from_bytes(object_id: &pb::ObjectId) -> Result<crate::model::ObjectID> {
-    let uuid = uuid::Uuid::from_slice(&object_id.uuid).map_err(|e| {
-        LatticeError::Serialization(format!("Invalid object id bytes: {}", e))
-    })?;
+    let uuid = uuid::Uuid::from_slice(&object_id.uuid)
+        .map_err(|e| LatticeError::Serialization(format!("Invalid object id bytes: {}", e)))?;
     Ok(crate::model::ObjectID::from_uuid(uuid))
 }
 
 fn version_id_from_bytes(version_id: &pb::VersionId) -> Result<crate::model::VersionID> {
-    let uuid = uuid::Uuid::from_slice(&version_id.uuid).map_err(|e| {
-        LatticeError::Serialization(format!("Invalid version id bytes: {}", e))
-    })?;
+    let uuid = uuid::Uuid::from_slice(&version_id.uuid)
+        .map_err(|e| LatticeError::Serialization(format!("Invalid version id bytes: {}", e)))?;
     Ok(crate::model::VersionID::from_uuid(uuid))
 }
 
