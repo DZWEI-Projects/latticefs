@@ -15,12 +15,14 @@ pub fn open_repo(repo_path: Option<PathBuf>) -> Result<LatticeRepo> {
 
 pub fn ensure_identity(name: &str, password: Option<&str>) -> Result<Identity> {
     let manager = KeyManager::auto();
+    let env_password = std::env::var("LFS_KEY_PASSWORD").ok();
+    let password = password.map(str::to_string).or(env_password);
     if manager.exists(name) {
-        return Ok(manager.load(name, password)?);
+        return Ok(manager.load(name, password.as_deref())?);
     }
 
     let identity = Identity::generate(name);
-    manager.store(&identity, password)?;
+    manager.store(&identity, password.as_deref())?;
     Ok(identity)
 }
 

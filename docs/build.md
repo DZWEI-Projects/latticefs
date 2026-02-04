@@ -77,7 +77,7 @@ cargo build --profile profile-name
 
 ## Outputs and where to find files
 - Rust binary outputs: `target/debug/` or `target/release/`
-- CLI binary: `target/debug/cli` or `target/release/cli`
+- CLI binary: `target/debug/lfs` or `target/release/lfs`
 - Config and storage (default): `~/.latticefs/`
   - `config.toml`, `chunks/`, `meta/`, `logs/`
 
@@ -91,4 +91,23 @@ lfs import ~/Documents --tag project:demo
 
 # create a view
 lfs view create "Projects" --query "tag:project"
+```
+
+## Integration tests
+
+Integration tests live under `tests/integration/` and expect the `LFS_BIN` environment
+variable to point at the CLI binary.
+
+Run everything:
+```bash
+cargo build -p cli
+export LFS_BIN="$(pwd)/target/debug/lfs"
+./tests/integration/run_all.sh
+```
+
+Run a single script:
+```bash
+cargo build -p cli
+export LFS_BIN="$(pwd)/target/debug/lfs"
+./tests/integration/test_add_and_retrieve.sh
 ```
