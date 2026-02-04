@@ -8,6 +8,7 @@ use crate::error::{LatticeError, Result};
 use crate::model::{ActorID, Object, ObjectID, ObjectType, Tag, Version, VersionID};
 use crate::repo::LatticeRepo;
 use crate::views::{BuiltinView, BuiltinViews, DynamicView};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,7 @@ pub struct ImportOptions {
     pub extract_id3: bool,
     pub extract_text: bool,
     pub actor: ActorID,
+    pub base_path: Option<std::path::PathBuf>,
 }
 
 impl Default for ImportOptions {
@@ -27,6 +29,7 @@ impl Default for ImportOptions {
             extract_id3: true,
             extract_text: true,
             actor: [0u8; 32],
+            base_path: None,
         }
     }
 }
@@ -87,6 +90,20 @@ pub async fn import_file(
     let mut object = Object::new(ObjectType::Blob, version.id, options.actor);
     object.id = object_id;
 
+    // Source filename + relative path (base64url encoded for safe querying)
+    if let Some(file_name) = path.file_name() {
+        let file_name = file_name.to_string_lossy();
+        add_encoded_tag(&mut object, "auto:filename_b64", &file_name, options.actor);
+    }
+    if let Some(base_path) = &options.base_path {
+        if let Ok(rel_path) = path.strip_prefix(base_path) {
+            if !rel_path.as_os_str().is_empty() {
+                let rel_path = rel_path.to_string_lossy();
+                add_encoded_tag(&mut object, "auto:relpath_b64", &rel_path, options.actor);
+            }
+        }
+    }
+
     // User-provided tags
     for tag_str in &options.tags {
         let tag = Tag::parse(tag_str, options.actor)?;
@@ -121,6 +138,14 @@ pub async fn import_file(
     }
 
     Ok(object_id)
+}
+
+fn add_encoded_tag(object: &mut Object, key: &str, value: &str, actor: ActorID) {
+    if value.is_empty() {
+        return;
+    }
+    let encoded = URL_SAFE_NO_PAD.encode(value.as_bytes());
+    object.add_tag(Tag::new(key.to_string(), encoded, actor));
 }
 
 /// Export mode for object/view export.

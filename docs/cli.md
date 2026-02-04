@@ -149,12 +149,16 @@ Example:
 lfs stats view recent
 ```
 
-### `lfs stats view-objects <name>`
+### `lfs stats view-objects <name> [--all-tags] [--raw-tags]`
 List objects for a view with minimal tag output.
+
+Notes:
+- By default, auto/system tags are hidden. Use `--all-tags` to include them.
+- Tags ending in `_b64` are base64url-decoded for display. Use `--raw-tags` to show both encoded and decoded values.
 
 Example:
 ```bash
-lfs stats view-objects recent
+lfs stats view-objects recent --all-tags
 ```
 
 ### `lfs stats views`
@@ -296,6 +300,7 @@ Show extracted metadata for an object.
 By default it prints **auto‑extracted tags** (`auto:*`) and **extracted text** if present.
 Use `--all-tags` to include non‑auto tags too.
 EXIF and ID3 are surfaced as `auto:exif:*` and `auto:id3:*` tags.
+Source names captured during import are stored as `auto:filename_b64` and `auto:relpath_b64` (base64url-encoded).
 
 Example:
 ```bash

@@ -119,6 +119,19 @@ Goal: show all tags, not just auto tags.
 lfs meta <object-id> --tags --all-tags
 ```
 
+## See original import names
+Goal: list objects in a view and see decoded `auto:filename_b64` / `auto:relpath_b64` tags.
+
+```bash
+lfs stats view-objects "All" --all-tags
+```
+
+Goal: show encoded + decoded values (debugging).
+
+```bash
+lfs stats view-objects "All" --all-tags --raw-tags
+```
+
 ## Get an object checksum
 Old way: export an object to a file, then hash it with a separate tool.
 

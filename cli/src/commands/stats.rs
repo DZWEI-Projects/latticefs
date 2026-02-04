@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use clap::{Args, Subcommand};
 use latticefs_base::crypto::Capability;
+use latticefs_base::model::Tag;
 use latticefs_base::storage::hash_to_hex;
 use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView};
 use latticefs_base::{LatticeRepo, Permission};
@@ -59,6 +61,12 @@ pub struct StatsViewArgs {
 pub struct StatsViewObjectsArgs {
     /// View name (builtin or dynamic)
     pub name: String,
+    /// Include auto/system tags
+    #[arg(long)]
+    pub all_tags: bool,
+    /// Show encoded tag values alongside decoded values
+    #[arg(long)]
+    pub raw_tags: bool,
 }
 
 #[derive(Args, Debug)]
@@ -212,13 +220,23 @@ async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<(
             .load_object(&object_id)
             .with_context(|| format!("Object not found: {}", object_id))?;
         repo.authorize_object_permission(&object, Permission::Read, false)?;
+        let mut tags: Vec<_> = if args.all_tags {
+            object.tags
+        } else {
+            object
+                .tags
+                .into_iter()
+                .filter(|t| !t.is_auto_generated() && !t.is_system())
+                .collect()
+        };
+        tags.sort_by_key(|t| t.full_path());
 
         println!("{}", object.id);
-        if object.tags.is_empty() {
+        if tags.is_empty() {
             println!("  (no tags)");
         } else {
-            for tag in object.tags {
-                println!("  {}", tag.full_path());
+            for tag in tags {
+                println!("  {}", format_tag(&tag, args.raw_tags));
             }
         }
     }
@@ -352,4 +370,24 @@ async fn shares_summary(repo: LatticeRepo) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn format_tag(tag: &Tag, raw_tags: bool) -> String {
+    if let Some(decoded) = decode_b64_tag(tag) {
+        if raw_tags {
+            format!("{}:{} (decoded: {})", tag.key, tag.value, decoded)
+        } else {
+            format!("{}:{}", tag.key, decoded)
+        }
+    } else {
+        tag.full_path()
+    }
+}
+
+fn decode_b64_tag(tag: &Tag) -> Option<String> {
+    if !tag.key.ends_with("_b64") {
+        return None;
+    }
+    let decoded = URL_SAFE_NO_PAD.decode(tag.value.as_bytes()).ok()?;
+    String::from_utf8(decoded).ok()
 }
