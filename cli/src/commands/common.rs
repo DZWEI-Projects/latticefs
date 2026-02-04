@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use latticefs_base::{Config, KeyManager, LatticeRepo};
 use latticefs_base::{Identity, ObjectID, VersionID};
 use std::path::{Path, PathBuf};
@@ -15,12 +15,14 @@ pub fn open_repo(repo_path: Option<PathBuf>) -> Result<LatticeRepo> {
 
 pub fn ensure_identity(name: &str, password: Option<&str>) -> Result<Identity> {
     let manager = KeyManager::auto();
+    let env_password = std::env::var("LFS_KEY_PASSWORD").ok();
+    let password = password.map(str::to_string).or(env_password);
     if manager.exists(name) {
-        return Ok(manager.load(name, password)?);
+        return Ok(manager.load(name, password.as_deref())?);
     }
 
     let identity = Identity::generate(name);
-    manager.store(&identity, password)?;
+    manager.store(&identity, password.as_deref())?;
     Ok(identity)
 }
 
@@ -42,7 +44,10 @@ pub fn resolve_object_id(repo: &LatticeRepo, reference: &str) -> Result<ObjectID
     Err(anyhow!("Unknown object reference: {}", reference))
 }
 
-pub fn parse_ref_with_version(repo: &LatticeRepo, reference: &str) -> Result<(ObjectID, Option<VersionID>)> {
+pub fn parse_ref_with_version(
+    repo: &LatticeRepo,
+    reference: &str,
+) -> Result<(ObjectID, Option<VersionID>)> {
     let parts: Vec<&str> = reference.splitn(2, '@').collect();
     let object_id = resolve_object_id(repo, parts[0])?;
     if parts.len() == 1 {
@@ -61,11 +66,17 @@ pub fn parse_ref_with_version(repo: &LatticeRepo, reference: &str) -> Result<(Ob
     Err(anyhow!("Invalid version spec: {}", version_spec))
 }
 
-fn resolve_version_alias(repo: &LatticeRepo, object_id: &ObjectID, spec: &str) -> Result<Option<VersionID>> {
+fn resolve_version_alias(
+    repo: &LatticeRepo,
+    object_id: &ObjectID,
+    spec: &str,
+) -> Result<Option<VersionID>> {
     if !spec.starts_with('v') {
         return Ok(None);
     }
-    let index: usize = spec[1..].parse().map_err(|_| anyhow!("Invalid version index: {}", spec))?;
+    let index: usize = spec[1..]
+        .parse()
+        .map_err(|_| anyhow!("Invalid version index: {}", spec))?;
     if index == 0 {
         return Ok(None);
     }
@@ -89,7 +100,9 @@ pub fn parse_duration(spec: &str) -> Result<Duration> {
         return Err(anyhow!("Duration cannot be empty"));
     }
     let (num_str, unit) = spec.split_at(spec.len() - 1);
-    let value: u64 = num_str.parse().map_err(|_| anyhow!("Invalid duration: {}", spec))?;
+    let value: u64 = num_str
+        .parse()
+        .map_err(|_| anyhow!("Invalid duration: {}", spec))?;
     let secs = match unit {
         "s" => value,
         "m" => value * 60,
@@ -105,10 +118,12 @@ pub fn parse_duration(spec: &str) -> Result<Duration> {
 pub fn expand_path(path: &Path) -> PathBuf {
     let path_str = path.to_string_lossy();
     if path_str == "~" {
-        return dirs::home_dir().unwrap_or_else(|| PathBuf::from(".") );
+        return dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
     }
     if let Some(rest) = path_str.strip_prefix("~/") {
-        return dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")) .join(rest);
+        return dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(rest);
     }
     path.to_path_buf()
 }
