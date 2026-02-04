@@ -1,0 +1,340 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* NeuralFS Design System - Dark & Elegant Theme
+   All colors in HSL format for theming consistency
+*/
+
+@layer base {
+  :root {
+    /* NeuralFS Dark Theme - Always dark, desktop app aesthetic */
+    --background: 240 20% 4%;
+    --background-deep: 240 25% 3%;
+    --foreground: 240 5% 90%;
+
+    --card: 240 15% 8%;
+    --card-foreground: 240 5% 90%;
+
+    --popover: 240 15% 8%;
+    --popover-foreground: 240 5% 90%;
+
+    /* Electric Blue - Primary accent */
+    --primary: 217 100% 65%;
+    --primary-foreground: 240 20% 4%;
+    --primary-glow: 217 100% 65%;
+
+    /* Muted Purple - Secondary/connections */
+    --secondary: 263 70% 58%;
+    --secondary-foreground: 240 5% 90%;
+
+    /* Dark surfaces */
+    --muted: 240 10% 12%;
+    --muted-foreground: 240 5% 48%;
+
+    --accent: 263 70% 58%;
+    --accent-foreground: 240 5% 90%;
+
+    /* Warm Amber - Warnings */
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 20% 4%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 240 5% 90%;
+
+    --border: 240 10% 15%;
+    --input: 240 10% 12%;
+    --ring: 217 100% 65%;
+
+    --radius: 0.75rem;
+
+    /* Glass effect variables */
+    --glass-bg: 240 15% 8%;
+    --glass-border: 240 10% 20%;
+    --glass-blur: 12px;
+
+    /* Gradient backgrounds */
+    --gradient-start: 240 25% 3%;
+    --gradient-end: 250 20% 7%;
+
+    /* Node graph colors */
+    --node-primary: 217 100% 65%;
+    --node-secondary: 263 70% 58%;
+    --node-file: 240 5% 70%;
+    --connection-line: 217 60% 40%;
+
+    /* Animation timing */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
+
+    --sidebar-background: 240 15% 6%;
+    --sidebar-foreground: 240 5% 90%;
+    --sidebar-primary: 217 100% 65%;
+    --sidebar-primary-foreground: 240 20% 4%;
+    --sidebar-accent: 240 10% 12%;
+    --sidebar-accent-foreground: 240 5% 90%;
+    --sidebar-border: 240 10% 15%;
+    --sidebar-ring: 217 100% 65%;
+  }
+
+  /* No light mode - NeuralFS is always dark */
+  .dark {
+    /* Same as root - dark only */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-end)) 100%
+    );
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  /* Glass morphism effect */
+  .glass {
+    background: hsl(var(--glass-bg) / 0.6);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid hsl(var(--glass-border) / 0.3);
+  }
+
+  .glass-strong {
+    background: hsl(var(--glass-bg) / 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--glass-border) / 0.4);
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3),
+                0 0 40px hsl(var(--primary) / 0.1);
+  }
+
+  .glow-primary-intense {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.5),
+                0 0 60px hsl(var(--primary) / 0.2);
+  }
+
+  .glow-secondary {
+    box-shadow: 0 0 20px hsl(var(--secondary) / 0.3),
+                0 0 40px hsl(var(--secondary) / 0.1);
+  }
+
+  /* Text glow */
+  .text-glow {
+    text-shadow: 0 0 20px hsl(var(--primary) / 0.5),
+                 0 0 40px hsl(var(--primary) / 0.3);
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all 0.5s var(--ease-out-expo);
+  }
+
+  .transition-slow {
+    transition: all 0.8s var(--ease-out-expo);
+  }
+
+  /* Particle animation base */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+/* Keyframe animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes particle-float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translate(10px, -20px) scale(1.1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-5px, -40px) scale(0.9);
+    opacity: 0.4;
+  }
+  75% {
+    transform: translate(15px, -20px) scale(1.05);
+    opacity: 0.5;
+  }
+}
+
+@keyframes connection-pulse {
+  0%, 100% {
+    stroke-opacity: 0.3;
+  }
+  50% {
+    stroke-opacity: 0.8;
+  }
+}
+
+@keyframes node-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 20px 10px hsl(var(--primary) / 0);
+  }
+}
+
+@keyframes celebration {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(0) rotate(360deg);
+    opacity: 0;
+  }
+}
