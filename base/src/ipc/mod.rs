@@ -5,7 +5,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 
 pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/latticefs.ipc.rs"));
+    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/ipc/proto.rs"));
 }
 
 pub mod server;
