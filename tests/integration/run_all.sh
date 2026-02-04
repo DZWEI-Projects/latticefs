@@ -7,7 +7,9 @@ cd "$ROOT"
 echo "Building CLI..."
 cargo build -p cli
 
-export LFS_BIN="$ROOT/target/debug/lfs"
+if [[ -z "${LFS_BIN:-}" ]]; then
+  export LFS_BIN="$ROOT/target/debug/lfs"
+fi
 export LFS_KEY_PASSWORD="${LFS_KEY_PASSWORD:-test-pass}"
 
 tests=(

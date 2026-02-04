@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${LFS_BIN:?LFS_BIN not set}"
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+require_lfs_bin
 
 tmp="$(mktemp -d)"
 export XDG_CONFIG_HOME="$tmp/config"
