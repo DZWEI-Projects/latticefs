@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn test_sign_verify_roundtrip() {
         let identity = Identity::generate("signer");
-        let message = b"Hello, LatticeFS!";
+        let message = b"Hello, NeuralFS!";
 
         let signature = identity.sign(message);
         assert!(identity.verify(message, &signature).is_ok());
@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn test_verify_wrong_message() {
         let identity = Identity::generate("signer");
-        let message = b"Hello, LatticeFS!";
+        let message = b"Hello, NeuralFS!";
         let wrong_message = b"Wrong message";
 
         let signature = identity.sign(message);
@@ -248,7 +248,7 @@ mod tests {
     fn test_verify_wrong_key() {
         let identity1 = Identity::generate("signer1");
         let identity2 = Identity::generate("signer2");
-        let message = b"Hello, LatticeFS!";
+        let message = b"Hello, NeuralFS!";
 
         let signature = identity1.sign(message);
         assert!(identity2.verify(message, &signature).is_err());

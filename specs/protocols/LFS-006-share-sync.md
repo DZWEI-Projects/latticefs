@@ -3,13 +3,13 @@
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** 2026-02-03
-**Authors:** LatticeFS Team
+**Authors:** NeuralFS Team
 
 ---
 
 ## Abstract
 
-This document specifies the LatticeFS share and sync protocols, including HTTP-based capability sharing (MVP), CRDT-based graph synchronization (future), conflict resolution semantics, and peer discovery. The protocol enables secure object sharing between users and eventual multi-device synchronization.
+This document specifies the NeuralFS share and sync protocols, including HTTP-based capability sharing (MVP), CRDT-based graph synchronization (future), conflict resolution semantics, and peer discovery. The protocol enables secure object sharing between users and eventual multi-device synchronization.
 
 ---
 
@@ -17,7 +17,7 @@ This document specifies the LatticeFS share and sync protocols, including HTTP-b
 
 ### 1.1 Motivation
 
-LatticeFS objects exist in a distributed graph:
+NeuralFS objects exist in a distributed graph:
 
 - **Sharing**: Users need to share objects via capabilities (zero-trust)
 - **Sync**: Users need multi-device access (laptop, phone, desktop)
@@ -117,8 +117,8 @@ Authorization: Bearer eyJhbGciOiJFZERTQSIs...
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/octet-stream
-X-LatticeFS-Version: 01934e3b-7c5a-7b3c-8d2e-1f4a5b6c7d8f
-X-LatticeFS-Blake3: af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262
+X-NeuralFS-Version: 01934e3b-7c5a-7b3c-8d2e-1f4a5b6c7d8f
+X-NeuralFS-Blake3: af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262
 
 <binary object data>
 ```
@@ -247,8 +247,8 @@ func handleFetch(w http.ResponseWriter, r *http.Request) {
     switch result := ipcResp.Result.(type) {
     case *pb.FetchResponse_Data:
         w.Header().Set("Content-Type", "application/octet-stream")
-        w.Header().Set("X-LatticeFS-Version", uuid.UUID(result.Data.VersionId.Uuid).String())
-        w.Header().Set("X-LatticeFS-Blake3", hex.EncodeToString(result.Data.ContentHash.Blake3))
+        w.Header().Set("X-NeuralFS-Version", uuid.UUID(result.Data.VersionId.Uuid).String())
+        w.Header().Set("X-NeuralFS-Blake3", hex.EncodeToString(result.Data.ContentHash.Blake3))
         w.Write(result.Data.Content)
     case *pb.FetchResponse_Error:
         http.Error(w, result.Error.Message, 400)
@@ -295,7 +295,7 @@ Device A                Sync Relay              Device B
 
 ### 3.2 CRDT Graph Model
 
-LatticeFS graph operations are commutative:
+NeuralFS graph operations are commutative:
 
 **Operations:**
 

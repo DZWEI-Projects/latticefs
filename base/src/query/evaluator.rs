@@ -1,6 +1,6 @@
 //! LQL Query Evaluator.
 //!
-//! Executes LQL queries against the LatticeFS object graph.
+//! Executes LQL queries against the NeuralFS object graph.
 //! Per LFS-002 section 8.
 
 use crate::error::{LatticeError, Result};
@@ -518,9 +518,8 @@ impl<'a> QueryEvaluator<'a> {
             )));
         }
 
-        let uuid = uuid::Uuid::from_slice(&bytes).map_err(|e| {
-            LatticeError::Serialization(format!("Invalid alias object id: {}", e))
-        })?;
+        let uuid = uuid::Uuid::from_slice(&bytes)
+            .map_err(|e| LatticeError::Serialization(format!("Invalid alias object id: {}", e)))?;
         Ok(Some(ObjectID::from_uuid(uuid)))
     }
 }
@@ -542,10 +541,7 @@ mod tests {
         [0u8; 32]
     }
 
-    fn create_test_object(
-        store: &MetadataStore,
-        tags: Vec<(&str, &str)>,
-    ) -> Result<ObjectID> {
+    fn create_test_object(store: &MetadataStore, tags: Vec<(&str, &str)>) -> Result<ObjectID> {
         let object_id = ObjectID::new();
         let version_id = crate::model::VersionID::new();
         let chunk_root = [1u8; 32];
@@ -608,11 +604,8 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let store = MetadataStore::open(temp_dir.path()).unwrap();
 
-        let obj1 = create_test_object(
-            &store,
-            vec![("project", "phoenix"), ("priority", "high")],
-        )
-        .unwrap();
+        let obj1 =
+            create_test_object(&store, vec![("project", "phoenix"), ("priority", "high")]).unwrap();
         let _obj2 = create_test_object(&store, vec![("project", "phoenix")]).unwrap();
 
         let evaluator = QueryEvaluator::new(&store);

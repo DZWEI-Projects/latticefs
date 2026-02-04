@@ -1,4 +1,4 @@
-//! Views module for LatticeFS.
+//! Views module for NeuralFS.
 //!
 //! Views provide query-backed collections of objects:
 //! - Dynamic views: Live-updating based on LQL queries
@@ -149,9 +149,11 @@ impl ViewStore {
 
     /// Get a view by ID.
     pub fn get(&self, id: &ViewID) -> Result<&View> {
-        self.views.get(id).ok_or_else(|| LatticeError::ViewNotFound {
-            name: id.to_string(),
-        })
+        self.views
+            .get(id)
+            .ok_or_else(|| LatticeError::ViewNotFound {
+                name: id.to_string(),
+            })
     }
 
     /// Get a view by name.
@@ -216,7 +218,11 @@ mod tests {
     fn test_view_store() {
         let mut store = ViewStore::new();
 
-        let view = View::new("Recent".to_string(), "updated within 7d".to_string(), test_actor());
+        let view = View::new(
+            "Recent".to_string(),
+            "updated within 7d".to_string(),
+            test_actor(),
+        );
         let id = view.id;
 
         store.store(view).unwrap();

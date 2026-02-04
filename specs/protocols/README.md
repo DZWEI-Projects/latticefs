@@ -1,6 +1,6 @@
-# LatticeFS Protocol Specifications
+# NeuralFS Protocol Specifications
 
-This directory contains the formal protocol specifications for LatticeFS, written in RFC-style format. These documents serve as the single source of truth for implementation.
+This directory contains the formal protocol specifications for NeuralFS, written in RFC-style format. These documents serve as the single source of truth for implementation.
 
 ---
 
@@ -153,7 +153,7 @@ All protocols follow this structure:
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** YYYY-MM-DD
-**Authors:** LatticeFS Team
+**Authors:** NeuralFS Team
 
 ---
 
@@ -224,7 +224,7 @@ Serialization: Protocol Buffers (IPC), bincode (storage)
 
 ## License
 
-These protocol specifications are released under the same license as the LatticeFS project.
+These protocol specifications are released under the same license as the NeuralFS project.
 
 ---
 

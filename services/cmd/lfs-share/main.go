@@ -29,7 +29,7 @@ func main() {
     if err := api.StartGrpcServer(grpcPort); err != nil {
         log.Printf("gRPC server failed to start: %v", err)
     } else {
-        log.Printf("LatticeFS gRPC server listening on :%d", grpcPort)
+        log.Printf("NeuralFS gRPC server listening on :%d", grpcPort)
     }
 
     mux := http.NewServeMux()
@@ -37,7 +37,7 @@ func main() {
     server.Register(mux)
 
     addr := fmt.Sprintf(":%d", port)
-    log.Printf("LatticeFS share server listening on %s", addr)
+    log.Printf("NeuralFS share server listening on %s", addr)
     if err := http.ListenAndServe(addr, mux); err != nil {
         log.Fatalf("share server failed: %v", err)
     }

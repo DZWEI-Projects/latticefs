@@ -1,12 +1,17 @@
-//! Read-only FUSE filesystem for LatticeFS.
+//! Read-only FUSE filesystem for NeuralFS.
 
 use crate::error::Result;
-use crate::fuse::inode::{inode_for_view_name, InodeMapper, PROJECTS_INODE, RECENT_INODE, ROOT_INODE, VIEWS_INODE};
+use crate::fuse::inode::{
+    inode_for_view_name, InodeMapper, PROJECTS_INODE, RECENT_INODE, ROOT_INODE, VIEWS_INODE,
+};
 use crate::model::ObjectID;
 use crate::repo::LatticeRepo;
 use crate::views::{BuiltinView, BuiltinViews, DynamicView};
 use crate::{has_executable_tag, trust_level};
-use fuser::{FileAttr, FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyOpen, Request};
+use fuser::{
+    FileAttr, FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyOpen,
+    Request,
+};
 use lru::LruCache;
 use std::ffi::OsStr;
 use std::num::NonZeroUsize;
@@ -21,13 +26,13 @@ enum ViewKind {
     Dynamic(String),
 }
 
-pub struct LatticeFS {
+pub struct NeuralFS {
     repo: LatticeRepo,
     inode_cache: Mutex<LruCache<u64, ObjectID>>,
     object_cache: Mutex<LruCache<ObjectID, u64>>,
 }
 
-impl LatticeFS {
+impl NeuralFS {
     pub fn new(repo: LatticeRepo) -> Self {
         let capacity = NonZeroUsize::new(10_000).expect("non-zero");
         Self {
@@ -48,14 +53,8 @@ impl LatticeFS {
 
         let mapper = self.inode_mapper();
         let inode = mapper.inode_for_object(object_id)?;
-        self.object_cache
-            .lock()
-            .unwrap()
-            .put(*object_id, inode);
-        self.inode_cache
-            .lock()
-            .unwrap()
-            .put(inode, *object_id);
+        self.object_cache.lock().unwrap().put(*object_id, inode);
+        self.inode_cache.lock().unwrap().put(inode, *object_id);
         Ok(inode)
     }
 
@@ -67,14 +66,8 @@ impl LatticeFS {
         let mapper = self.inode_mapper();
         let object_id = mapper.object_id_for_inode(inode)?;
         if let Some(object_id) = object_id {
-            self.object_cache
-                .lock()
-                .unwrap()
-                .put(object_id, inode);
-            self.inode_cache
-                .lock()
-                .unwrap()
-                .put(inode, object_id);
+            self.object_cache.lock().unwrap().put(object_id, inode);
+            self.inode_cache.lock().unwrap().put(inode, object_id);
             return Ok(Some(object_id));
         }
         Ok(None)
@@ -174,7 +167,11 @@ impl LatticeFS {
         }
 
         for view in self.repo.metadata.list_views()? {
-            entries.push((inode_for_view_name(&view.name), FileType::Directory, view.name));
+            entries.push((
+                inode_for_view_name(&view.name),
+                FileType::Directory,
+                view.name,
+            ));
         }
 
         Ok(entries)
@@ -197,7 +194,7 @@ impl LatticeFS {
     }
 }
 
-impl Filesystem for LatticeFS {
+impl Filesystem for NeuralFS {
     fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
         let name_str = match name.to_str() {
             Some(s) => s,
@@ -258,15 +255,13 @@ impl Filesystem for LatticeFS {
         };
 
         match self.object_in_view(&view, &object_id) {
-            Ok(true) => {
-                match self.inode_for_object(&object_id) {
-                    Ok(ino) => match self.file_attr(&object_id, ino) {
-                        Ok(attr) => reply.entry(&TTL, &attr, 0),
-                        Err(_) => reply.error(libc::ENOENT),
-                    },
+            Ok(true) => match self.inode_for_object(&object_id) {
+                Ok(ino) => match self.file_attr(&object_id, ino) {
+                    Ok(attr) => reply.entry(&TTL, &attr, 0),
                     Err(_) => reply.error(libc::ENOENT),
-                }
-            }
+                },
+                Err(_) => reply.error(libc::ENOENT),
+            },
             Ok(false) => reply.error(libc::ENOENT),
             Err(_) => reply.error(libc::ENOENT),
         }
@@ -319,7 +314,11 @@ impl Filesystem for LatticeFS {
             }
         } else if let Ok(Some(view)) = self.view_for_inode(ino) {
             entries.push((ino, FileType::Directory, ".".to_string()));
-            let parent = if ino == PROJECTS_INODE || ino == RECENT_INODE { ROOT_INODE } else { VIEWS_INODE };
+            let parent = if ino == PROJECTS_INODE || ino == RECENT_INODE {
+                ROOT_INODE
+            } else {
+                VIEWS_INODE
+            };
             entries.push((parent, FileType::Directory, "..".to_string()));
 
             match self.resolve_view_objects(&view) {

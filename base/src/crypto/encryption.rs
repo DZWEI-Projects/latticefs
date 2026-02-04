@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
         let key = ObjectKey::generate();
-        let plaintext = b"Hello, LatticeFS! This is secret data.";
+        let plaintext = b"Hello, NeuralFS! This is secret data.";
 
         let encrypted = key.encrypt(plaintext).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();

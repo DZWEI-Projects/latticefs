@@ -1,4 +1,4 @@
-//! Configuration handling for LatticeFS.
+//! Configuration handling for NeuralFS.
 //!
 //! Loads config from $LATTICE_HOME/config.toml (or ~/.latticefs/config.toml).
 //! Environment variable LATTICE_HOME overrides the default storage path.
@@ -171,9 +171,7 @@ pub struct IpcConfig {
 
 impl Default for IpcConfig {
     fn default() -> Self {
-        Self {
-            verbose: false,
-        }
+        Self { verbose: false }
     }
 }
 
@@ -257,7 +255,7 @@ pub fn config_path() -> PathBuf {
     home.join("config.toml")
 }
 
-/// Default LatticeFS home (~/.latticefs).
+/// Default NeuralFS home (~/.latticefs).
 pub fn default_home() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))

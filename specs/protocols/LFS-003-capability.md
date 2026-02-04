@@ -3,13 +3,13 @@
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** 2026-02-03
-**Authors:** LatticeFS Team
+**Authors:** NeuralFS Team
 
 ---
 
 ## Abstract
 
-This document specifies the capability-based security model for LatticeFS, including UCAN (User Controlled Authorization Network) token format, delegation semantics, revocation mechanisms, and cryptographic operations. Capabilities replace traditional ACLs with cryptographically verifiable, delegatable bearer tokens.
+This document specifies the capability-based security model for NeuralFS, including UCAN (User Controlled Authorization Network) token format, delegation semantics, revocation mechanisms, and cryptographic operations. Capabilities replace traditional ACLs with cryptographically verifiable, delegatable bearer tokens.
 
 ---
 
@@ -23,7 +23,7 @@ Traditional access control uses:
 - **Bearer tokens**: Non-delegatable, opaque
 - **Passwords**: Shared secrets, revocation requires coordination
 
-LatticeFS requires:
+NeuralFS requires:
 
 - **Zero-trust sharing**: No central authority
 - **Delegation**: Recipients can re-share with constraints
@@ -567,7 +567,7 @@ async fn revoke_ucan(ucan_cid: &str, revoker: &Identity) -> Result<()> {
 
 ---
 
-## 10. Integration with LatticeFS
+## 10. Integration with NeuralFS
 
 ### 10.1 Object Access
 
@@ -753,7 +753,7 @@ Expected: INVALID (escalation not allowed)
 
 ## Appendix A: DID Format
 
-LatticeFS uses `did:key` for Ed25519 keys:
+NeuralFS uses `did:key` for Ed25519 keys:
 
 ```
 did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK

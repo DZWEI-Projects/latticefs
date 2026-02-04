@@ -1,10 +1,12 @@
 # Benchmarking (Rust)
 
 ## Scope
-This document covers Rust-side performance for the LatticeFS core (`base`) library, with a focus on
+
+This document covers Rust-side performance for the NeuralFS core (`base`) library, with a focus on
 chunking, hashing, metadata, and repository read/write paths. Go services are out of scope for now.
 
 ## Benchmark suite overview
+
 The suite is implemented as Criterion benchmarks under `base/benches/performance.rs`. It targets:
 
 - **Chunking**: FastCDC boundary detection on 16 MiB buffers.
@@ -16,6 +18,7 @@ The suite is implemented as Criterion benchmarks under `base/benches/performance
 - **Manifest**: Serialize + deserialize `ChunkManifest` using `bincode`.
 
 ### How to run
+
 ```bash
 cargo bench -p base --bench performance
 ```
@@ -23,10 +26,12 @@ cargo bench -p base --bench performance
 Criterion reports are written to `target/criterion/` (including HTML charts).
 
 ## Environment used for the numbers below
+
 - CPU: Intel(R) Xeon(R) Platinum 8370C @ 2.80GHz (3 vCPUs) (KVM) — `lscpu`.
 - Rust: `rustc 1.89.0 (29483883e 2025-08-04)`.
 
 ## Results (Criterion, 100 samples)
+
 Times are reported as `[low, median, high]` from Criterion’s analysis.
 
 | Benchmark | Median time | Notes |
@@ -40,7 +45,9 @@ Times are reported as `[low, median, high]` from Criterion’s analysis.
 | `manifest/manifest_encode_decode` | **26.812 µs** | 5% outliers. |
 
 ## Evaluation & opinions
+
 ### Observations
+
 1. **Chunking + hashing are the dominant per-object CPU costs**, as expected. The 16 MiB chunking pass
    is ~2.2x the hash pass; both are large relative to metadata or Merkle costs.
 2. **Repo store/read are primarily I/O + chunking**. The 8 MiB store time is in the high teens of ms,
@@ -52,7 +59,9 @@ Times are reported as `[low, median, high]` from Criterion’s analysis.
 5. **Manifest serialization is small** and not a significant bottleneck for the tested size.
 
 ### What this means for end-user commands
+
 Most CLI commands that ingest or export data will be dominated by:
+
 - **FastCDC chunking** (CPU-bound).
 - **BLAKE3 hashing** (CPU-bound).
 - **Chunk I/O** to the content store (I/O-bound).
@@ -61,6 +70,7 @@ Metadata-heavy commands (tagging, small-object churn, or queries) may experience
 they perform frequent sled writes/reads.
 
 ## Improvement opportunities (priority × complexity)
+>
 > Priority: **P0** (must), **P1** (should), **P2** (nice-to-have).  
 > Complexity: **S** (small), **M** (medium), **L** (large).
 
@@ -76,6 +86,7 @@ they perform frequent sled writes/reads.
 | **I/O parallelism on read** | `repo_read_object_8mb` variance suggests single-threaded reads; parallel reassembly and read-ahead could help. | P2 | L |
 
 ## Next steps
+
 1. Expand the suite with CLI-level benchmarks (import/export, query, tag operations).
 2. Add profile-guided optimization (PPROF or `perf`) alongside Criterion for CPU flame graphs.
 3. Track benchmarks in CI (with a baseline) once stable workloads are defined.

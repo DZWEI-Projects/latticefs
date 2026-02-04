@@ -1,6 +1,7 @@
-# LatticeFS Documentation
+# NeuralFS Documentation
 
 ## Table of Contents
+
 - [Build process and Cargo profiles](build.md)
 - [CLI command reference](cli.md)
 - [CLI recipes (Do This → Run That)](cli-recipes.md)
@@ -21,5 +22,6 @@
 - [Architecture overview](architecture.md)
 
 ## Quick links
+
 - [Repo overview](../README.md)
 - [Specs and protocols](../specs/)

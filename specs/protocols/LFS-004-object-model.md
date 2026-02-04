@@ -3,13 +3,13 @@
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** 2026-02-03
-**Authors:** LatticeFS Team
+**Authors:** NeuralFS Team
 
 ---
 
 ## Abstract
 
-This document specifies the LatticeFS object model, including object types, version DAG semantics, graph relationships, tagging system, and state transitions. The object model replaces hierarchical filesystems with a semantic graph where objects are discovered through relationships and metadata.
+This document specifies the NeuralFS object model, including object types, version DAG semantics, graph relationships, tagging system, and state transitions. The object model replaces hierarchical filesystems with a semantic graph where objects are discovered through relationships and metadata.
 
 ---
 
@@ -891,7 +891,7 @@ assert_eq!(object.current_version, object.versions[0]);
 ### 14.2 Versioning
 
 ```rust
-let v2 = modify_object(object.id, b"Hello, LatticeFS!", alice, "Update greeting").await?;
+let v2 = modify_object(object.id, b"Hello, NeuralFS!", alice, "Update greeting").await?;
 assert_eq!(v2.parent_version, Some(v1.id));
 ```
 

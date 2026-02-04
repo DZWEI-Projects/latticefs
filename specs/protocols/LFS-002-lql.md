@@ -3,13 +3,13 @@
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** 2026-02-03
-**Authors:** LatticeFS Team
+**Authors:** NeuralFS Team
 
 ---
 
 ## Abstract
 
-This document specifies the Lattice Query Language (LQL), a human-readable domain-specific language for querying the LatticeFS object graph. LQL provides declarative filtering, graph traversal, sorting, and aggregation capabilities designed for semantic file discovery.
+This document specifies the Lattice Query Language (LQL), a human-readable domain-specific language for querying the NeuralFS object graph. LQL provides declarative filtering, graph traversal, sorting, and aggregation capabilities designed for semantic file discovery.
 
 ---
 
@@ -17,7 +17,7 @@ This document specifies the Lattice Query Language (LQL), a human-readable domai
 
 ### 1.1 Motivation
 
-Traditional filesystems rely on hierarchical paths (`/path/to/file`). LatticeFS uses a graph model where objects are discovered through queries, not paths. LQL provides:
+Traditional filesystems rely on hierarchical paths (`/path/to/file`). NeuralFS uses a graph model where objects are discovered through queries, not paths. LQL provides:
 
 - **Semantic search**: Find by meaning, not location
 - **Graph traversal**: Navigate relationships

@@ -1,4 +1,4 @@
-//! Cryptographic primitives for LatticeFS.
+//! Cryptographic primitives for NeuralFS.
 //!
 //! This module provides:
 //! - Ed25519 identity management (`identity`)

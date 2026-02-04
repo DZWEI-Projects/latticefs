@@ -1,6 +1,6 @@
 //! Lattice Query Language (LQL) module.
 //!
-//! This module provides the LQL query engine for LatticeFS:
+//! This module provides the LQL query engine for NeuralFS:
 //! - `lexer` - Token lexer for LQL
 //! - `ast` - Abstract syntax tree types
 //! - `parser` - Recursive descent parser
@@ -18,6 +18,6 @@ pub use ast::{
     TimeField, TimeOp, TimeValue, TrustLevel,
 };
 pub use evaluator::QueryEvaluator;
-pub use explain::{Explanation, Explainer, Reason};
+pub use explain::{Explainer, Explanation, Reason};
 pub use lexer::{Lexer, Token};
 pub use parser::{parse, Parser};

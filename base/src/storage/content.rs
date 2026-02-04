@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_hash_deterministic() {
-        let data = b"Hello, LatticeFS!";
+        let data = b"Hello, NeuralFS!";
         let hash1 = compute_hash(data);
         let hash2 = compute_hash(data);
         assert_eq!(hash1, hash2);

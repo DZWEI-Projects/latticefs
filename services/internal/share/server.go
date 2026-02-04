@@ -235,9 +235,9 @@ func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 		hash := blake3.Sum256(data.Content)
 		w.Header().Set("Content-Type", "application/octet-stream")
 		if versionID != "" {
-			w.Header().Set("X-LatticeFS-Version", versionID)
+			w.Header().Set("X-NeuralFS-Version", versionID)
 		}
-		w.Header().Set("X-LatticeFS-Blake3", hex.EncodeToString(hash[:]))
+		w.Header().Set("X-NeuralFS-Blake3", hex.EncodeToString(hash[:]))
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(data.Content)
 	case *pb.FetchResponse_Error:

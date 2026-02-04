@@ -1,9 +1,11 @@
-# LatticeFS PRD Enrichment Plan
+# NeuralFS PRD Enrichment Plan
 
 ## Overview
+
 This plan enriches the existing PRD at [specs/PRD.md](../../../specs/PRD.md) with implementation-specific details gathered from architecture discussions. The goal is to create a complete, unambiguous specification ready for autonomous implementation.
 
 ## Current State
+
 - ✅ Comprehensive architectural PRD exists
 - ✅ Project structure initialized (Rust workspace + Go module)
 - ✅ Core dependencies declared in Cargo.toml
@@ -13,6 +15,7 @@ This plan enriches the existing PRD at [specs/PRD.md](../../../specs/PRD.md) wit
 ## Implementation Decisions Made
 
 ### Core Architecture
+
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Chunking Algorithm** | FastCDC | Best balance of dedup ratio and performance |
@@ -25,6 +28,7 @@ This plan enriches the existing PRD at [specs/PRD.md](../../../specs/PRD.md) wit
 | **Event Streaming** | In-process tokio channels | Simple, fast, good for MVP |
 
 ### CLI & UX
+
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **CLI Framework** | clap with derive macros | Industry standard, automatic help/completions |
@@ -33,6 +37,7 @@ This plan enriches the existing PRD at [specs/PRD.md](../../../specs/PRD.md) wit
 | **Testing Strategy** | Unit tests + property-based (proptest) | Core logic coverage + invariant checking |
 
 ### Security & Storage
+
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **DoS Protection** | Simple per-user quotas + rate limits | Config-driven, good for MVP |
@@ -42,6 +47,7 @@ This plan enriches the existing PRD at [specs/PRD.md](../../../specs/PRD.md) wit
 | **Metadata Extraction** | Basic + EXIF/ID3 + text content | Media metadata + text prep for ML (v2) |
 
 ### Services & Sync
+
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Go Services API** | gRPC with Protocol Buffers | Type-safe, streaming, multi-language support |
@@ -50,6 +56,7 @@ This plan enriches the existing PRD at [specs/PRD.md](../../../specs/PRD.md) wit
 | **MVP Sync Scope** | Basic HTTP share server | Share via capabilities, no bi-directional sync yet |
 
 ### MVP Scope Refinements
+
 | Feature | MVP Status | Notes |
 |---------|------------|-------|
 | **FUSE Mount** | ✅ Read-only | Browse views, write via CLI |
@@ -64,6 +71,7 @@ This plan enriches the existing PRD at [specs/PRD.md](../../../specs/PRD.md) wit
 ### 1. New Section: Implementation Specifications
 
 #### 1.1 FastCDC Chunking Details
+
 ```
 Algorithm: FastCDC (Fast Content-Defined Chunking)
 Average chunk size: 16KB
@@ -75,6 +83,7 @@ Mask bits: 13 bits (for avg 16KB)
 ```
 
 #### 1.2 FUSE Inode Strategy
+
 ```
 Inode generation: BLAKE3(object_id)[0..8] as u64
 Collision handling: Linear probing in sled index
@@ -88,6 +97,7 @@ Special inodes:
 ```
 
 #### 1.3 LQL Grammar (EBNF)
+
 ```ebnf
 query      = expr (SORT sort_expr)? (LIMIT number)?
 expr       = term ((AND | OR) term)*
@@ -103,6 +113,7 @@ sort_expr  = field ("ASC"|"DESC")
 ```
 
 #### 1.4 UCAN Token Format
+
 ```rust
 // UCAN = User Controlled Authorization Network
 struct UCANToken {
@@ -119,6 +130,7 @@ struct UCANToken {
 ```
 
 #### 1.5 Storage Layout
+
 ```
 $HOME/.latticefs/
 ├── config.toml                # User config
@@ -232,6 +244,7 @@ services/
 ### 3. New Section: Dependencies to Add
 
 #### Rust (add to base/Cargo.toml)
+
 ```toml
 clap = { version = "4.5", features = ["derive", "env"] }
 fastcdc = "3.1"              # FastCDC chunking
@@ -246,6 +259,7 @@ tempfile = "3.10"            # Test fixtures (dev)
 ```
 
 #### Rust (add to cli/Cargo.toml)
+
 ```toml
 latticefs-base = { path = "../base" }
 clap = { version = "4.5", features = ["derive", "env", "color"] }
@@ -255,6 +269,7 @@ tracing-subscriber = "0.3"
 ```
 
 #### Go (add to services/go.mod)
+
 ```go
 require (
     google.golang.org/grpc v1.61.0
@@ -362,6 +377,7 @@ lfs verify                    # Check integrity
 ### 6. New Section: Testing Strategy
 
 #### Unit Tests (Property-Based with proptest)
+
 ```rust
 // Test invariants that must always hold
 
@@ -409,6 +425,7 @@ mod tests {
 ```
 
 #### Integration Tests
+
 ```bash
 # Test full workflows
 tests/
@@ -424,6 +441,7 @@ tests/
 ### 7. New Section: Build Order (Detailed)
 
 #### Phase 1: Foundation (Week 1-2)
+
 1. **Error types** (`base/src/error.rs`)
    - Define domain-specific error enums
    - Implement conversions and context
@@ -440,75 +458,80 @@ tests/
    - Version DAG implementation
 
 #### Phase 2: Core Logic (Week 3-4)
+
 4. **Crypto** (`base/src/crypto/`)
    - Ed25519 identity management
    - OS keyring integration
    - AES-GCM encryption
    - UCAN token implementation
 
-5. **Query engine** (`base/src/query/`)
+2. **Query engine** (`base/src/query/`)
    - LQL parser (recursive descent)
    - Query evaluator
    - Explainability
 
-6. **Views** (`base/src/views/`)
+3. **Views** (`base/src/views/`)
    - Dynamic view system
    - Built-in views (Recent, Projects, etc.)
    - View snapshots
 
 #### Phase 3: CLI & FUSE (Week 5-6)
+
 7. **CLI commands** (`cli/src/commands/`)
    - Implement all commands from §5
    - Verbosity control
    - Progress indicators for long ops
 
-8. **FUSE mount** (`base/src/fuse/`)
+2. **FUSE mount** (`base/src/fuse/`)
    - Hash-based inode mapping
    - Read-only operations
    - View projection
 
-9. **Import/Export** (`base/src/import/`)
+3. **Import/Export** (`base/src/import/`)
    - Filesystem scanner
    - Metadata extraction (EXIF, ID3, text)
    - Export to tree/archive
 
 #### Phase 4: Policies & Sharing (Week 7-8)
+
 10. **Policy engine** (`base/src/policy/`)
     - Policy evaluation (most restrictive wins)
     - Quota enforcement
     - Rate limiting
 
-11. **Event system** (`base/src/events/`)
+2. **Event system** (`base/src/events/`)
     - Tokio mpsc event bus
     - Event types
     - Logging
 
-12. **Go share server** (`services/`)
+3. **Go share server** (`services/`)
     - gRPC API definition
     - HTTP share endpoint
     - Capability verification
     - Unix socket IPC with Rust
 
 #### Phase 5: Testing & Polish (Week 9-10)
+
 13. **Property-based tests**
     - Chunking determinism
     - Deduplication correctness
     - Policy monotonicity
     - DAG acyclicity
 
-14. **Integration tests**
+2. **Integration tests**
     - Full workflow tests
     - FUSE testing
     - Multi-process coordination
 
-15. **Documentation**
+3. **Documentation**
     - CLI help text
     - Examples
     - Architecture diagrams
 
 ### 8. New Section: Success Criteria
 
-#### MVP is complete when:
+#### MVP is complete when
+
 - ✅ User can `lfs import ~/Documents` and files are chunked/stored
 - ✅ User can `lfs view create "Projects" --query 'tag:project'`
 - ✅ User can `lfs mount ~/Lattice` and browse views read-only
@@ -520,7 +543,8 @@ tests/
 - ✅ All property-based tests pass (1000+ random inputs)
 - ✅ Integration test suite passes (full workflows)
 
-#### Performance targets:
+#### Performance targets
+
 - Import 1GB of mixed files in < 30 seconds
 - Query results return in < 100ms for 100k objects
 - FUSE read latency < 10ms for cached chunks
@@ -530,6 +554,7 @@ tests/
 ### 9. New Section: Known Limitations (MVP)
 
 **Out of Scope for MVP:**
+
 - ❌ Bi-directional sync between devices (CRDT protocol designed but not implemented)
 - ❌ Write operations through FUSE (read-only mount only)
 - ❌ Semantic embeddings / ML-powered search
@@ -541,6 +566,7 @@ tests/
 - ❌ Real-time collaboration
 
 **Technical Debt Accepted for MVP:**
+
 - Simple LRU cache (not optimized eviction)
 - No incremental garbage collection
 - Basic anomaly detection for ransomware
@@ -549,9 +575,11 @@ tests/
 ## Critical Files to Create/Modify
 
 ### New Files (50+ files)
+
 All files in the module architecture (§2) need to be created from scratch.
 
 ### Modified Files
+
 1. `Cargo.toml` - Add new dependencies
 2. `base/Cargo.toml` - Add base dependencies
 3. `cli/Cargo.toml` - Add CLI dependencies
@@ -559,6 +587,7 @@ All files in the module architecture (§2) need to be created from scratch.
 5. `specs/PRD.md` - Add all enrichments from this plan
 
 ### New Directories
+
 ```
 base/src/storage/
 base/src/model/
@@ -580,6 +609,7 @@ tests/integration/
 ## Verification Plan
 
 ### Manual Testing
+
 1. Initialize fresh repo: `lfs init`
 2. Import sample files: `lfs import ~/test-data`
 3. Create view: `lfs view create "Images" --query 'type:image/*'`
@@ -589,6 +619,7 @@ tests/integration/
 7. Check quarantine: `lfs trust set <ref> quarantined && ~/Lattice/views/Recent/<ref>` (should fail if executable)
 
 ### Automated Testing
+
 ```bash
 cargo test --all                    # Unit + property tests
 cargo test --all -- --ignored       # Slow integration tests
@@ -599,6 +630,7 @@ cargo audit                         # Security advisories
 ```
 
 ### Performance Testing
+
 ```bash
 ./bench/import_benchmark.sh         # Import 1GB test data
 ./bench/query_benchmark.sh          # Query 100k objects
@@ -620,6 +652,7 @@ cargo audit                         # Security advisories
 ## Success Metrics
 
 **Quantitative:**
+
 - All 50+ unit tests pass
 - All 10+ integration tests pass
 - Property tests pass with 1000+ random inputs
@@ -627,6 +660,7 @@ cargo audit                         # Security advisories
 - Query latency < 100ms (p99)
 
 **Qualitative:**
+
 - Can migrate real Documents folder
 - Views feel instant to navigate
 - Sharing "just works" with capabilities

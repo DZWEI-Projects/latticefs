@@ -1,4 +1,4 @@
-# Versioning in LatticeFS
+# Versioning in NeuralFS
 
 This document explains how versioning works and walks through two hands-on examples.
 

@@ -1,4 +1,4 @@
-//! Built-in views for LatticeFS.
+//! Built-in views for NeuralFS.
 //!
 //! Provides commonly used views that are always available:
 //! - Recent: Objects updated within the last 7 days
@@ -214,7 +214,12 @@ mod tests {
         // Ensure all built-in queries are valid
         for view in BuiltinView::all() {
             let result = parse(view.query());
-            assert!(result.is_ok(), "Failed to parse query for {:?}: {:?}", view, result.err());
+            assert!(
+                result.is_ok(),
+                "Failed to parse query for {:?}: {:?}",
+                view,
+                result.err()
+            );
         }
     }
 
@@ -222,7 +227,10 @@ mod tests {
     fn test_builtin_view_by_name() {
         assert_eq!(BuiltinView::by_name("recent"), Some(BuiltinView::Recent));
         assert_eq!(BuiltinView::by_name("RECENT"), Some(BuiltinView::Recent));
-        assert_eq!(BuiltinView::by_name("projects"), Some(BuiltinView::Projects));
+        assert_eq!(
+            BuiltinView::by_name("projects"),
+            Some(BuiltinView::Projects)
+        );
         assert_eq!(BuiltinView::by_name("nonexistent"), None);
     }
 

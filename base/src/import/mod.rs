@@ -1,4 +1,4 @@
-//! Import and export module for LatticeFS.
+//! Import and export module for NeuralFS.
 
 pub mod chunker;
 pub mod metadata;

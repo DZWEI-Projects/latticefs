@@ -2,16 +2,16 @@
 
 use crate::config::FuseConfig;
 use crate::error::{LatticeError, Result};
-use crate::fuse::readonly::LatticeFS;
+use crate::fuse::readonly::NeuralFS;
 use crate::repo::LatticeRepo;
 use fuser::MountOption;
 use std::path::Path;
 
-/// Mount the LatticeFS FUSE filesystem (read-only MVP).
+/// Mount the NeuralFS FUSE filesystem (read-only MVP).
 pub fn mount_fs(repo: LatticeRepo, mount_point: &Path, config: &FuseConfig) -> Result<()> {
     std::fs::create_dir_all(mount_point)?;
 
-    let fs = LatticeFS::new(repo);
+    let fs = NeuralFS::new(repo);
     let mut options = vec![
         MountOption::RO,
         MountOption::FSName("latticefs".to_string()),

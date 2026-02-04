@@ -3,13 +3,13 @@
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** 2026-02-03
-**Authors:** LatticeFS Team
+**Authors:** NeuralFS Team
 
 ---
 
 ## Abstract
 
-This document specifies the inter-process communication (IPC) protocol between LatticeFS Rust components (base library, CLI, FUSE) and Go services (share daemon, sync orchestrator). The protocol uses Unix domain sockets for fast local communication with length-prefixed message framing and Protocol Buffers for serialization.
+This document specifies the inter-process communication (IPC) protocol between NeuralFS Rust components (base library, CLI, FUSE) and Go services (share daemon, sync orchestrator). The protocol uses Unix domain sockets for fast local communication with length-prefixed message framing and Protocol Buffers for serialization.
 
 ---
 
@@ -17,7 +17,7 @@ This document specifies the inter-process communication (IPC) protocol between L
 
 ### 1.1 Motivation
 
-LatticeFS is a hybrid Rust + Go system:
+NeuralFS is a hybrid Rust + Go system:
 
 - **Rust**: Core storage, policy engine, crypto, FUSE mount (performance-critical)
 - **Go**: Sync daemon, share server, admin APIs (network services)

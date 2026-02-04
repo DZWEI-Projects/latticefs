@@ -146,7 +146,7 @@ impl Attenuation {
 /// Facts (contextual constraints).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Facts {
-    /// LatticeFS version.
+    /// NeuralFS version.
     #[serde(rename = "lfs/version", skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     /// Device binding.

@@ -1,4 +1,4 @@
-//! View snapshots for LatticeFS.
+//! View snapshots for NeuralFS.
 //!
 //! Snapshots capture the state of a view at a specific point in time,
 //! creating an immutable set of object references that can be shared.
@@ -306,12 +306,8 @@ mod tests {
             objects.clone(),
             test_actor(),
         );
-        let snapshot_b = ViewSnapshot::new(
-            "B".to_string(),
-            "tag:b".to_string(),
-            objects,
-            test_actor(),
-        );
+        let snapshot_b =
+            ViewSnapshot::new("B".to_string(), "tag:b".to_string(), objects, test_actor());
 
         let diff = snapshot_a.diff(&snapshot_b);
 

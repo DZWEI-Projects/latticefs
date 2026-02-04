@@ -1,4 +1,4 @@
-//! FUSE module for LatticeFS.
+//! FUSE module for NeuralFS.
 
 pub mod inode;
 
@@ -14,7 +14,7 @@ pub use inode::{
 #[cfg(feature = "fuse")]
 pub use mount::mount_fs;
 #[cfg(feature = "fuse")]
-pub use readonly::LatticeFS;
+pub use readonly::NeuralFS;
 
 #[cfg(not(feature = "fuse"))]
 pub fn mount_fs(

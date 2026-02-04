@@ -3,13 +3,13 @@
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** 2026-02-03
-**Authors:** LatticeFS Team
+**Authors:** NeuralFS Team
 
 ---
 
 ## Abstract
 
-This document specifies the storage layer protocol for LatticeFS, including content-defined chunking, content addressing, chunk storage layout, and metadata management. This protocol ensures deterministic, deduplicated, and verifiable storage of objects.
+This document specifies the storage layer protocol for NeuralFS, including content-defined chunking, content addressing, chunk storage layout, and metadata management. This protocol ensures deterministic, deduplicated, and verifiable storage of objects.
 
 ---
 
@@ -17,7 +17,7 @@ This document specifies the storage layer protocol for LatticeFS, including cont
 
 ### 1.1 Motivation
 
-Traditional filesystems store files as opaque blocks at specific paths. LatticeFS requires:
+Traditional filesystems store files as opaque blocks at specific paths. NeuralFS requires:
 
 - **Deduplication**: Identical content stored once
 - **Versioning**: Efficient storage of incremental changes
@@ -38,7 +38,7 @@ Traditional filesystems store files as opaque blocks at specific paths. LatticeF
 
 ### 2.1 Algorithm: FastCDC
 
-LatticeFS MUST use the FastCDC (Fast Content-Defined Chunking) algorithm with the following parameters:
+NeuralFS MUST use the FastCDC (Fast Content-Defined Chunking) algorithm with the following parameters:
 
 ```
 Algorithm:        FastCDC
@@ -105,7 +105,7 @@ The FastCDC algorithm uses a pre-computed Gear hash table for boundary detection
 ```rust
 const GEAR_TABLE: [u64; 256] = [
     // 256 pseudo-random 64-bit values
-    // Generated using: BLAKE3(b"LatticeFS-Gear-v1" || byte)
+    // Generated using: BLAKE3(b"NeuralFS-Gear-v1" || byte)
     0x5c3c6318a6d6f1b9, 0x8f9e4b2c7d3a1e0f, ...
 ];
 ```
@@ -118,7 +118,7 @@ import blake3
 def generate_gear_table():
     table = []
     for i in range(256):
-        h = blake3.blake3(b"LatticeFS-Gear-v1" + bytes([i]))
+        h = blake3.blake3(b"NeuralFS-Gear-v1" + bytes([i]))
         value = int.from_bytes(h.digest()[:8], 'little')
         table.append(value)
     return table
@@ -134,7 +134,7 @@ def generate_gear_table():
 
 **Test Vector:**
 
-Input: `b"Hello, LatticeFS!" * 10000` (169,980 bytes)
+Input: `b"Hello, NeuralFS!" * 10000` (169,980 bytes)
 
 Expected chunks:
 
@@ -558,7 +558,7 @@ BLAKE3 provides 256-bit security. Collision probability is negligible (< 2^-128 
 
 Attackers MUST NOT be able to craft inputs that force pathological chunking behavior.
 
-**Mitigation:** Use keyed Gear hash table (LatticeFS-specific constant).
+**Mitigation:** Use keyed Gear hash table (NeuralFS-specific constant).
 
 ### 9.3 Storage Exhaustion
 
@@ -610,7 +610,7 @@ Merkle Root: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ### A.2 Small File (< 8KB)
 
 ```
-Input: b"Hello, LatticeFS!\n" (18 bytes)
+Input: b"Hello, NeuralFS!\n" (18 bytes)
 Chunks: [
   {offset: 0, length: 18, hash: "..."}
 ]

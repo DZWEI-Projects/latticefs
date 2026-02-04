@@ -1,4 +1,4 @@
-//! Dynamic views for LatticeFS.
+//! Dynamic views for NeuralFS.
 //!
 //! Dynamic views are query-backed collections that update in real-time
 //! as objects are added, modified, or removed.

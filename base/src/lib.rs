@@ -1,9 +1,9 @@
-pub mod crypto;
 pub mod config;
+pub mod crypto;
 pub mod error;
+pub mod events;
 pub mod fuse;
 pub mod import;
-pub mod events;
 pub mod ipc;
 pub mod model;
 pub mod policy;
@@ -18,9 +18,11 @@ pub use error::{LatticeError, Result};
 
 // Config + repo
 pub use config::{Config, FuseConfig, ImportConfig, QuotaConfig, ShareConfig, StorageConfig};
-pub use repo::LatticeRepo;
 pub use events::{Event, EventBus, EventKind};
-pub use policy::{PolicyContext, PolicyDecision, PolicyEngine, QuotaEnforcer, QuotaReport, RateLimiter};
+pub use policy::{
+    PolicyContext, PolicyDecision, PolicyEngine, QuotaEnforcer, QuotaReport, RateLimiter,
+};
+pub use repo::LatticeRepo;
 
 // Crypto types
 pub use crypto::{
@@ -47,12 +49,12 @@ pub use security::{has_executable_tag, is_quarantined_executable, trust_level};
 // FUSE helpers
 pub use fuse::mount_fs;
 #[cfg(feature = "fuse")]
-pub use fuse::LatticeFS;
+pub use fuse::NeuralFS;
 
 // Query types
 pub use query::{
-    parse, CompareOp, Explanation, Explainer, Expr, Lexer, MimePattern, ObjectRef, OrderBy,
-    Parser, Predicate, Query, QueryEvaluator, Reason, SortDirection, SortField, TimeField, TimeOp,
+    parse, CompareOp, Explainer, Explanation, Expr, Lexer, MimePattern, ObjectRef, OrderBy, Parser,
+    Predicate, Query, QueryEvaluator, Reason, SortDirection, SortField, TimeField, TimeOp,
     TimeValue, Token, TrustLevel,
 };
 

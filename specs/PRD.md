@@ -16,7 +16,7 @@ You can drop this directly into `/specs/PRD.md`.
 
 ---
 
-# LatticeFS
+# NeuralFS
 
 ## Product Requirements Document (Unified Engineering Edition)
 
@@ -28,7 +28,7 @@ Audience: Autonomous coding agent + human architects
 
 # 1. Executive Summary
 
-LatticeFS is a **post-file filesystem**.
+NeuralFS is a **post-file filesystem**.
 
 Instead of folders and mutable files, it uses:
 
@@ -44,7 +44,7 @@ Traditional paths exist only as projections.
 
 Meaning, time, trust, and sharing are first-class primitives.
 
-LatticeFS is implemented entirely in **user space**, exposing compatibility via FUSE.
+NeuralFS is implemented entirely in **user space**, exposing compatibility via FUSE.
 
 ---
 
@@ -377,7 +377,6 @@ Never grant — only restrict.
 
 # 15. STRIDE Threat Model
 
-
 | Threat      | Mitigation             |
 | ----------- | ---------------------- |
 | Spoofing    | signed identities      |
@@ -386,7 +385,6 @@ Never grant — only restrict.
 | Disclosure  | scoped capabilities    |
 | DoS         | quotas                 |
 | Privilege   | capability enforcement |
-
 
 Special protections:
 
@@ -425,7 +423,7 @@ Hybrid folders.
 
 ### Phase 2
 
-Default-save to LatticeFS.
+Default-save to NeuralFS.
 
 ### Phase 3
 
@@ -490,7 +488,7 @@ Export always available.
 
 # Final Statement
 
-LatticeFS is not a filesystem.
+NeuralFS is not a filesystem.
 
 It is:
 

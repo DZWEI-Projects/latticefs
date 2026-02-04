@@ -1,8 +1,8 @@
-# LatticeFS
+# NeuralFS
 
 > Files don't need folders - they need context. Every change is a new **version**. Find by **meaning**, not location. Objects live in **time** and **relationships**.
 
-LatticeFS is a post-file filesystem with immutable, versioned objects, content-addressed storage, semantic graph links, and query-backed views. It ships as a Rust CLI and (optionally) exposes a read-only FUSE mount.
+NeuralFS is a post-file filesystem with immutable, versioned objects, content-addressed storage, semantic graph links, and query-backed views. It ships as a Rust CLI and (optionally) exposes a read-only FUSE mount.
 
 ## Repo layout
 

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 mod commands;
 
 #[derive(Parser, Debug)]
-#[command(name = "lfs", version, about = "LatticeFS CLI")]
+#[command(name = "lfs", version, about = "NeuralFS CLI")]
 struct Cli {
     /// Increase verbosity (-v, -vv)
     #[arg(short, long, action = clap::ArgAction::Count, global = true)]
