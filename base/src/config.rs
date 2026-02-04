@@ -17,6 +17,7 @@ pub struct Config {
     pub share: ShareConfig,
     pub import: ImportConfig,
     pub logging: LoggingConfig,
+    pub ipc: IpcConfig,
 }
 
 impl Default for Config {
@@ -29,6 +30,7 @@ impl Default for Config {
             share: ShareConfig::default(),
             import: ImportConfig::default(),
             logging: LoggingConfig::default(),
+            ipc: IpcConfig::default(),
         }
     }
 }
@@ -157,6 +159,20 @@ impl Default for LoggingConfig {
             level: "info".to_string(),
             format: "json".to_string(),
             audit_log: "~/.latticefs/logs/events.jsonl".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IpcConfig {
+    pub verbose: bool,
+}
+
+impl Default for IpcConfig {
+    fn default() -> Self {
+        Self {
+            verbose: false,
         }
     }
 }
