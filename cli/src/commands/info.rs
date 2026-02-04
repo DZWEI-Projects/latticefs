@@ -10,20 +10,20 @@ use latticefs_base::{LatticeRepo, Permission};
 use super::common::{parse_ref_with_version, resolve_object_id};
 
 #[derive(Subcommand, Debug)]
-pub enum StatsCommand {
+pub enum InfoCommand {
     /// Show content checksum for an object (alias: hash)
     #[command(alias = "hash")]
-    Checksum(StatsChecksumArgs),
+    Checksum(InfoChecksumArgs),
     /// Show object statistics
-    Object(StatsObjectArgs),
+    Object(InfoObjectArgs),
     /// Show statistics for a single view
-    View(StatsViewArgs),
+    View(InfoViewArgs),
     /// List objects for a view with minimal tag output
-    ViewObjects(StatsViewObjectsArgs),
+    ViewObjects(InfoViewObjectsArgs),
     /// Summarize all views
     Views,
     /// Show statistics for a single policy
-    Policy(StatsPolicyArgs),
+    Policy(InfoPolicyArgs),
     /// Summarize all policies
     Policies,
     /// Summarize shared capabilities
@@ -31,19 +31,19 @@ pub enum StatsCommand {
 }
 
 #[derive(Args, Debug)]
-pub struct StatsArgs {
+pub struct InfoArgs {
     #[command(subcommand)]
-    pub command: StatsCommand,
+    pub command: InfoCommand,
 }
 
 #[derive(Args, Debug)]
-pub struct StatsChecksumArgs {
+pub struct InfoChecksumArgs {
     /// Object reference (optionally @version)
     pub reference: String,
 }
 
 #[derive(Args, Debug)]
-pub struct StatsObjectArgs {
+pub struct InfoObjectArgs {
     /// Object reference
     pub reference: String,
     /// Include per-version stats
@@ -52,13 +52,13 @@ pub struct StatsObjectArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct StatsViewArgs {
+pub struct InfoViewArgs {
     /// View name (builtin or dynamic)
     pub name: String,
 }
 
 #[derive(Args, Debug)]
-pub struct StatsViewObjectsArgs {
+pub struct InfoViewObjectsArgs {
     /// View name (builtin or dynamic)
     pub name: String,
     /// Include auto/system tags
@@ -70,25 +70,25 @@ pub struct StatsViewObjectsArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct StatsPolicyArgs {
+pub struct InfoPolicyArgs {
     /// Policy name
     pub name: String,
 }
 
-pub async fn run(repo: LatticeRepo, cmd: StatsCommand) -> Result<()> {
+pub async fn run(repo: LatticeRepo, cmd: InfoCommand) -> Result<()> {
     match cmd {
-        StatsCommand::Checksum(args) => checksum(repo, args).await,
-        StatsCommand::Object(args) => object_stats(repo, args).await,
-        StatsCommand::View(args) => view_stats(repo, args).await,
-        StatsCommand::ViewObjects(args) => view_objects(repo, args).await,
-        StatsCommand::Views => views_summary(repo).await,
-        StatsCommand::Policy(args) => policy_stats(repo, args).await,
-        StatsCommand::Policies => policies_summary(repo).await,
-        StatsCommand::Shares => shares_summary(repo).await,
+        InfoCommand::Checksum(args) => checksum(repo, args).await,
+        InfoCommand::Object(args) => object_stats(repo, args).await,
+        InfoCommand::View(args) => view_stats(repo, args).await,
+        InfoCommand::ViewObjects(args) => view_objects(repo, args).await,
+        InfoCommand::Views => views_summary(repo).await,
+        InfoCommand::Policy(args) => policy_stats(repo, args).await,
+        InfoCommand::Policies => policies_summary(repo).await,
+        InfoCommand::Shares => shares_summary(repo).await,
     }
 }
 
-async fn checksum(repo: LatticeRepo, args: StatsChecksumArgs) -> Result<()> {
+async fn checksum(repo: LatticeRepo, args: InfoChecksumArgs) -> Result<()> {
     let (object_id, version_id) = parse_ref_with_version(&repo, &args.reference)?;
     let object = repo
         .metadata
@@ -112,7 +112,7 @@ async fn checksum(repo: LatticeRepo, args: StatsChecksumArgs) -> Result<()> {
     Ok(())
 }
 
-async fn object_stats(repo: LatticeRepo, args: StatsObjectArgs) -> Result<()> {
+async fn object_stats(repo: LatticeRepo, args: InfoObjectArgs) -> Result<()> {
     let object_id = resolve_object_id(&repo, &args.reference)?;
     let object = repo
         .metadata
@@ -164,7 +164,7 @@ async fn object_stats(repo: LatticeRepo, args: StatsObjectArgs) -> Result<()> {
     Ok(())
 }
 
-async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
+async fn view_stats(repo: LatticeRepo, args: InfoViewArgs) -> Result<()> {
     if let Some(builtin) = BuiltinView::by_name(&args.name) {
         let builtins = BuiltinViews::new(&repo.metadata);
         let object_ids = builtins.evaluate(builtin)?;
@@ -200,7 +200,7 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
     Ok(())
 }
 
-async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<()> {
+async fn view_objects(repo: LatticeRepo, args: InfoViewObjectsArgs) -> Result<()> {
     let object_ids = if let Some(builtin) = BuiltinView::by_name(&args.name) {
         let builtins = BuiltinViews::new(&repo.metadata);
         builtins.evaluate(builtin)?
@@ -270,7 +270,7 @@ async fn views_summary(repo: LatticeRepo) -> Result<()> {
     Ok(())
 }
 
-async fn policy_stats(repo: LatticeRepo, args: StatsPolicyArgs) -> Result<()> {
+async fn policy_stats(repo: LatticeRepo, args: InfoPolicyArgs) -> Result<()> {
     let policy = repo.metadata.load_policy(&args.name)?;
     let mut object_count = 0usize;
     for object in repo.metadata.iter_objects() {

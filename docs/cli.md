@@ -105,9 +105,9 @@ Example output:
 Verified <object-id>
 ```
 
-## Stats commands
+## Info commands
 
-### `lfs stats checksum <ref>`
+### `lfs info checksum <ref>`
 Show the content checksum for an object (BLAKE3 merkle root).
 
 Arguments:
@@ -115,7 +115,7 @@ Arguments:
 
 Example:
 ```bash
-lfs stats checksum <object-id>
+lfs info checksum <object-id>
 ```
 
 Example output:
@@ -129,7 +129,7 @@ Size bytes: 12345
 Chunks: 12
 ```
 
-### `lfs stats object <ref> [--all-versions]`
+### `lfs info object <ref> [--all-versions]`
 Show summary statistics for a single object.
 
 Arguments:
@@ -138,18 +138,18 @@ Arguments:
 
 Example:
 ```bash
-lfs stats object <object-id> --all-versions
+lfs info object <object-id> --all-versions
 ```
 
-### `lfs stats view <name>`
+### `lfs info view <name>`
 Show statistics for a built-in or dynamic view.
 
 Example:
 ```bash
-lfs stats view recent
+lfs info view recent
 ```
 
-### `lfs stats view-objects <name> [--all-tags] [--raw-tags]`
+### `lfs info view-objects <name> [--all-tags] [--raw-tags]`
 List objects for a view with minimal tag output.
 
 Notes:
@@ -158,39 +158,39 @@ Notes:
 
 Example:
 ```bash
-lfs stats view-objects recent --all-tags
+lfs info view-objects recent --all-tags
 ```
 
-### `lfs stats views`
+### `lfs info views`
 Summarize all built-in and dynamic views.
 
 Example:
 ```bash
-lfs stats views
+lfs info views
 ```
 
-### `lfs stats policy <name>`
+### `lfs info policy <name>`
 Show policy details and how many objects reference it.
 
 Example:
 ```bash
-lfs stats policy compliance
+lfs info policy compliance
 ```
 
-### `lfs stats policies`
+### `lfs info policies`
 Summarize policy counts and list names.
 
 Example:
 ```bash
-lfs stats policies
+lfs info policies
 ```
 
-### `lfs stats shares`
+### `lfs info shares`
 Summarize shared capabilities (total, active/expired, permissions).
 
 Example:
 ```bash
-lfs stats shares
+lfs info shares
 ```
 
 ## Object management
