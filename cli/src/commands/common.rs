@@ -15,6 +15,7 @@ pub fn open_repo(repo_path: Option<PathBuf>) -> Result<LatticeRepo> {
 
 pub fn ensure_identity(name: &str, password: Option<&str>) -> Result<Identity> {
     let manager = KeyManager::auto();
+    let password = password.or_else(|| std::env::var("LFS_KEY_PASSWORD").ok().as_deref());
     if manager.exists(name) {
         return Ok(manager.load(name, password)?);
     }
