@@ -8,6 +8,7 @@ use crate::error::{LatticeError, Result};
 use crate::model::{ActorID, Object, ObjectID, ObjectType, Tag, Version, VersionID};
 use crate::repo::LatticeRepo;
 use crate::views::{BuiltinView, BuiltinViews, DynamicView};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,7 @@ pub struct ImportOptions {
     pub extract_id3: bool,
     pub extract_text: bool,
     pub actor: ActorID,
+    pub base_path: Option<std::path::PathBuf>,
 }
 
 impl Default for ImportOptions {
@@ -27,6 +29,7 @@ impl Default for ImportOptions {
             extract_id3: true,
             extract_text: true,
             actor: [0u8; 32],
+            base_path: None,
         }
     }
 }
@@ -87,6 +90,32 @@ pub async fn import_file(
     let mut object = Object::new(ObjectType::Blob, version.id, options.actor);
     object.id = object_id;
 
+    // Source filename + relative path (base64url encoded for safe querying)
+    if let Some(file_name) = path.file_name() {
+        let file_name = file_name.to_string_lossy();
+        add_encoded_tag(&mut object, "auto:filename_b64", &file_name, options.actor);
+    }
+    if let Some(base_path) = &options.base_path {
+        if let Ok(rel_path) = path.strip_prefix(base_path) {
+            if !rel_path.as_os_str().is_empty() {
+                // Normalize the relative path to use `/` separators for portability
+                let mut rel_path_normalized = String::new();
+                for (i, component) in rel_path.components().enumerate() {
+                    if i > 0 {
+                        rel_path_normalized.push('/');
+                    }
+                    rel_path_normalized.push_str(&component.as_os_str().to_string_lossy());
+                }
+                add_encoded_tag(
+                    &mut object,
+                    "auto:relpath_b64",
+                    &rel_path_normalized,
+                    options.actor,
+                );
+            }
+        }
+    }
+
     // User-provided tags
     for tag_str in &options.tags {
         let tag = Tag::parse(tag_str, options.actor)?;
@@ -121,6 +150,14 @@ pub async fn import_file(
     }
 
     Ok(object_id)
+}
+
+fn add_encoded_tag(object: &mut Object, key: &str, value: &str, actor: ActorID) {
+    if value.is_empty() {
+        return;
+    }
+    let encoded = URL_SAFE_NO_PAD.encode(value.as_bytes());
+    object.add_tag(Tag::new(key.to_string(), encoded, actor));
 }
 
 /// Export mode for object/view export.
@@ -283,4 +320,79 @@ pub fn resolve_object_id(reference: &str) -> Result<ObjectID> {
         LatticeError::Serialization(format!("Invalid object reference '{}': {}", reference, e))
     })?;
     Ok(ObjectID::from_uuid(uuid))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn test_actor() -> ActorID {
+        [0u8; 32]
+    }
+
+    fn find_tag<'a>(object: &'a Object, key: &str) -> Option<&'a Tag> {
+        object.tags.iter().find(|t| t.key == key)
+    }
+
+    #[tokio::test]
+    async fn test_import_adds_filename_tag_b64() {
+        let temp = tempdir().unwrap();
+        let repo_path = temp.path().join("repo");
+        let repo = LatticeRepo::open_at(&repo_path).unwrap();
+
+        let file_path = temp.path().join("Report Final (v1).txt");
+        tokio::fs::write(&file_path, b"hello").await.unwrap();
+
+        let options = ImportOptions {
+            tags: Vec::new(),
+            extract_exif: false,
+            extract_id3: false,
+            extract_text: false,
+            actor: test_actor(),
+            base_path: None,
+        };
+
+        let object_id = import_file(&repo, &file_path, &options).await.unwrap();
+        let object = repo.metadata.load_object(&object_id).unwrap();
+
+        let tag = find_tag(&object, "auto:filename_b64").expect("filename tag");
+        let expected = URL_SAFE_NO_PAD.encode("Report Final (v1).txt".as_bytes());
+        assert_eq!(tag.value, expected);
+        assert!(find_tag(&object, "auto:relpath_b64").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_import_adds_relpath_tag_b64() {
+        let temp = tempdir().unwrap();
+        let repo_path = temp.path().join("repo");
+        let repo = LatticeRepo::open_at(&repo_path).unwrap();
+
+        let import_root = temp.path().join("import-root");
+        let nested_dir = import_root.join("docs");
+        std::fs::create_dir_all(&nested_dir).unwrap();
+        let file_path = nested_dir.join("Report Final (v1).txt");
+        tokio::fs::write(&file_path, b"hello").await.unwrap();
+
+        let options = ImportOptions {
+            tags: Vec::new(),
+            extract_exif: false,
+            extract_id3: false,
+            extract_text: false,
+            actor: test_actor(),
+            base_path: Some(import_root.clone()),
+        };
+
+        let object_id = import_file(&repo, &file_path, &options).await.unwrap();
+        let object = repo.metadata.load_object(&object_id).unwrap();
+
+        let filename_tag = find_tag(&object, "auto:filename_b64").expect("filename tag");
+        let expected_filename = URL_SAFE_NO_PAD.encode("Report Final (v1).txt".as_bytes());
+        assert_eq!(filename_tag.value, expected_filename);
+
+        let rel_path = file_path.strip_prefix(&import_root).unwrap();
+        let expected_rel = URL_SAFE_NO_PAD.encode(rel_path.to_string_lossy().as_bytes());
+        let rel_tag = find_tag(&object, "auto:relpath_b64").expect("relpath tag");
+        assert_eq!(rel_tag.value, expected_rel);
+    }
 }

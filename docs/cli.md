@@ -105,6 +105,94 @@ Example output:
 Verified <object-id>
 ```
 
+## Stats commands
+
+### `lfs stats checksum <ref>`
+Show the content checksum for an object (BLAKE3 merkle root).
+
+Arguments:
+- `<ref>` — object ID or alias (optionally `@version`)
+
+Example:
+```bash
+lfs stats checksum <object-id>
+```
+
+Example output:
+```text
+Object: <object-id>
+Version: <version-id>
+Algorithm: BLAKE3 (chunk merkle root)
+Chunk root: <hash>
+Manifest: <hash>
+Size bytes: 12345
+Chunks: 12
+```
+
+### `lfs stats object <ref> [--all-versions]`
+Show summary statistics for a single object.
+
+Arguments:
+- `<ref>` — object ID or alias
+- `--all-versions` — include per-version details
+
+Example:
+```bash
+lfs stats object <object-id> --all-versions
+```
+
+### `lfs stats view <name>`
+Show statistics for a built-in or dynamic view.
+
+Example:
+```bash
+lfs stats view recent
+```
+
+### `lfs stats view-objects <name> [--all-tags] [--raw-tags]`
+List objects for a view with minimal tag output.
+
+Notes:
+- By default, auto/system tags are hidden. Use `--all-tags` to include them.
+- Tags ending in `_b64` are base64url-decoded for display. Use `--raw-tags` to show both encoded and decoded values.
+
+Example:
+```bash
+lfs stats view-objects recent --all-tags
+```
+
+### `lfs stats views`
+Summarize all built-in and dynamic views.
+
+Example:
+```bash
+lfs stats views
+```
+
+### `lfs stats policy <name>`
+Show policy details and how many objects reference it.
+
+Example:
+```bash
+lfs stats policy compliance
+```
+
+### `lfs stats policies`
+Summarize policy counts and list names.
+
+Example:
+```bash
+lfs stats policies
+```
+
+### `lfs stats shares`
+Summarize shared capabilities (total, active/expired, permissions).
+
+Example:
+```bash
+lfs stats shares
+```
+
 ## Object management
 
 ### `lfs add <file> [--tag <key:value>...]`
@@ -212,6 +300,7 @@ Show extracted metadata for an object.
 By default it prints **auto‑extracted tags** (`auto:*`) and **extracted text** if present.
 Use `--all-tags` to include non‑auto tags too.
 EXIF and ID3 are surfaced as `auto:exif:*` and `auto:id3:*` tags.
+Source names captured during import are stored as `auto:filename_b64` and `auto:relpath_b64` (base64url-encoded).
 
 Example:
 ```bash

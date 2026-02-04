@@ -27,6 +27,7 @@ pub async fn run(repo: LatticeRepo, args: AddArgs) -> Result<()> {
         extract_id3: repo.config.import.extract_id3,
         extract_text: repo.config.import.extract_text,
         actor,
+        base_path: None,
     };
 
     let object_id = import_file(&repo, &args.file, &options)

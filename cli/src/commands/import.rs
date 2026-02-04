@@ -28,6 +28,11 @@ pub async fn run(repo: LatticeRepo, args: ImportArgs) -> Result<()> {
         extract_id3: repo.config.import.extract_id3,
         extract_text: repo.config.import.extract_text,
         actor,
+        base_path: if args.path.is_dir() {
+            Some(args.path.clone())
+        } else {
+            None
+        },
     };
 
     let entries = scanner::scan_path(&args.path)?;
