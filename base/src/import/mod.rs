@@ -59,7 +59,7 @@ pub async fn import_path(repo: &LatticeRepo, path: &Path, options: &ImportOption
 /// Import a single file.
 pub async fn import_file(repo: &LatticeRepo, path: &Path, options: &ImportOptions) -> Result<ObjectID> {
     let data = tokio::fs::read(path).await?;
-    let manifest = repo.chunks.store_object(&data).await?;
+    let manifest = repo.store_object_data(&data).await?;
     let manifest_hash = repo.metadata.store_manifest(&manifest)?;
 
     let object_id = ObjectID::new();
@@ -93,6 +93,7 @@ pub async fn import_file(repo: &LatticeRepo, path: &Path, options: &ImportOption
     // Store object + version
     repo.metadata.store_object(&object)?;
     repo.metadata.store_version(&version)?;
+    repo.events.emit_sync(crate::events::Event::object_created(&object.id, &version.id, options.actor));
 
     // Tag index updates
     for tag in &object.tags {
@@ -220,6 +221,13 @@ async fn read_object_bytes(
     version_id: Option<VersionID>,
 ) -> Result<(Vec<u8>, String)> {
     let object = repo.metadata.load_object(object_id)?;
+    repo.authorize_object_permission(&object, crate::crypto::Permission::Read, false)?;
+    if crate::security::is_quarantined_executable(&object.tags) {
+        return Err(LatticeError::Unauthorized {
+            permission: "read".to_string(),
+            object: object_id.to_string(),
+        });
+    }
     let version = match version_id {
         Some(v) => repo.metadata.load_version(&v)?,
         None => repo.metadata.load_version(&object.current_version)?,

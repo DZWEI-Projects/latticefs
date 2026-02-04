@@ -8,6 +8,7 @@ pub mod diff;
 pub mod export;
 pub mod get;
 pub mod import;
+pub mod ipc;
 pub mod link;
 pub mod meta;
 pub mod mount;
@@ -56,4 +57,5 @@ pub enum Command {
     Status(system::StatusArgs),
     Gc(system::GcArgs),
     Verify(system::VerifyArgs),
+    Ipc(ipc::IpcArgs),
 }

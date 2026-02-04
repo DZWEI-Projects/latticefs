@@ -161,6 +161,11 @@ impl ChunkStore {
         ChunkStore { root }
     }
 
+    /// Get the root path for this chunk store.
+    pub fn root_path(&self) -> &PathBuf {
+        &self.root
+    }
+
     /// Get the file path for a chunk by its hash
     pub fn chunk_path(&self, hash: &Hash) -> PathBuf {
         let hex = hash_to_hex(hash);

@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use latticefs_base::model::State;
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
 
 use super::common::parse_ref_with_version;
 
@@ -36,6 +37,8 @@ async fn set_state(repo: LatticeRepo, args: StateSetArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Write, false)?;
+    repo.enforce_rate_limit(1)?;
 
     let target_state: State = args.state.parse().map_err(|e: String| anyhow::anyhow!(e))?;
     let version_id = version_id.unwrap_or(object.current_version);

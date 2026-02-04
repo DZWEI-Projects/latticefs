@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
 
 use super::common::resolve_object_id;
 
@@ -25,6 +26,7 @@ pub async fn run(repo: LatticeRepo, args: MetaArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Read, false)?;
 
     let mut show_tags = args.tags;
     let mut show_text = args.text;

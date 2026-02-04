@@ -212,6 +212,16 @@ impl Config {
         expand_tilde(&self.logging.audit_log)
     }
 
+    /// Resolve the IPC socket path.
+    pub fn socket_path(&self) -> PathBuf {
+        self.storage_path().join("latticefs.sock")
+    }
+
+    /// Resolve the revocation log path.
+    pub fn revocation_log_path(&self) -> PathBuf {
+        self.storage_path().join("logs").join("revocations.jsonl")
+    }
+
     /// Write config to disk at the default location.
     pub fn write_default(&self) -> Result<()> {
         let path = config_path();

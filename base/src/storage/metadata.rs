@@ -6,6 +6,7 @@ use std::path::Path;
 
 /// Metadata store using sled embedded database
 pub struct MetadataStore {
+    root: std::path::PathBuf,
     #[allow(dead_code)]
     db: Db,
     objects: Tree,
@@ -14,12 +15,14 @@ pub struct MetadataStore {
     tags: Tree,
     links: Tree,
     policies: Tree,
+    policies_by_id: Tree,
     views: Tree,
     snapshots: Tree,
     text: Tree,
     inodes: Tree,
     capabilities: Tree,
     revocations: Tree,
+    rate_limits: Tree,
     aliases: Tree,
 }
 
@@ -34,15 +37,18 @@ impl MetadataStore {
         let tags = db.open_tree("tags")?;
         let links = db.open_tree("links")?;
         let policies = db.open_tree("policies")?;
+        let policies_by_id = db.open_tree("policies_by_id")?;
         let views = db.open_tree("views")?;
         let snapshots = db.open_tree("snapshots")?;
         let text = db.open_tree("text")?;
         let inodes = db.open_tree("inodes")?;
         let capabilities = db.open_tree("capabilities")?;
         let revocations = db.open_tree("revocations")?;
+        let rate_limits = db.open_tree("rate_limits")?;
         let aliases = db.open_tree("aliases")?;
 
         Ok(MetadataStore {
+            root: path.to_path_buf(),
             db,
             objects,
             versions,
@@ -50,12 +56,14 @@ impl MetadataStore {
             tags,
             links,
             policies,
+            policies_by_id,
             views,
             snapshots,
             text,
             inodes,
             capabilities,
             revocations,
+            rate_limits,
             aliases,
         })
     }
@@ -301,6 +309,8 @@ impl MetadataStore {
             LatticeError::Serialization(format!("Failed to serialize policy: {}", e))
         })?;
         self.policies.insert(policy.name.as_bytes(), bytes)?;
+        self.policies_by_id
+            .insert(policy.id.as_bytes(), policy.name.as_bytes())?;
         Ok(())
     }
 
@@ -318,8 +328,36 @@ impl MetadataStore {
         Ok(policy)
     }
 
+    /// Load a policy by ID.
+    pub fn load_policy_by_id(&self, id: &crate::model::PolicyID) -> Result<crate::model::Policy> {
+        if let Some(name) = self.policies_by_id.get(id.as_bytes())? {
+            let name = std::str::from_utf8(&name).map_err(|e| {
+                LatticeError::Serialization(format!("Invalid policy name bytes: {}", e))
+            })?;
+            return self.load_policy(name);
+        }
+
+        // Fallback: scan policies for matching ID (compat for older stores).
+        for item in self.policies.iter() {
+            let (_k, v) = item?;
+            let policy: crate::model::Policy = bincode::deserialize(&v).map_err(|e| {
+                LatticeError::Serialization(format!("Failed to deserialize policy: {}", e))
+            })?;
+            if policy.id == *id {
+                return Ok(policy);
+            }
+        }
+
+        Err(LatticeError::ObjectNotFound {
+            id: format!("policy:{}", id),
+        })
+    }
+
     /// Delete a policy by name.
     pub fn delete_policy(&self, name: &str) -> Result<()> {
+        if let Ok(policy) = self.load_policy(name) {
+            let _ = self.policies_by_id.remove(policy.id.as_bytes());
+        }
         self.policies.remove(name.as_bytes())?;
         Ok(())
     }
@@ -529,6 +567,7 @@ impl MetadataStore {
             .map_err(|e| LatticeError::Serialization(format!("Revocation serialize: {}", e)))?;
         self.revocations
             .insert(revocation.ucan_cid.as_bytes(), data)?;
+        append_revocation_log(&self.root, revocation)?;
         Ok(())
     }
 
@@ -573,6 +612,50 @@ impl MetadataStore {
             })
         })
     }
+
+    /// Load the current rate limit state (if any).
+    pub fn load_rate_limit_state(&self, key: &str) -> Result<Option<crate::policy::RateLimitState>> {
+        if let Some(data) = self.rate_limits.get(key.as_bytes())? {
+            let state: crate::policy::RateLimitState = bincode::deserialize(&data).map_err(|e| {
+                LatticeError::Serialization(format!("Rate limit deserialize: {}", e))
+            })?;
+            Ok(Some(state))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store the rate limit state.
+    pub fn store_rate_limit_state(
+        &self,
+        key: &str,
+        state: &crate::policy::RateLimitState,
+    ) -> Result<()> {
+        let data = bincode::serialize(state).map_err(|e| {
+            LatticeError::Serialization(format!("Rate limit serialize: {}", e))
+        })?;
+        self.rate_limits.insert(key.as_bytes(), data)?;
+        Ok(())
+    }
+}
+
+fn append_revocation_log(
+    root: &std::path::Path,
+    revocation: &crate::crypto::Revocation,
+) -> Result<()> {
+    let path = root.join("logs").join("revocations.jsonl");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let line = serde_json::to_string(revocation)
+        .map_err(|e| LatticeError::Serialization(format!("Revocation serialize: {}", e)))?;
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    writeln!(file, "{}", line)?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use latticefs_base::model::{Policy, PolicyTemplate};
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
 
 use super::common::resolve_object_id;
 
@@ -50,6 +51,7 @@ async fn create(repo: LatticeRepo, args: CreateArgs) -> Result<()> {
         .template
         .parse()
         .map_err(|e: String| anyhow::anyhow!(e))?;
+    repo.enforce_rate_limit(1)?;
     let policy = Policy::from_template(args.name.clone(), template);
     repo.metadata.store_policy(&policy)?;
     println!("Created policy {}", policy.name);
@@ -64,6 +66,8 @@ async fn apply(repo: LatticeRepo, args: ApplyArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Admin, false)?;
+    repo.enforce_rate_limit(1)?;
     object.add_policy(policy.id);
     repo.metadata.store_object(&object)?;
 
@@ -79,6 +83,8 @@ async fn remove(repo: LatticeRepo, args: RemoveArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Admin, false)?;
+    repo.enforce_rate_limit(1)?;
     object.policy_refs.retain(|id| *id != policy.id);
     repo.metadata.store_object(&object)?;
 

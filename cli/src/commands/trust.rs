@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use latticefs_base::model::Tag;
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
 
 use super::common::{ensure_identity, identity_actor, resolve_object_id};
 
@@ -78,6 +79,8 @@ async fn set(repo: LatticeRepo, args: SetArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Write, false)?;
+    repo.enforce_rate_limit(1)?;
 
     let removed: Vec<_> = object.tags.iter().filter(|t| t.key == "sys:trust").cloned().collect();
     object.tags.retain(|t| t.key != "sys:trust");

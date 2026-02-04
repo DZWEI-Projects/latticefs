@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use latticefs_base::model::{Link, LinkType};
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
 
 use super::common::{ensure_identity, identity_actor, resolve_object_id};
 
@@ -36,6 +37,11 @@ pub async fn run(repo: LatticeRepo, args: LinkArgs) -> Result<()> {
         .metadata
         .load_object(&target_id)
         .with_context(|| format!("Object not found: {}", target_id))?;
+    repo.authorize_object_permission(&source, Permission::Write, false)?;
+    if link_type.is_bidirectional() {
+        repo.authorize_object_permission(&target, Permission::Write, false)?;
+    }
+    repo.enforce_rate_limit(1)?;
 
     let link = Link::new(
         source_id.as_bytes().to_vec(),

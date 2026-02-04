@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package latticefs.ipc;
+
+option go_package = "latticefs/services/proto;proto";
+
+// Timestamp (Unix microseconds)
+message Timestamp {
+  int64 micros = 1;
+}
+
+// Object identifier
+message ObjectID {
+  bytes uuid = 1;  // 16 bytes (UUID)
+}
+
+// Version identifier
+message VersionID {
+  bytes uuid = 1;
+}
+
+// Content hash (BLAKE3)
+message Hash {
+  bytes blake3 = 1;  // 32 bytes
+}
+
+// Error message
+message Error {
+  uint32 code = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
+
+// Share request: Create capability for object
+message ShareRequest {
+  ObjectID object_id = 1;
+  string audience_did = 2;  // did:key:...
+  string capability = 3;     // "read", "write", etc.
+  Timestamp expires_at = 4;
+  map<string, string> facts = 5;  // Optional constraints
+}
+
+message ShareResponse {
+  oneof result {
+    string ucan_token = 1;  // Success: UCAN token
+    Error error = 2;         // Failure
+  }
+}
+
+// Revoke request: Invalidate capability
+message RevokeRequest {
+  string ucan_cid = 1;  // CID of UCAN to revoke
+  string reason = 2;     // Optional
+}
+
+message RevokeResponse {
+  oneof result {
+    bool success = 1;
+    Error error = 2;
+  }
+}
+
+// Fetch request: Retrieve object via UCAN
+message FetchRequest {
+  ObjectID object_id = 1;
+  string ucan_token = 2;
+  optional VersionID version_id = 3;  // Specific version, or latest
+}
+
+message FetchResponse {
+  oneof result {
+    ObjectData data = 1;
+    Error error = 2;
+  }
+}
+
+message ObjectData {
+  ObjectID object_id = 1;
+  VersionID version_id = 2;
+  bytes content = 3;           // Object content
+  map<string, string> metadata = 4;
+  repeated Tag tags = 5;
+}
+
+message Tag {
+  string key = 1;
+  string value = 2;
+}
+
+// Sync event: Notify of graph changes
+message SyncEvent {
+  Timestamp timestamp = 1;
+  string event_type = 2;  // "object_created", "version_added", etc.
+  bytes payload = 3;       // Event-specific data
+}
+
+message ObjectCreatedEvent {
+  ObjectID object_id = 1;
+  VersionID version_id = 2;
+  string actor_did = 3;
+}
+
+message VersionAddedEvent {
+  ObjectID object_id = 1;
+  VersionID version_id = 2;
+  optional VersionID parent_version = 3;
+  string actor_did = 4;
+}
+
+message TagAddedEvent {
+  ObjectID object_id = 1;
+  Tag tag = 2;
+  string actor_did = 3;
+}
+
+message LinkCreatedEvent {
+  ObjectID source = 1;
+  ObjectID target = 2;
+  string link_type = 3;
+  string actor_did = 4;
+}
+
+message SyncAck {
+  Timestamp event_timestamp = 1;
+  bool success = 2;
+}
+
+// Status request: Get system status
+message StatusRequest {
+  bool include_stats = 1;
+}
+
+message StatusResponse {
+  string version = 1;
+  bool running = 2;
+  optional Stats stats = 3;
+}
+
+message Stats {
+  uint64 total_objects = 1;
+  uint64 total_versions = 2;
+  uint64 total_chunks = 3;
+  uint64 storage_bytes = 4;
+  uint64 dedup_ratio_x100 = 5;  // E.g., 150 = 1.5x
+}
+
+// Shutdown request
+message ShutdownRequest {
+  bool force = 1;
+  uint32 timeout_seconds = 2;
+}
+
+message ShutdownResponse {
+  bool success = 1;
+}

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use latticefs_base::LatticeRepo;
+use latticefs_base::{is_quarantined_executable, Permission};
 use similar::TextDiff;
 
 use super::common::parse_ref_with_version;
@@ -84,10 +85,14 @@ async fn read_ref_with_version(repo: &LatticeRepo, reference: &str) -> Result<Ve
     let Some(version_id) = version_id else {
         return Err(anyhow::anyhow!("diff requires explicit versions (ref@version)"));
     };
-    let _object = repo
+    let object = repo
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Read, false)?;
+    if is_quarantined_executable(&object.tags) {
+        return Err(anyhow::anyhow!("Object is quarantined and executable"));
+    }
     let version = repo.metadata.load_version(&version_id)?;
     let manifest = repo.metadata.load_manifest(&version.manifest_ref)?;
     let data = repo.chunks.retrieve_object(&manifest).await?;

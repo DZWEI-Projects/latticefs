@@ -381,6 +381,20 @@ impl Filesystem for LatticeFS {
             }
         };
 
+        if self
+            .repo
+            .authorize_object_permission(&object, crate::crypto::Permission::Read, false)
+            .is_err()
+        {
+            reply.error(libc::EACCES);
+            return;
+        }
+
+        if crate::security::is_quarantined_executable(&object.tags) {
+            reply.error(libc::EACCES);
+            return;
+        }
+
         let version = match self.repo.metadata.load_version(&object.current_version) {
             Ok(v) => v,
             Err(_) => {

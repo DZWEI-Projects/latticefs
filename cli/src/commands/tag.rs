@@ -24,6 +24,8 @@ pub async fn run(repo: LatticeRepo, args: TagArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, latticefs_base::Permission::Write, false)?;
+    repo.enforce_rate_limit(1)?;
 
     for tag_str in &args.tags {
         let tag = Tag::parse(tag_str, actor)?;

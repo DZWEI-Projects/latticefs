@@ -2,7 +2,9 @@
 
 use crate::config::{default_home, Config};
 use crate::error::{LatticeError, Result};
-use crate::model::{ActorID, ObjectID, State, Version};
+use crate::events::{spawn_logger, Event, EventBus};
+use crate::model::{ActorID, Object, ObjectID, State, Version};
+use crate::policy::{PolicyContext, PolicyEngine, QuotaEnforcer, RateLimiter};
 use crate::storage::{ChunkManifest, ChunkStore, Hash, MetadataStore};
 use std::path::{Path, PathBuf};
 
@@ -12,6 +14,9 @@ pub struct LatticeRepo {
     pub config: Config,
     pub metadata: MetadataStore,
     pub chunks: ChunkStore,
+    pub events: EventBus,
+    quota: QuotaEnforcer,
+    rate_limiter: RateLimiter,
 }
 
 impl LatticeRepo {
@@ -21,11 +26,18 @@ impl LatticeRepo {
         ensure_layout(&root)?;
         let metadata = MetadataStore::open(&root)?;
         let chunks = ChunkStore::new(root.clone());
+        let (events, receiver) = EventBus::new(1024);
+        spawn_logger(receiver, config.audit_log_path())?;
+        let quota = QuotaEnforcer::new(config.quota.clone());
+        let rate_limiter = RateLimiter::new(&config.quota);
         Ok(Self {
             root,
             config,
             metadata,
             chunks,
+            events,
+            quota,
+            rate_limiter,
         })
     }
 
@@ -52,6 +64,8 @@ impl LatticeRepo {
 
     /// Store bytes and return the manifest (chunks already written).
     pub async fn store_object_data(&self, data: &[u8]) -> Result<ChunkManifest> {
+        self.enforce_rate_limit(1)?;
+        self.quota.check_storage_quota(&self.chunks, data)?;
         self.chunks.store_object(data).await
     }
 
@@ -63,6 +77,7 @@ impl LatticeRepo {
         actor: ActorID,
         message: Option<String>,
     ) -> Result<Version> {
+        self.quota.check_storage_quota(&self.chunks, data)?;
         let manifest = self.chunks.store_object(data).await?;
         let manifest_ref = self.metadata.store_manifest(&manifest)?;
         self.add_version_from_manifest(object_id, &manifest, manifest_ref, data.len() as u64, actor, message)
@@ -78,7 +93,9 @@ impl LatticeRepo {
         actor: ActorID,
         message: Option<String>,
     ) -> Result<Version> {
+        self.enforce_rate_limit(1)?;
         let mut object = self.metadata.load_object(object_id)?;
+        self.authorize_object_permission(&object, crate::crypto::Permission::Write, false)?;
         let mut current = self.metadata.load_version(&object.current_version)?;
 
         if current.state == State::Sealed {
@@ -128,7 +145,53 @@ impl LatticeRepo {
         object.add_version(version.id);
         self.metadata.store_version(&version)?;
         self.metadata.store_object(&object)?;
+        self.events.emit_sync(Event::version_added(
+            object_id,
+            &version.id,
+            version.parent_version.as_ref(),
+            actor,
+        ));
         Ok(version)
+    }
+
+    pub fn authorize_object_permission(
+        &self,
+        object: &Object,
+        permission: crate::crypto::Permission,
+        external_share: bool,
+    ) -> Result<()> {
+        let policies = self.load_policies_for_object(object)?;
+        let context = PolicyContext::for_object(object).with_external_share(external_share);
+        let engine = PolicyEngine::new();
+
+        match engine.authorize(&policies, &context, permission) {
+            Ok(()) => Ok(()),
+            Err(LatticeError::PolicyViolation { reason }) => {
+                self.events.emit_sync(Event::policy_violation(
+                    Some(object.id.to_string()),
+                    permission.to_string(),
+                    reason.clone(),
+                ));
+                Err(LatticeError::PolicyViolation { reason })
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn load_policies_for_object(&self, object: &Object) -> Result<Vec<crate::model::Policy>> {
+        let mut policies = Vec::new();
+        for policy_id in &object.policy_refs {
+            let policy = self.metadata.load_policy_by_id(policy_id)?;
+            policies.push(policy);
+        }
+        Ok(policies)
+    }
+
+    pub fn enforce_rate_limit(&self, ops: u64) -> Result<()> {
+        let state = self.metadata.load_rate_limit_state("default")?;
+        let updated = self.rate_limiter.check_and_consume(state, ops)?;
+        self.metadata.store_rate_limit_state("default", &updated)?;
+        Ok(())
     }
 }
 

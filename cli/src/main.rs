@@ -39,6 +39,10 @@ async fn main() -> Result<()> {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::system::verify(repo, args).await?;
         }
+        commands::Command::Ipc(args) => {
+            let repo = commands::common::open_repo(cli.repo.clone())?;
+            commands::ipc::run(repo, args).await?;
+        }
         commands::Command::Add(args) => {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::add::run(repo, args).await?;
