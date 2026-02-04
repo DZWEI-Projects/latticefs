@@ -24,15 +24,13 @@ pub fn scan_path(path: &Path) -> Result<Vec<FileEntry>> {
     }
 
     for entry in WalkDir::new(path).follow_links(false) {
-        let entry = entry.map_err(|e| {
-            crate::error::LatticeError::Io(std::io::Error::new(std::io::ErrorKind::Other, e))
-        })?;
+        let entry = entry.map_err(|e| crate::error::LatticeError::Io(std::io::Error::other(e)))?;
         if !entry.file_type().is_file() {
             continue;
         }
         let size = entry
             .metadata()
-            .map_err(|e| crate::error::LatticeError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?
+            .map_err(|e| crate::error::LatticeError::Io(std::io::Error::other(e)))?
             .len();
         files.push(FileEntry {
             path: entry.path().to_path_buf(),

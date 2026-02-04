@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use latticefs_base::model::Version;
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
 
 use super::common::{ensure_identity, identity_actor, parse_ref_with_version, resolve_object_id};
 
@@ -28,6 +29,7 @@ pub async fn run(repo: LatticeRepo, args: VersionsArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Read, false)?;
 
     let mut versions: Vec<Version> = Vec::new();
     for vid in object.versions {

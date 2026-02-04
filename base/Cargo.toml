@@ -16,6 +16,8 @@ tracing = "0.1"
 bincode = "1"
 hex = "0.4"
 fastcdc = "3"
+prost = "0.12"
+bytes = "1"
 
 # Phase 2: Crypto dependencies
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -48,3 +50,6 @@ fuse = ["fuser"]
 [dev-dependencies]
 proptest = "1"
 tempfile = "3"
+
+[build-dependencies]
+prost-build = "0.12"

@@ -40,7 +40,11 @@ pub struct ImportReport {
 }
 
 /// Import a path (file or directory) into the repository.
-pub async fn import_path(repo: &LatticeRepo, path: &Path, options: &ImportOptions) -> Result<ImportReport> {
+pub async fn import_path(
+    repo: &LatticeRepo,
+    path: &Path,
+    options: &ImportOptions,
+) -> Result<ImportReport> {
     let files = scanner::scan_path(path)?;
     let mut report = ImportReport::default();
 
@@ -49,7 +53,9 @@ pub async fn import_path(repo: &LatticeRepo, path: &Path, options: &ImportOption
         report.bytes += entry.size;
         match import_file(repo, &entry.path, options).await {
             Ok(_) => report.objects += 1,
-            Err(err) => report.errors.push(format!("{}: {}", entry.path.display(), err)),
+            Err(err) => report
+                .errors
+                .push(format!("{}: {}", entry.path.display(), err)),
         }
     }
 
@@ -57,9 +63,13 @@ pub async fn import_path(repo: &LatticeRepo, path: &Path, options: &ImportOption
 }
 
 /// Import a single file.
-pub async fn import_file(repo: &LatticeRepo, path: &Path, options: &ImportOptions) -> Result<ObjectID> {
+pub async fn import_file(
+    repo: &LatticeRepo,
+    path: &Path,
+    options: &ImportOptions,
+) -> Result<ObjectID> {
     let data = tokio::fs::read(path).await?;
-    let manifest = repo.chunks.store_object(&data).await?;
+    let manifest = repo.store_object_data(&data).await?;
     let manifest_hash = repo.metadata.store_manifest(&manifest)?;
 
     let object_id = ObjectID::new();
@@ -93,10 +103,16 @@ pub async fn import_file(repo: &LatticeRepo, path: &Path, options: &ImportOption
     // Store object + version
     repo.metadata.store_object(&object)?;
     repo.metadata.store_version(&version)?;
+    repo.events.emit_sync(crate::events::Event::object_created(
+        &object.id,
+        &version.id,
+        options.actor,
+    ));
 
     // Tag index updates
     for tag in &object.tags {
-        repo.metadata.add_to_tag_index(&tag.full_path(), object.id.as_bytes())?;
+        repo.metadata
+            .add_to_tag_index(&tag.full_path(), object.id.as_bytes())?;
     }
 
     // Store extracted text if any
@@ -194,7 +210,11 @@ pub async fn export_view(
     Ok(())
 }
 
-fn append_tar_entry(builder: &mut tar::Builder<std::fs::File>, name: &str, data: &[u8]) -> Result<()> {
+fn append_tar_entry(
+    builder: &mut tar::Builder<std::fs::File>,
+    name: &str,
+    data: &[u8],
+) -> Result<()> {
     let mut header = tar::Header::new_gnu();
     header.set_size(data.len() as u64);
     header.set_mode(0o444);
@@ -211,7 +231,7 @@ fn resolve_view(repo: &LatticeRepo, view_name: &str) -> Result<Vec<ObjectID>> {
 
     let view = repo.metadata.load_view(view_name)?;
     let mut dynamic = DynamicView::new(&view.query, &repo.metadata)?;
-    Ok(dynamic.evaluate()?)
+    dynamic.evaluate()
 }
 
 async fn read_object_bytes(
@@ -220,6 +240,13 @@ async fn read_object_bytes(
     version_id: Option<VersionID>,
 ) -> Result<(Vec<u8>, String)> {
     let object = repo.metadata.load_object(object_id)?;
+    repo.authorize_object_permission(&object, crate::crypto::Permission::Read, false)?;
+    if crate::security::is_quarantined_executable(&object.tags) {
+        return Err(LatticeError::Unauthorized {
+            permission: "read".to_string(),
+            object: object_id.to_string(),
+        });
+    }
     let version = match version_id {
         Some(v) => repo.metadata.load_version(&v)?,
         None => repo.metadata.load_version(&object.current_version)?,

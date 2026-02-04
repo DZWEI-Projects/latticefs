@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package latticefs.share;
+
+option go_package = "latticefs/services/proto;proto";
+
+import "proto/ipc.proto";
+
+service ShareService {
+  rpc Share(latticefs.ipc.ShareRequest) returns (latticefs.ipc.ShareResponse);
+  rpc Fetch(latticefs.ipc.FetchRequest) returns (latticefs.ipc.FetchResponse);
+  rpc Revoke(latticefs.ipc.RevokeRequest) returns (latticefs.ipc.RevokeResponse);
+}

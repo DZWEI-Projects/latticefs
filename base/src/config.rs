@@ -170,9 +170,8 @@ impl Config {
         }
 
         let contents = std::fs::read_to_string(&config_path)?;
-        let mut cfg: Config = toml::from_str(&contents).map_err(|e| {
-            LatticeError::Serialization(format!("Failed to parse config: {}", e))
-        })?;
+        let mut cfg: Config = toml::from_str(&contents)
+            .map_err(|e| LatticeError::Serialization(format!("Failed to parse config: {}", e)))?;
 
         // Apply env override if present.
         if let Some(home) = env_home_override() {
@@ -212,14 +211,25 @@ impl Config {
         expand_tilde(&self.logging.audit_log)
     }
 
+    /// Resolve the IPC socket path.
+    pub fn socket_path(&self) -> PathBuf {
+        self.storage_path().join("latticefs.sock")
+    }
+
+    /// Resolve the revocation log path.
+    pub fn revocation_log_path(&self) -> PathBuf {
+        self.storage_path().join("logs").join("revocations.jsonl")
+    }
+
     /// Write config to disk at the default location.
     pub fn write_default(&self) -> Result<()> {
         let path = config_path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let contents = toml::to_string_pretty(self)
-            .map_err(|e| LatticeError::Serialization(format!("Failed to serialize config: {}", e)))?;
+        let contents = toml::to_string_pretty(self).map_err(|e| {
+            LatticeError::Serialization(format!("Failed to serialize config: {}", e))
+        })?;
         std::fs::write(path, contents)?;
         Ok(())
     }

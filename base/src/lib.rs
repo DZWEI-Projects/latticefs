@@ -3,7 +3,10 @@ pub mod config;
 pub mod error;
 pub mod fuse;
 pub mod import;
+pub mod events;
+pub mod ipc;
 pub mod model;
+pub mod policy;
 pub mod query;
 pub mod repo;
 pub mod security;
@@ -16,6 +19,8 @@ pub use error::{LatticeError, Result};
 // Config + repo
 pub use config::{Config, FuseConfig, ImportConfig, QuotaConfig, ShareConfig, StorageConfig};
 pub use repo::LatticeRepo;
+pub use events::{Event, EventBus, EventKind};
+pub use policy::{PolicyContext, PolicyDecision, PolicyEngine, QuotaEnforcer, QuotaReport, RateLimiter};
 
 // Crypto types
 pub use crypto::{

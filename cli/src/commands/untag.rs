@@ -18,6 +18,8 @@ pub async fn run(repo: LatticeRepo, args: UntagArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, latticefs_base::Permission::Write, false)?;
+    repo.enforce_rate_limit(1)?;
 
     let removed: Vec<_> = object
         .tags

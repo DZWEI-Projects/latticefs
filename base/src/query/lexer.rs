@@ -158,7 +158,7 @@ impl<'a> Lexer<'a> {
     // fn peek_next(&self) -> Option<char> {
     //     self.chars.get(self.pos + 1).copied()
     // }
-
+    //
     /// Advance to the next character.
     fn advance(&mut self) -> Option<char> {
         let c = self.peek()?;
@@ -215,9 +215,7 @@ impl<'a> Lexer<'a> {
     fn read_timestamp(&mut self) -> String {
         let start = self.pos;
         while let Some(c) = self.peek() {
-            if c.is_ascii_digit()
-                || matches!(c, '-' | 'T' | ':' | 'Z' | '+' | '.')
-            {
+            if c.is_ascii_digit() || matches!(c, '-' | 'T' | ':' | 'Z' | '+' | '.') {
                 self.advance();
             } else {
                 break;

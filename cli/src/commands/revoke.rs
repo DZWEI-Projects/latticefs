@@ -18,6 +18,7 @@ pub struct RevokeArgs {
 }
 
 pub async fn run(repo: LatticeRepo, args: RevokeArgs) -> Result<()> {
+    repo.enforce_rate_limit(1)?;
     let cap = if args.capability.contains('.') {
         Capability::parse(&args.capability)?
     } else {

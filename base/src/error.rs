@@ -101,6 +101,12 @@ pub enum LatticeError {
     #[error("Unauthorized: missing {permission} permission for {object}")]
     Unauthorized { permission: String, object: String },
 
+    #[error("Policy violation: {reason}")]
+    PolicyViolation { reason: String },
+
+    #[error("Rate limit exceeded. Retry after {retry_after_secs}s")]
+    RateLimited { retry_after_secs: u64 },
+
     // Query errors (Phase 2)
     #[error("Parse error at position {position}: {message}")]
     ParseError { position: usize, message: String },
@@ -120,6 +126,15 @@ pub enum LatticeError {
 
     #[error("Invalid view query: {0}")]
     InvalidViewQuery(String),
+
+    #[error("Proto decode error: {0}")]
+    ProtoDecode(String),
 }
 
 pub type Result<T> = std::result::Result<T, LatticeError>;
+
+impl From<prost::DecodeError> for LatticeError {
+    fn from(err: prost::DecodeError) -> Self {
+        LatticeError::ProtoDecode(err.to_string())
+    }
+}

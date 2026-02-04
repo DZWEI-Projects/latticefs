@@ -20,6 +20,20 @@ Chunks: 12
 Chunk bytes: 98312
 ```
 
+## CLI help text
+
+The CLI includes built-in usage guidance for every command. Use:
+
+```bash
+lfs --help
+lfs <command> --help
+```
+
+Example:
+```bash
+lfs view --help
+```
+
 ## System commands
 
 ### `lfs init`

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
 use std::io::{self, Write};
 
 use super::common::parse_ref_with_version;
@@ -19,6 +20,7 @@ pub async fn run(repo: LatticeRepo, args: CatArgs) -> Result<()> {
         .metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
+    repo.authorize_object_permission(&object, Permission::Read, false)?;
     let version = match version_id {
         Some(v) => repo.metadata.load_version(&v)?,
         None => repo.metadata.load_version(&object.current_version)?,
