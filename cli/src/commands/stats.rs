@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use clap::{Args, Subcommand};
 use latticefs_base::crypto::Capability;
 use latticefs_base::model::Tag;
@@ -167,19 +167,21 @@ async fn object_stats(repo: LatticeRepo, args: StatsObjectArgs) -> Result<()> {
 async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
     if let Some(builtin) = BuiltinView::by_name(&args.name) {
         let builtins = BuiltinViews::new(&repo.metadata);
-        let count = builtins.count(builtin)?;
+        let object_ids = builtins.evaluate(builtin)?;
+        let readable_count = count_readable(&repo, &object_ids);
         println!("View: {}", builtin.name());
         println!("Type: builtin");
         println!("Query: {}", builtin.query());
         println!("Description: {}", builtin.description());
-        println!("Objects: {}", count);
+        println!("Objects: {}", readable_count);
         return Ok(());
     }
 
     let view = repo.metadata.load_view(&args.name)?;
-    let mut dynamic = DynamicView::new(&view.query, &repo.metadata)?
-        .with_config(view.config.clone());
-    let objects = dynamic.evaluate()?;
+    let mut dynamic =
+        DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+    let object_ids = dynamic.evaluate()?;
+    let readable_count = count_readable(&repo, &object_ids);
 
     println!("View: {}", view.name);
     println!("Type: dynamic");
@@ -194,7 +196,7 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
     println!("Config cache ttl secs: {}", view.config.cache_ttl_secs);
     println!("Config include archived: {}", view.config.include_archived);
     println!("Config min trust: {:?}", view.config.min_trust_level);
-    println!("Objects: {}", objects.len());
+    println!("Objects: {}", readable_count);
     Ok(())
 }
 
@@ -204,8 +206,8 @@ async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<(
         builtins.evaluate(builtin)?
     } else {
         let view = repo.metadata.load_view(&args.name)?;
-        let mut dynamic = DynamicView::new(&view.query, &repo.metadata)?
-            .with_config(view.config.clone());
+        let mut dynamic =
+            DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
         dynamic.evaluate()?
     };
 
@@ -247,17 +249,20 @@ async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<(
 async fn views_summary(repo: LatticeRepo) -> Result<()> {
     let builtins = BuiltinViews::new(&repo.metadata);
     println!("Built-in views:");
-    for summary in builtins.summary()? {
-        println!("- {}: {} objects", summary.name, summary.count);
+    for builtin in BuiltinView::all() {
+        let object_ids = builtins.evaluate(*builtin)?;
+        let readable_count = count_readable(&repo, &object_ids);
+        println!("- {}: {} objects", builtin.name(), readable_count);
     }
 
     let views = repo.metadata.list_views()?;
     println!("\nDynamic views: {}", views.len());
     for view in views {
-        let mut dynamic = DynamicView::new(&view.query, &repo.metadata)?
-            .with_config(view.config.clone());
-        let count = dynamic.evaluate()?.len();
-        println!("- {}: {} objects", view.name, count);
+        let mut dynamic =
+            DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+        let object_ids = dynamic.evaluate()?;
+        let readable_count = count_readable(&repo, &object_ids);
+        println!("- {}: {} objects", view.name, readable_count);
     }
 
     let snapshots = repo.metadata.list_snapshots()?;
@@ -271,15 +276,36 @@ async fn policy_stats(repo: LatticeRepo, args: StatsPolicyArgs) -> Result<()> {
     for object in repo.metadata.iter_objects() {
         let object = object?;
         if object.policy_refs.contains(&policy.id) {
-            object_count += 1;
+            if repo
+                .authorize_object_permission(&object, Permission::Read, false)
+                .is_ok()
+            {
+                object_count += 1;
+            }
         }
     }
 
     println!("Policy: {}", policy.name);
     println!("Id: {}", policy.id);
     println!("Version: {}", policy.version);
-    println!("Allow: {}", policy.allow.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", "));
-    println!("Deny: {}", policy.deny.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", "));
+    println!(
+        "Allow: {}",
+        policy
+            .allow
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!(
+        "Deny: {}",
+        policy
+            .deny
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     if policy.require.is_empty() {
         println!("Requirements: (none)");
     } else {
@@ -329,7 +355,8 @@ async fn shares_summary(repo: LatticeRepo) -> Result<()> {
     let mut object_caps = 0usize;
     let mut view_caps = 0usize;
     let mut other_caps = 0usize;
-    let mut perm_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut perm_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
 
     for (_cid, token) in caps {
         total += 1;
@@ -392,6 +419,23 @@ fn decode_b64_tag(tag: &Tag) -> Option<String> {
     String::from_utf8(decoded).ok()
 }
 
+/// Count objects that the current actor has read permission for.
+fn count_readable(repo: &LatticeRepo, object_ids: &[latticefs_base::model::ObjectID]) -> usize {
+    object_ids
+        .iter()
+        .filter(|id| {
+            repo.metadata
+                .load_object(id)
+                .ok()
+                .map(|obj| {
+                    repo.authorize_object_permission(&obj, Permission::Read, false)
+                        .is_ok()
+                })
+                .unwrap_or(false)
+        })
+        .count()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,7 +457,11 @@ mod tests {
     #[test]
     fn test_format_tag_raw_includes_encoded() {
         let encoded = URL_SAFE_NO_PAD.encode("Report Final (v1).txt".as_bytes());
-        let tag = Tag::new("auto:filename_b64".to_string(), encoded.clone(), test_actor());
+        let tag = Tag::new(
+            "auto:filename_b64".to_string(),
+            encoded.clone(),
+            test_actor(),
+        );
         assert_eq!(
             format_tag(&tag, true),
             format!(

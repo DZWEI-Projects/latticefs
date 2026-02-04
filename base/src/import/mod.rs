@@ -98,8 +98,20 @@ pub async fn import_file(
     if let Some(base_path) = &options.base_path {
         if let Ok(rel_path) = path.strip_prefix(base_path) {
             if !rel_path.as_os_str().is_empty() {
-                let rel_path = rel_path.to_string_lossy();
-                add_encoded_tag(&mut object, "auto:relpath_b64", &rel_path, options.actor);
+                // Normalize the relative path to use `/` separators for portability
+                let mut rel_path_normalized = String::new();
+                for (i, component) in rel_path.components().enumerate() {
+                    if i > 0 {
+                        rel_path_normalized.push('/');
+                    }
+                    rel_path_normalized.push_str(&component.as_os_str().to_string_lossy());
+                }
+                add_encoded_tag(
+                    &mut object,
+                    "auto:relpath_b64",
+                    &rel_path_normalized,
+                    options.actor,
+                );
             }
         }
     }
@@ -378,8 +390,9 @@ mod tests {
         let expected_filename = URL_SAFE_NO_PAD.encode("Report Final (v1).txt".as_bytes());
         assert_eq!(filename_tag.value, expected_filename);
 
+        let rel_path = file_path.strip_prefix(&import_root).unwrap();
+        let expected_rel = URL_SAFE_NO_PAD.encode(rel_path.to_string_lossy().as_bytes());
         let rel_tag = find_tag(&object, "auto:relpath_b64").expect("relpath tag");
-        let expected_rel = URL_SAFE_NO_PAD.encode("docs/Report Final (v1).txt".as_bytes());
         assert_eq!(rel_tag.value, expected_rel);
     }
 }
