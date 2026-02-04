@@ -637,6 +637,66 @@ impl MetadataStore {
         self.rate_limits.insert(key.as_bytes(), data)?;
         Ok(())
     }
+
+    /// Atomically check and consume rate limit tokens using compare-and-swap.
+    ///
+    /// This prevents race conditions when multiple concurrent requests try to
+    /// consume tokens simultaneously. Uses optimistic locking with retry.
+    pub fn atomic_rate_limit_consume<F>(
+        &self,
+        key: &str,
+        check_fn: F,
+    ) -> Result<()>
+    where
+        F: Fn(Option<crate::policy::RateLimitState>) -> Result<crate::policy::RateLimitState>,
+    {
+        const MAX_RETRIES: usize = 10;
+        let key_bytes = key.as_bytes();
+
+        for attempt in 0..MAX_RETRIES {
+            // Load current state
+            let current = self.rate_limits.get(key_bytes)?;
+            let current_state: Option<crate::policy::RateLimitState> = match &current {
+                Some(data) => Some(bincode::deserialize(data).map_err(|e| {
+                    LatticeError::Serialization(format!("Rate limit deserialize: {}", e))
+                })?),
+                None => None,
+            };
+
+            // Apply the check function (may return RateLimited error)
+            let new_state = check_fn(current_state)?;
+
+            // Serialize new state
+            let new_data = bincode::serialize(&new_state).map_err(|e| {
+                LatticeError::Serialization(format!("Rate limit serialize: {}", e))
+            })?;
+
+            // Attempt atomic compare-and-swap
+            let cas_result = self
+                .rate_limits
+                .compare_and_swap(key_bytes, current, Some(new_data))?;
+
+            match cas_result {
+                Ok(()) => return Ok(()),
+                Err(_) => {
+                    // CAS failed - another request updated the state concurrently
+                    // Add small backoff on retries to reduce contention
+                    if attempt > 0 {
+                        std::thread::sleep(std::time::Duration::from_micros(
+                            100 * (1 << attempt.min(5)),
+                        ));
+                    }
+                    continue;
+                }
+            }
+        }
+
+        // If we exhausted retries, the system is under extreme contention
+        // Return a rate limit error to shed load
+        Err(LatticeError::RateLimited {
+            retry_after_secs: 1,
+        })
+    }
 }
 
 fn append_revocation_log(

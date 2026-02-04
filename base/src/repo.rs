@@ -187,11 +187,15 @@ impl LatticeRepo {
         Ok(policies)
     }
 
+    /// Enforce rate limiting with atomic compare-and-swap to prevent race conditions.
+    ///
+    /// This method uses optimistic locking to ensure that concurrent requests
+    /// cannot bypass rate limits by reading stale state.
     pub fn enforce_rate_limit(&self, ops: u64) -> Result<()> {
-        let state = self.metadata.load_rate_limit_state("default")?;
-        let updated = self.rate_limiter.check_and_consume(state, ops)?;
-        self.metadata.store_rate_limit_state("default", &updated)?;
-        Ok(())
+        let rate_limiter = self.rate_limiter.clone();
+        self.metadata.atomic_rate_limit_consume("default", move |state| {
+            rate_limiter.check_and_consume(state, ops)
+        })
     }
 }
 
