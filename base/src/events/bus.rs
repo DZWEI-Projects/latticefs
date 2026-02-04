@@ -22,7 +22,7 @@ impl EventBus {
     }
 
     pub fn emit_sync(&self, event: Event) {
-        let _ = self.sender.blocking_send(event);
+        let _ = self.sender.try_send(event);
     }
 }
 
