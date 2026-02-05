@@ -4,14 +4,13 @@ use clap::{Args, Subcommand};
 use latticefs_base::crypto::Capability;
 use latticefs_base::model::Tag;
 use latticefs_base::storage::hash_to_hex;
-use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView, Locale};
+use latticefs_base::views::{
+    BuiltinView, BuiltinViews, DynamicView, Locale, View, resolve_effective_query, view_full_path,
+};
 use latticefs_base::{LatticeRepo, Permission};
 
 use super::common::{
-    parse_ref_with_version,
-    resolve_object_id,
-    resolve_view_reference,
-    ResolvedView,
+    ResolvedView, parse_ref_with_version, resolve_object_id, resolve_view_reference,
 };
 
 #[derive(Subcommand, Debug)]
@@ -183,12 +182,12 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
             println!("Objects: {}", readable_count);
         }
         ResolvedView::Dynamic(view) => {
-            let mut dynamic =
-                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
-            let object_ids = dynamic.evaluate()?;
+            let object_ids = evaluate_dynamic_view(&repo, &view)?;
             let readable_count = count_readable(&repo, &object_ids);
+            let path = view_full_path(&repo.metadata, view.id)?;
 
             println!("View: {}", view.name);
+            println!("Path: {}", path);
             println!("Id: {}", view.id);
             println!("Type: dynamic");
             println!("Query: {}", view.query);
@@ -214,11 +213,7 @@ async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<(
             let builtins = BuiltinViews::new(&repo.metadata);
             builtins.evaluate(builtin)?
         }
-        ResolvedView::Dynamic(view) => {
-            let mut dynamic =
-                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
-            dynamic.evaluate()?
-        }
+        ResolvedView::Dynamic(view) => evaluate_dynamic_view(&repo, &view)?,
     };
 
     if object_ids.is_empty() {
@@ -263,22 +258,35 @@ async fn views_summary(repo: LatticeRepo) -> Result<()> {
     for builtin in BuiltinView::all() {
         let object_ids = builtins.evaluate(*builtin)?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {}: {} objects", builtin.name_localized(locale), readable_count);
+        println!(
+            "- {}: {} objects",
+            builtin.name_localized(locale),
+            readable_count
+        );
     }
 
     let views = repo.metadata.list_views()?;
     println!("\nDynamic views: {}", views.len());
     for view in views {
-        let mut dynamic =
-            DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
-        let object_ids = dynamic.evaluate()?;
+        let object_ids = evaluate_dynamic_view(&repo, &view)?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {} (id: {}): {} objects", view.name, view.id, readable_count);
+        let path = view_full_path(&repo.metadata, view.id)?;
+        println!(
+            "- {} (id: {}, path: {}): {} objects",
+            view.name, view.id, path, readable_count
+        );
     }
 
     let snapshots = repo.metadata.list_snapshots()?;
     println!("\nSnapshots: {}", snapshots.len());
     Ok(())
+}
+
+fn evaluate_dynamic_view(repo: &LatticeRepo, view: &View) -> Result<Vec<latticefs_base::ObjectID>> {
+    let effective = resolve_effective_query(&repo.metadata, view)?;
+    let mut dynamic =
+        DynamicView::from_parsed(effective, &repo.metadata).with_config(view.config.clone());
+    dynamic.evaluate().map_err(Into::into)
 }
 
 async fn policy_stats(repo: LatticeRepo, args: StatsPolicyArgs) -> Result<()> {

@@ -2,16 +2,11 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use latticefs_base::LatticeRepo;
 use latticefs_base::crypto::{Capability, Permission, PublicKey};
-use latticefs_base::views::ViewSnapshot;
+use latticefs_base::views::{DynamicView, ViewSnapshot, resolve_effective_query, view_full_path};
 
 use super::common::{
-    ensure_identity,
-    identity_actor,
-    parse_duration,
-    resolve_identity_password,
-    resolve_object_id,
-    resolve_view_reference,
-    ResolvedView,
+    ResolvedView, ensure_identity, identity_actor, parse_duration, resolve_identity_password,
+    resolve_object_id, resolve_view_reference,
 };
 
 #[derive(Args, Debug)]
@@ -187,10 +182,13 @@ fn create_snapshot(
             Ok((snapshot, resource))
         }
         ResolvedView::Dynamic(view) => {
-            let mut dynamic = latticefs_base::views::DynamicView::new(&view.query, &repo.metadata)?;
+            let effective = resolve_effective_query(&repo.metadata, &view)?;
+            let mut dynamic = DynamicView::from_parsed(effective, &repo.metadata)
+                .with_config(view.config.clone());
             let object_ids = dynamic.evaluate()?;
             let snapshot = ViewSnapshot::from_view(&view, object_ids, actor);
-            let resource = format!("latticefs:view:{}", view.name);
+            let view_path = view_full_path(&repo.metadata, view.id)?;
+            let resource = format!("latticefs:view:{}", view_path);
             Ok((snapshot, resource))
         }
     }

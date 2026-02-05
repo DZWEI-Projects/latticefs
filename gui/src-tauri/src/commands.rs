@@ -6,7 +6,10 @@ use latticefs_base::error::LatticeError;
 use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
 use latticefs_base::model::{timestamp_now, ObjectID, Tag};
 use latticefs_base::query::{parse, QueryEvaluator};
-use latticefs_base::views::{BuiltinView, BuiltinViews, Locale};
+use latticefs_base::views::{
+    collect_descendants, resolve_dynamic_view_reference, resolve_effective_query,
+    validate_parent_assignment, BuiltinView, BuiltinViews, DynamicView, Locale, View, ViewID,
+};
 use latticefs_base::LatticeRepo;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -102,7 +105,7 @@ pub fn check_initialized() -> bool {
     if !config_exists {
         return false;
     }
-    
+
     // Check if meta database exists (indicates repo was actually used)
     let config = match Config::load_or_default() {
         Ok(c) => c,
@@ -293,6 +296,28 @@ fn eval_query(repo: &LatticeRepo, query: &str) -> Result<Vec<ObjectID>, String> 
     evaluator.execute(&parsed).map_err(|err| err.to_string())
 }
 
+fn parse_view_id(view_id: &str) -> Result<ViewID, String> {
+    let uuid = Uuid::parse_str(view_id).map_err(|err| err.to_string())?;
+    Ok(ViewID::from_uuid(uuid))
+}
+
+fn resolve_dynamic_view(repo: &LatticeRepo, reference: &str) -> Result<View, String> {
+    if let Ok(id) = parse_view_id(reference) {
+        return repo
+            .metadata
+            .load_view_by_id(&id)
+            .map_err(|err| err.to_string());
+    }
+    resolve_dynamic_view_reference(&repo.metadata, reference).map_err(|err| err.to_string())
+}
+
+fn evaluate_dynamic_view(repo: &LatticeRepo, view: &View) -> Result<Vec<ObjectID>, String> {
+    let effective = resolve_effective_query(&repo.metadata, view).map_err(|err| err.to_string())?;
+    let mut dynamic =
+        DynamicView::from_parsed(effective, &repo.metadata).with_config(view.config.clone());
+    dynamic.evaluate().map_err(|err| err.to_string())
+}
+
 #[tauri::command]
 pub fn get_onboarding_graph() -> Result<OnboardingGraphData, String> {
     const MAX_PER_VIEW: usize = 80;
@@ -386,6 +411,7 @@ pub struct ViewInfo {
     pub description: String,
     pub query: String,
     pub view_type: String, // "builtin" | "dynamic"
+    pub parent_id: Option<String>,
     pub icon: Option<String>,
     pub object_count: usize,
 }
@@ -489,6 +515,7 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
             description: bv.description_localized(locale).to_string(),
             query: bv.query().to_string(),
             view_type: "builtin".to_string(),
+            parent_id: None,
             icon: builtin_view_icon(*bv),
             object_count: count,
         });
@@ -497,8 +524,7 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
     // Add dynamic views from metadata store
     if let Ok(dynamic_views) = repo.metadata.list_views() {
         for view in dynamic_views {
-            // Count objects for this view
-            let count = eval_query(&repo, &view.query)
+            let count = evaluate_dynamic_view(&repo, &view)
                 .map(|ids| ids.len())
                 .unwrap_or(0);
             views.push(ViewInfo {
@@ -507,6 +533,7 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
                 description: view.description.clone().unwrap_or_default(),
                 query: view.query.clone(),
                 view_type: "dynamic".to_string(),
+                parent_id: view.parent_id.map(|id| id.to_string()),
                 icon: None,
                 object_count: count,
             });
@@ -520,24 +547,16 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
 pub fn get_view_objects(view_id: String) -> Result<Vec<ObjectInfo>, String> {
     let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
 
-    // Try to find the view (builtin or dynamic)
-    let query = if let Some(bv) =
+    let object_ids = if let Some(bv) =
         BuiltinView::by_name(&view_id).or_else(|| BuiltinView::by_name(&view_id.replace('-', " ")))
     {
-        bv.query().to_string()
-    } else if let Ok(view) = repo.metadata.load_view(&view_id) {
-        view.query.clone()
-    } else if let Ok(views) = repo.metadata.list_views() {
-        views
-            .into_iter()
-            .find(|view| view.id.to_string() == view_id)
-            .map(|view| view.query)
-            .ok_or_else(|| format!("View not found: {}", view_id))?
+        BuiltinViews::new(&repo.metadata)
+            .evaluate(bv)
+            .map_err(|err| err.to_string())?
     } else {
-        return Err(format!("View not found: {}", view_id));
+        let view = resolve_dynamic_view(&repo, &view_id)?;
+        evaluate_dynamic_view(&repo, &view)?
     };
-
-    let object_ids = eval_query(&repo, &query)?;
 
     // Build view memberships for each object
     let builtin = BuiltinViews::new(&repo.metadata);
@@ -718,6 +737,7 @@ pub struct CreateViewArgs {
     pub name: String,
     pub query: String,
     pub description: Option<String>,
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -726,6 +746,20 @@ pub struct UpdateViewArgs {
     pub name: String,
     pub query: String,
     pub description: Option<String>,
+    pub parent_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChildPolicy {
+    Cascade,
+    Detach,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteViewArgs {
+    pub id: String,
+    pub child_policy: Option<ChildPolicy>,
 }
 
 fn validate_view_name(name: &str) -> Result<(), String> {
@@ -752,18 +786,25 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
     let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
     let identity = load_or_create_identity()?;
     let actor = identity.public_bytes();
+    let parent_id = match args.parent_id.as_deref() {
+        Some(raw) => Some(parse_view_id(raw)?),
+        None => None,
+    };
 
     let mut view = latticefs_base::views::View::new(args.name.clone(), args.query.clone(), actor);
     if let Some(desc) = args.description {
         view = view.with_description(desc);
     }
+    view.update_parent(parent_id);
+
+    validate_parent_assignment(&repo.metadata, Some(view.id), view.parent_id)
+        .map_err(|err| err.to_string())?;
 
     repo.metadata
         .store_view(&view)
         .map_err(|err| err.to_string())?;
 
-    // Return the created view info
-    let count = eval_query(&repo, &args.query)
+    let count = evaluate_dynamic_view(&repo, &view)
         .map(|ids| ids.len())
         .unwrap_or(0);
 
@@ -773,6 +814,7 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
         description: view.description.unwrap_or_default(),
         query: view.query,
         view_type: "dynamic".to_string(),
+        parent_id: view.parent_id.map(|id| id.to_string()),
         icon: None,
         object_count: count,
     })
@@ -786,43 +828,31 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
     parse(&args.query).map_err(|err| format!("Invalid query: {}", err))?;
 
     let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let view_id = parse_view_id(&args.id)?;
+    let parent_id = match args.parent_id.as_deref() {
+        Some(raw) => Some(parse_view_id(raw)?),
+        None => None,
+    };
 
-    let views = repo
+    let mut view = repo
         .metadata
-        .list_views()
+        .load_view_by_id(&view_id)
         .map_err(|err| err.to_string())?;
 
-    let mut view = views
-        .iter()
-        .find(|view| view.id.to_string() == args.id || view.name == args.id)
-        .cloned()
-        .ok_or_else(|| format!("View not found: {}", args.id))?;
-
-    if view.name != args.name {
-        if views.iter().any(|candidate| {
-            candidate.name == args.name && candidate.id.to_string() != view.id.to_string()
-        }) {
-            return Err(format!("View with name '{}' already exists", args.name));
-        }
-    }
-
-    let previous_name = view.name.clone();
     view.name = args.name;
     view.query = args.query;
     view.description = args.description;
+    view.parent_id = parent_id;
     view.modified_at = timestamp_now();
+
+    validate_parent_assignment(&repo.metadata, Some(view.id), view.parent_id)
+        .map_err(|err| err.to_string())?;
 
     repo.metadata
         .store_view(&view)
         .map_err(|err| err.to_string())?;
 
-    if previous_name != view.name {
-        repo.metadata
-            .delete_view(&previous_name)
-            .map_err(|err| err.to_string())?;
-    }
-
-    let count = eval_query(&repo, &view.query)
+    let count = evaluate_dynamic_view(&repo, &view)
         .map(|ids| ids.len())
         .unwrap_or(0);
 
@@ -832,21 +862,55 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
         description: view.description.unwrap_or_default(),
         query: view.query,
         view_type: "dynamic".to_string(),
+        parent_id: view.parent_id.map(|id| id.to_string()),
         icon: None,
         object_count: count,
     })
 }
 
 #[tauri::command]
-pub fn delete_view(name: String) -> Result<(), String> {
+pub fn delete_view(args: DeleteViewArgs) -> Result<(), String> {
     // Cannot delete builtin views
-    if BuiltinView::by_name(&name).is_some() {
+    if BuiltinView::by_name(&args.id).is_some() {
         return Err("Cannot delete built-in views".to_string());
     }
 
     let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let view = resolve_dynamic_view(&repo, &args.id)?;
+    let children = repo
+        .metadata
+        .list_children(Some(view.id))
+        .map_err(|err| err.to_string())?;
+
+    if !children.is_empty() && args.child_policy.is_none() {
+        return Err(
+            "This view has nested views. Choose child_policy: 'cascade' or 'detach'.".to_string(),
+        );
+    }
+
+    match args.child_policy {
+        Some(ChildPolicy::Cascade) => {
+            let descendants =
+                collect_descendants(&repo.metadata, view.id).map_err(|err| err.to_string())?;
+            for descendant in descendants {
+                repo.metadata
+                    .delete_view_by_id(&descendant.id)
+                    .map_err(|err| err.to_string())?;
+            }
+        }
+        Some(ChildPolicy::Detach) => {
+            for mut child in children {
+                child.update_parent(None);
+                repo.metadata
+                    .store_view(&child)
+                    .map_err(|err| err.to_string())?;
+            }
+        }
+        None => {}
+    }
+
     repo.metadata
-        .delete_view(&name)
+        .delete_view_by_id(&view.id)
         .map_err(|err| err.to_string())?;
 
     Ok(())

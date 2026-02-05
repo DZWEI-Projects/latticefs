@@ -7,10 +7,16 @@
 
 pub mod builtin;
 pub mod dynamic;
+pub mod resolver;
 pub mod snapshot;
 
 pub use builtin::{BuiltinView, BuiltinViews, Locale};
 pub use dynamic::{DynamicView, ViewConfig};
+pub use resolver::{
+    collect_descendants, resolve_dynamic_view_reference, resolve_effective_query,
+    resolve_effective_query_by_id, resolve_view_path, validate_parent_assignment, view_full_path,
+    MAX_VIEW_NESTING_DEPTH,
+};
 pub use snapshot::ViewSnapshot;
 
 use crate::error::{LatticeError, Result};
@@ -56,6 +62,14 @@ impl std::fmt::Display for ViewID {
     }
 }
 
+impl std::str::FromStr for ViewID {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(Self::from_uuid(Uuid::parse_str(s)?))
+    }
+}
+
 /// A view definition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct View {
@@ -67,6 +81,9 @@ pub struct View {
     pub description: Option<String>,
     /// The LQL query that defines this view.
     pub query: String,
+    /// Optional parent view for nested views.
+    #[serde(default)]
+    pub parent_id: Option<ViewID>,
     /// When the view was created.
     pub created_at: i64,
     /// When the view was last modified.
@@ -86,6 +103,7 @@ impl View {
             name,
             description: None,
             query,
+            parent_id: None,
             created_at: now,
             modified_at: now,
             created_by,
@@ -110,12 +128,23 @@ impl View {
         self.query = query;
         self.modified_at = timestamp_now();
     }
+
+    /// Assign a parent view.
+    pub fn with_parent(mut self, parent_id: ViewID) -> Self {
+        self.parent_id = Some(parent_id);
+        self
+    }
+
+    /// Update the parent view.
+    pub fn update_parent(&mut self, parent_id: Option<ViewID>) {
+        self.parent_id = parent_id;
+        self.modified_at = timestamp_now();
+    }
 }
 
 /// View store for persisting view definitions.
 pub struct ViewStore {
     views: std::collections::HashMap<ViewID, View>,
-    views_by_name: std::collections::HashMap<String, ViewID>,
 }
 
 impl ViewStore {
@@ -123,53 +152,59 @@ impl ViewStore {
     pub fn new() -> Self {
         Self {
             views: std::collections::HashMap::new(),
-            views_by_name: std::collections::HashMap::new(),
         }
     }
 
     /// Store a view.
     pub fn store(&mut self, view: View) -> Result<()> {
-        let id = view.id;
-        let name = view.name.clone();
-
-        // Check for name conflicts
-        if let Some(existing_id) = self.views_by_name.get(&name) {
-            if *existing_id != id {
+        // Check for sibling-level name conflicts.
+        for existing in self.views.values() {
+            if existing.id != view.id
+                && existing.parent_id == view.parent_id
+                && existing.name == view.name
+            {
                 return Err(LatticeError::InvalidViewQuery(format!(
-                    "View with name '{}' already exists",
-                    name
+                    "View with name '{}' already exists at this level",
+                    view.name
                 )));
             }
         }
 
-        self.views_by_name.insert(name, id);
-        self.views.insert(id, view);
+        self.views.insert(view.id, view);
         Ok(())
     }
 
     /// Get a view by ID.
     pub fn get(&self, id: &ViewID) -> Result<&View> {
-        self.views.get(id).ok_or_else(|| LatticeError::ViewNotFound {
-            name: id.to_string(),
-        })
+        self.views
+            .get(id)
+            .ok_or_else(|| LatticeError::ViewNotFound {
+                name: id.to_string(),
+            })
     }
 
     /// Get a view by name.
     pub fn get_by_name(&self, name: &str) -> Result<&View> {
-        let id = self
-            .views_by_name
-            .get(name)
-            .ok_or_else(|| LatticeError::ViewNotFound {
+        let matches: Vec<&View> = self
+            .views
+            .values()
+            .filter(|view| view.name == name)
+            .collect();
+        match matches.as_slice() {
+            [] => Err(LatticeError::ViewNotFound {
                 name: name.to_string(),
-            })?;
-        self.get(id)
+            }),
+            [single] => Ok(single),
+            _ => Err(LatticeError::InvalidViewQuery(format!(
+                "Ambiguous view reference '{}'; use UUID or path",
+                name
+            ))),
+        }
     }
 
     /// Delete a view.
     pub fn delete(&mut self, id: &ViewID) -> Result<()> {
-        if let Some(view) = self.views.remove(id) {
-            self.views_by_name.remove(&view.name);
-        }
+        self.views.remove(id);
         Ok(())
     }
 
@@ -180,7 +215,7 @@ impl ViewStore {
 
     /// Check if a view exists by name.
     pub fn exists(&self, name: &str) -> bool {
-        self.views_by_name.contains_key(name)
+        self.views.values().any(|view| view.name == name)
     }
 }
 
@@ -216,7 +251,11 @@ mod tests {
     fn test_view_store() {
         let mut store = ViewStore::new();
 
-        let view = View::new("Recent".to_string(), "updated within 7d".to_string(), test_actor());
+        let view = View::new(
+            "Recent".to_string(),
+            "updated within 7d".to_string(),
+            test_actor(),
+        );
         let id = view.id;
 
         store.store(view).unwrap();
@@ -254,5 +293,26 @@ mod tests {
 
         store.delete(&id).unwrap();
         assert!(!store.exists("ToDelete"));
+    }
+
+    #[test]
+    fn test_view_store_allows_same_name_in_different_parents() {
+        let mut store = ViewStore::new();
+
+        let parent1 = View::new("ParentA".to_string(), "tag:a".to_string(), test_actor());
+        let parent1_id = parent1.id;
+        store.store(parent1).unwrap();
+
+        let parent2 = View::new("ParentB".to_string(), "tag:b".to_string(), test_actor());
+        let parent2_id = parent2.id;
+        store.store(parent2).unwrap();
+
+        let child1 = View::new("Child".to_string(), "tag:c1".to_string(), test_actor())
+            .with_parent(parent1_id);
+        let child2 = View::new("Child".to_string(), "tag:c2".to_string(), test_actor())
+            .with_parent(parent2_id);
+
+        store.store(child1).unwrap();
+        assert!(store.store(child2).is_ok());
     }
 }

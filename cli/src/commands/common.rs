@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use latticefs_base::views::{BuiltinView, View};
+use latticefs_base::views::{BuiltinView, View, resolve_dynamic_view_reference, view_full_path};
 use latticefs_base::{Config, KeyManager, LatticeRepo};
 use latticefs_base::{Identity, ObjectID, VersionID};
 use std::path::{Path, PathBuf};
@@ -54,42 +54,29 @@ pub fn resolve_view_reference(repo: &LatticeRepo, reference: &str) -> Result<Res
     if let Some(builtin) = BuiltinView::by_name(reference) {
         return Ok(ResolvedView::Builtin(builtin));
     }
-
-    if let Ok(uuid) = uuid::Uuid::parse_str(reference) {
-        if let Some(view) = find_view_by_id(repo, &uuid)? {
-            return Ok(ResolvedView::Dynamic(view));
-        }
-    }
-
-    let view = repo.metadata.load_view(reference)?;
+    let view = resolve_dynamic_view_reference(&repo.metadata, reference)?;
     Ok(ResolvedView::Dynamic(view))
 }
 
 pub fn resolve_dynamic_view(repo: &LatticeRepo, reference: &str) -> Result<View> {
-    if let Ok(uuid) = uuid::Uuid::parse_str(reference) {
-        if let Some(view) = find_view_by_id(repo, &uuid)? {
-            return Ok(view);
-        }
+    if BuiltinView::by_name(reference).is_some() {
+        return Err(anyhow!("Built-in views cannot be modified"));
     }
 
-    match repo.metadata.load_view(reference) {
-        Ok(view) => Ok(view),
-        Err(err) => {
-            if BuiltinView::by_name(reference).is_some() {
-                return Err(anyhow!("Built-in views cannot be modified"));
-            }
-            Err(anyhow!("{}", err.to_string()))
-        }
-    }
+    resolve_dynamic_view_reference(&repo.metadata, reference).map_err(|err| anyhow!("{}", err))
 }
 
 pub fn find_view_by_id(repo: &LatticeRepo, id: &uuid::Uuid) -> Result<Option<View>> {
-    for view in repo.metadata.list_views()? {
-        if view.id.as_uuid() == id {
-            return Ok(Some(view));
-        }
+    let view_id = latticefs_base::views::ViewID::from_uuid(*id);
+    match repo.metadata.load_view_by_id(&view_id) {
+        Ok(view) => Ok(Some(view)),
+        Err(latticefs_base::LatticeError::ViewNotFound { .. }) => Ok(None),
+        Err(err) => Err(anyhow!("{}", err)),
     }
-    Ok(None)
+}
+
+pub fn dynamic_view_path(repo: &LatticeRepo, view: &View) -> Result<String> {
+    view_full_path(&repo.metadata, view.id).map_err(|err| anyhow!("{}", err))
 }
 
 pub fn parse_ref_with_version(

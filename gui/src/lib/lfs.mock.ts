@@ -13,6 +13,7 @@ import type {
   ObjectInfo,
   CreateViewArgs,
   UpdateViewArgs,
+  ChildPolicy,
   TagInfo,
 } from "./lfs";
 
@@ -96,6 +97,7 @@ const mockViewsData: ViewInfo[] = [
     description: "Objekte, die in den letzten 7 Tagen aktualisiert wurden",
     query: "updated within 7d SORT updated DESC LIMIT 100",
     viewType: "builtin",
+    parentId: null,
     icon: "Clock",
     objectCount: 12,
   },
@@ -105,6 +107,7 @@ const mockViewsData: ViewInfo[] = [
     description: "Objekte mit der Eigenschaft Projekt",
     query: "tag:projekt SORT updated DESC",
     viewType: "builtin",
+    parentId: null,
     icon: "Folder",
     objectCount: 4,
   },
@@ -114,6 +117,7 @@ const mockViewsData: ViewInfo[] = [
     description: "Objekte im Entwurfsstatus",
     query: "state:draft SORT updated DESC",
     viewType: "builtin",
+    parentId: null,
     icon: "FileEdit",
     objectCount: 3,
   },
@@ -123,6 +127,7 @@ const mockViewsData: ViewInfo[] = [
     description: "Objekte, die auf Prüfung warten",
     query: "state:review SORT updated DESC",
     viewType: "builtin",
+    parentId: null,
     icon: "Eye",
     objectCount: 1,
   },
@@ -132,6 +137,7 @@ const mockViewsData: ViewInfo[] = [
     description: "Freigegebene Objekte",
     query: "state:approved SORT updated DESC",
     viewType: "builtin",
+    parentId: null,
     icon: "CheckCircle",
     objectCount: 8,
   },
@@ -141,6 +147,7 @@ const mockViewsData: ViewInfo[] = [
     description: "Alle Objekte im Repository",
     query: "trust >= 0",
     viewType: "builtin",
+    parentId: null,
     icon: "Grid",
     objectCount: 24,
   },
@@ -400,6 +407,7 @@ export const mockCreateView = async (args: CreateViewArgs): Promise<ViewInfo> =>
     description: args.description || "",
     query: args.query,
     viewType: "dynamic",
+    parentId: args.parentId || null,
     icon: null,
     objectCount: Math.floor(Math.random() * 10),
   };
@@ -418,17 +426,54 @@ export const mockUpdateView = async (args: UpdateViewArgs): Promise<ViewInfo> =>
     name: args.name,
     description: args.description || "",
     query: args.query,
+    parentId: args.parentId ?? null,
   };
   mockViewsData[index] = updated;
   return updated;
 };
 
-export const mockDeleteView = async (name: string): Promise<void> => {
+export const mockDeleteView = async (
+  id: string,
+  childPolicy?: ChildPolicy,
+): Promise<void> => {
   await delay(150);
-  const index = mockViewsData.findIndex((v) => v.name === name);
-  if (index !== -1) {
-    mockViewsData.splice(index, 1);
+  const index = mockViewsData.findIndex((v) => v.id === id);
+  if (index === -1) return;
+
+  const children = mockViewsData.filter((v) => v.parentId === id && v.viewType === "dynamic");
+  if (children.length > 0 && !childPolicy) {
+    throw new Error("Diese Perspektive hat Unteransichten.");
   }
+
+  if (childPolicy === "cascade") {
+    const queue = [id];
+    const toDelete = new Set<string>();
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      toDelete.add(current);
+      for (const child of mockViewsData) {
+        if (child.parentId === current && child.viewType === "dynamic") {
+          queue.push(child.id);
+        }
+      }
+    }
+    for (let i = mockViewsData.length - 1; i >= 0; i--) {
+      if (toDelete.has(mockViewsData[i].id)) {
+        mockViewsData.splice(i, 1);
+      }
+    }
+    return;
+  }
+
+  if (childPolicy === "detach") {
+    for (const child of mockViewsData) {
+      if (child.parentId === id && child.viewType === "dynamic") {
+        child.parentId = null;
+      }
+    }
+  }
+
+  mockViewsData.splice(index, 1);
 };
 
 // --- File Picker Mocks ---

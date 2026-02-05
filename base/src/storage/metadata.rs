@@ -1,8 +1,47 @@
 use crate::error::{LatticeError, Result};
 use crate::storage::chunks::ChunkManifest;
 use crate::storage::content::{hash_to_hex, Hash};
+use serde::Deserialize;
 use sled::{Db, Tree};
+use std::collections::HashMap;
 use std::path::Path;
+
+#[derive(Debug, Deserialize)]
+struct LegacyViewRecord {
+    id: crate::views::ViewID,
+    name: String,
+    description: Option<String>,
+    query: String,
+    created_at: i64,
+    modified_at: i64,
+    created_by: [u8; 32],
+    config: crate::views::ViewConfig,
+}
+
+fn decode_view(bytes: &[u8]) -> Result<crate::views::View> {
+    if let Ok(view) = bincode::deserialize::<crate::views::View>(bytes) {
+        return Ok(view);
+    }
+
+    let legacy = bincode::deserialize::<LegacyViewRecord>(bytes).map_err(|e| {
+        LatticeError::Serialization(format!(
+            "Failed to deserialize view (new + legacy formats): {}",
+            e
+        ))
+    })?;
+
+    Ok(crate::views::View {
+        id: legacy.id,
+        name: legacy.name,
+        description: legacy.description,
+        query: legacy.query,
+        parent_id: None,
+        created_at: legacy.created_at,
+        modified_at: legacy.modified_at,
+        created_by: legacy.created_by,
+        config: legacy.config,
+    })
+}
 
 /// Metadata store using sled embedded database
 pub struct MetadataStore {
@@ -282,9 +321,8 @@ impl MetadataStore {
 
     /// Store a link record.
     pub fn store_link(&self, link: &crate::model::Link) -> Result<()> {
-        let bytes = bincode::serialize(link).map_err(|e| {
-            LatticeError::Serialization(format!("Failed to serialize link: {}", e))
-        })?;
+        let bytes = bincode::serialize(link)
+            .map_err(|e| LatticeError::Serialization(format!("Failed to serialize link: {}", e)))?;
         self.links.insert(link.id.as_bytes(), bytes)?;
         Ok(())
     }
@@ -316,12 +354,12 @@ impl MetadataStore {
 
     /// Load a policy by name.
     pub fn load_policy(&self, name: &str) -> Result<crate::model::Policy> {
-        let data = self
-            .policies
-            .get(name.as_bytes())?
-            .ok_or_else(|| LatticeError::ObjectNotFound {
-                id: format!("policy:{}", name),
-            })?;
+        let data =
+            self.policies
+                .get(name.as_bytes())?
+                .ok_or_else(|| LatticeError::ObjectNotFound {
+                    id: format!("policy:{}", name),
+                })?;
         let policy = bincode::deserialize(&data).map_err(|e| {
             LatticeError::Serialization(format!("Failed to deserialize policy: {}", e))
         })?;
@@ -375,45 +413,160 @@ impl MetadataStore {
         Ok(policies)
     }
 
-    /// Store a view definition by name.
+    /// Store a view definition by ID.
     pub fn store_view(&self, view: &crate::views::View) -> Result<()> {
-        let bytes = bincode::serialize(view).map_err(|e| {
-            LatticeError::Serialization(format!("Failed to serialize view: {}", e))
-        })?;
-        self.views.insert(view.name.as_bytes(), bytes)?;
+        if let Some(parent_id) = view.parent_id {
+            self.load_view_by_id(&parent_id)?;
+        }
+
+        for existing in self.list_views()? {
+            if existing.id != view.id
+                && existing.parent_id == view.parent_id
+                && existing.name == view.name
+            {
+                return Err(LatticeError::InvalidViewQuery(format!(
+                    "View with name '{}' already exists at this level",
+                    view.name
+                )));
+            }
+        }
+
+        let bytes = bincode::serialize(view)
+            .map_err(|e| LatticeError::Serialization(format!("Failed to serialize view: {}", e)))?;
+        let id_key = view.id.to_string();
+        self.views.insert(id_key.as_bytes(), bytes)?;
+
+        // Remove stale entries for this ID (e.g., legacy name-keyed records).
+        let mut stale_keys = Vec::new();
+        for item in self.views.iter() {
+            let (key, value) = item?;
+            let parsed = match decode_view(&value) {
+                Ok(parsed) => parsed,
+                Err(_) => continue,
+            };
+            if parsed.id == view.id && key.as_ref() != id_key.as_bytes() {
+                stale_keys.push(key.to_vec());
+            }
+        }
+
+        for key in stale_keys {
+            self.views.remove(key)?;
+        }
         Ok(())
     }
 
     /// Load a view by name.
     pub fn load_view(&self, name: &str) -> Result<crate::views::View> {
-        let data = self
-            .views
-            .get(name.as_bytes())?
-            .ok_or_else(|| LatticeError::ViewNotFound {
+        let matches = self.find_views_by_name(name)?;
+        match matches.as_slice() {
+            [] => Err(LatticeError::ViewNotFound {
                 name: name.to_string(),
-            })?;
-        let view = bincode::deserialize(&data).map_err(|e| {
-            LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
-        })?;
-        Ok(view)
+            }),
+            [single] => Ok(single.clone()),
+            _ => Err(LatticeError::InvalidViewQuery(format!(
+                "Ambiguous view reference '{}'; use UUID or path",
+                name
+            ))),
+        }
+    }
+
+    /// Load a view by ID.
+    pub fn load_view_by_id(&self, id: &crate::views::ViewID) -> Result<crate::views::View> {
+        let id_key = id.to_string();
+        if let Some(data) = self.views.get(id_key.as_bytes())? {
+            return decode_view(&data);
+        }
+
+        for view in self.list_views()? {
+            if view.id == *id {
+                return Ok(view);
+            }
+        }
+
+        Err(LatticeError::ViewNotFound {
+            name: id.to_string(),
+        })
+    }
+
+    /// Find all views by name.
+    pub fn find_views_by_name(&self, name: &str) -> Result<Vec<crate::views::View>> {
+        let views = self.list_views()?;
+        Ok(views
+            .into_iter()
+            .filter(|candidate| candidate.name == name)
+            .collect())
+    }
+
+    /// List children of a parent (or root views for None).
+    pub fn list_children(
+        &self,
+        parent_id: Option<crate::views::ViewID>,
+    ) -> Result<Vec<crate::views::View>> {
+        let views = self.list_views()?;
+        Ok(views
+            .into_iter()
+            .filter(|view| view.parent_id == parent_id)
+            .collect())
     }
 
     /// Delete a view by name.
     pub fn delete_view(&self, name: &str) -> Result<()> {
-        self.views.remove(name.as_bytes())?;
+        let matches = self.find_views_by_name(name)?;
+        match matches.as_slice() {
+            [] => {}
+            [single] => self.delete_view_by_id(&single.id)?,
+            _ => {
+                return Err(LatticeError::InvalidViewQuery(format!(
+                    "Ambiguous view reference '{}'; use UUID or path",
+                    name
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Delete a view by ID.
+    pub fn delete_view_by_id(&self, id: &crate::views::ViewID) -> Result<()> {
+        let mut keys_to_remove = Vec::new();
+        for item in self.views.iter() {
+            let (key, value) = item?;
+            let parsed = match decode_view(&value) {
+                Ok(parsed) => parsed,
+                Err(_) => continue,
+            };
+            if parsed.id == *id {
+                keys_to_remove.push(key.to_vec());
+            }
+        }
+
+        for key in keys_to_remove {
+            self.views.remove(key)?;
+        }
+
         Ok(())
     }
 
     /// List all views.
     pub fn list_views(&self) -> Result<Vec<crate::views::View>> {
-        let mut views = Vec::new();
+        let mut deduped: HashMap<crate::views::ViewID, crate::views::View> = HashMap::new();
         for item in self.views.iter() {
             let (_k, v) = item?;
-            let view = bincode::deserialize(&v).map_err(|e| {
-                LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
-            })?;
-            views.push(view);
+            let view = decode_view(&v)?;
+            deduped
+                .entry(view.id)
+                .and_modify(|existing| {
+                    if view.modified_at > existing.modified_at {
+                        *existing = view.clone();
+                    }
+                })
+                .or_insert(view);
         }
+        let mut views: Vec<_> = deduped.into_values().collect();
+        views.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then_with(|| a.id.to_string().cmp(&b.id.to_string()))
+        });
         Ok(views)
     }
 
@@ -422,18 +575,19 @@ impl MetadataStore {
         let bytes = bincode::serialize(snapshot).map_err(|e| {
             LatticeError::Serialization(format!("Failed to serialize snapshot: {}", e))
         })?;
-        self.snapshots.insert(snapshot.id.to_string().as_bytes(), bytes)?;
+        self.snapshots
+            .insert(snapshot.id.to_string().as_bytes(), bytes)?;
         Ok(())
     }
 
     /// Load a snapshot by ID string.
     pub fn load_snapshot(&self, id: &str) -> Result<crate::views::ViewSnapshot> {
-        let data = self
-            .snapshots
-            .get(id.as_bytes())?
-            .ok_or_else(|| LatticeError::ObjectNotFound {
-                id: format!("snapshot:{}", id),
-            })?;
+        let data =
+            self.snapshots
+                .get(id.as_bytes())?
+                .ok_or_else(|| LatticeError::ObjectNotFound {
+                    id: format!("snapshot:{}", id),
+                })?;
         let snapshot = bincode::deserialize(&data).map_err(|e| {
             LatticeError::Serialization(format!("Failed to deserialize snapshot: {}", e))
         })?;
@@ -530,12 +684,11 @@ impl MetadataStore {
 
     /// Load a capability token by its CID.
     pub fn load_capability(&self, cid: &str) -> Result<crate::crypto::Capability> {
-        let data = self
-            .capabilities
-            .get(cid.as_bytes())?
-            .ok_or_else(|| LatticeError::CapabilityNotFound {
+        let data = self.capabilities.get(cid.as_bytes())?.ok_or_else(|| {
+            LatticeError::CapabilityNotFound {
                 cid: cid.to_string(),
-            })?;
+            }
+        })?;
 
         let token = std::str::from_utf8(&data)
             .map_err(|e| LatticeError::Serialization(format!("Invalid UTF-8 token: {}", e)))?;
@@ -573,16 +726,14 @@ impl MetadataStore {
 
     /// Load a revocation entry by CID.
     pub fn load_revocation(&self, cid: &str) -> Result<crate::crypto::Revocation> {
-        let data = self
-            .revocations
-            .get(cid.as_bytes())?
-            .ok_or_else(|| LatticeError::RevocationNotFound {
+        let data = self.revocations.get(cid.as_bytes())?.ok_or_else(|| {
+            LatticeError::RevocationNotFound {
                 cid: cid.to_string(),
-            })?;
-
-        let revocation: crate::crypto::Revocation = serde_json::from_slice(&data).map_err(|e| {
-            LatticeError::Serialization(format!("Revocation deserialize: {}", e))
+            }
         })?;
+
+        let revocation: crate::crypto::Revocation = serde_json::from_slice(&data)
+            .map_err(|e| LatticeError::Serialization(format!("Revocation deserialize: {}", e)))?;
 
         Ok(revocation)
     }
@@ -614,11 +765,15 @@ impl MetadataStore {
     }
 
     /// Load the current rate limit state (if any).
-    pub fn load_rate_limit_state(&self, key: &str) -> Result<Option<crate::policy::RateLimitState>> {
+    pub fn load_rate_limit_state(
+        &self,
+        key: &str,
+    ) -> Result<Option<crate::policy::RateLimitState>> {
         if let Some(data) = self.rate_limits.get(key.as_bytes())? {
-            let state: crate::policy::RateLimitState = bincode::deserialize(&data).map_err(|e| {
-                LatticeError::Serialization(format!("Rate limit deserialize: {}", e))
-            })?;
+            let state: crate::policy::RateLimitState =
+                bincode::deserialize(&data).map_err(|e| {
+                    LatticeError::Serialization(format!("Rate limit deserialize: {}", e))
+                })?;
             Ok(Some(state))
         } else {
             Ok(None)
@@ -631,9 +786,8 @@ impl MetadataStore {
         key: &str,
         state: &crate::policy::RateLimitState,
     ) -> Result<()> {
-        let data = bincode::serialize(state).map_err(|e| {
-            LatticeError::Serialization(format!("Rate limit serialize: {}", e))
-        })?;
+        let data = bincode::serialize(state)
+            .map_err(|e| LatticeError::Serialization(format!("Rate limit serialize: {}", e)))?;
         self.rate_limits.insert(key.as_bytes(), data)?;
         Ok(())
     }
@@ -642,11 +796,7 @@ impl MetadataStore {
     ///
     /// This prevents race conditions when multiple concurrent requests try to
     /// consume tokens simultaneously. Uses optimistic locking with retry.
-    pub fn atomic_rate_limit_consume<F>(
-        &self,
-        key: &str,
-        check_fn: F,
-    ) -> Result<()>
+    pub fn atomic_rate_limit_consume<F>(&self, key: &str, check_fn: F) -> Result<()>
     where
         F: Fn(Option<crate::policy::RateLimitState>) -> Result<crate::policy::RateLimitState>,
     {
@@ -667,14 +817,13 @@ impl MetadataStore {
             let new_state = check_fn(current_state)?;
 
             // Serialize new state
-            let new_data = bincode::serialize(&new_state).map_err(|e| {
-                LatticeError::Serialization(format!("Rate limit serialize: {}", e))
-            })?;
+            let new_data = bincode::serialize(&new_state)
+                .map_err(|e| LatticeError::Serialization(format!("Rate limit serialize: {}", e)))?;
 
             // Attempt atomic compare-and-swap
-            let cas_result = self
-                .rate_limits
-                .compare_and_swap(key_bytes, current, Some(new_data))?;
+            let cas_result =
+                self.rate_limits
+                    .compare_and_swap(key_bytes, current, Some(new_data))?;
 
             match cas_result {
                 Ok(()) => return Ok(()),
@@ -723,6 +872,7 @@ mod tests {
     use super::*;
     use crate::crypto::{Capability, Identity, Permission, PublicKey, RevocationList};
     use crate::storage::chunks::{ChunkManifest, ChunkRef};
+    use serde::Serialize;
 
     #[test]
     fn test_manifest_store_load() {
@@ -840,5 +990,85 @@ mod tests {
 
         store.delete_alias(alias).unwrap();
         assert!(store.resolve_alias(alias).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_view_sibling_uniqueness() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let actor = [0u8; 32];
+        let parent_a = crate::views::View::new("ParentA".to_string(), "tag:a".to_string(), actor);
+        let parent_b = crate::views::View::new("ParentB".to_string(), "tag:b".to_string(), actor);
+        store.store_view(&parent_a).unwrap();
+        store.store_view(&parent_b).unwrap();
+
+        let child_a = crate::views::View::new("Child".to_string(), "tag:c".to_string(), actor)
+            .with_parent(parent_a.id);
+        let child_b = crate::views::View::new("Child".to_string(), "tag:d".to_string(), actor)
+            .with_parent(parent_b.id);
+        store.store_view(&child_a).unwrap();
+        store.store_view(&child_b).unwrap();
+
+        let conflicting = crate::views::View::new("Child".to_string(), "tag:e".to_string(), actor)
+            .with_parent(parent_a.id);
+        assert!(store.store_view(&conflicting).is_err());
+    }
+
+    #[test]
+    fn test_load_view_by_name_errors_when_ambiguous() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let actor = [0u8; 32];
+        let parent_a = crate::views::View::new("ParentA".to_string(), "tag:a".to_string(), actor);
+        let parent_b = crate::views::View::new("ParentB".to_string(), "tag:b".to_string(), actor);
+        store.store_view(&parent_a).unwrap();
+        store.store_view(&parent_b).unwrap();
+
+        let child_a = crate::views::View::new("Same".to_string(), "tag:c".to_string(), actor)
+            .with_parent(parent_a.id);
+        let child_b = crate::views::View::new("Same".to_string(), "tag:d".to_string(), actor)
+            .with_parent(parent_b.id);
+        store.store_view(&child_a).unwrap();
+        store.store_view(&child_b).unwrap();
+
+        let err = store.load_view("Same").unwrap_err();
+        assert!(matches!(err, LatticeError::InvalidViewQuery(_)));
+    }
+
+    #[derive(Serialize)]
+    struct LegacyTestView {
+        id: crate::views::ViewID,
+        name: String,
+        description: Option<String>,
+        query: String,
+        created_at: i64,
+        modified_at: i64,
+        created_by: [u8; 32],
+        config: crate::views::ViewConfig,
+    }
+
+    #[test]
+    fn test_legacy_view_deserialization_defaults_parent_to_none() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let legacy = LegacyTestView {
+            id: crate::views::ViewID::new(),
+            name: "Legacy".to_string(),
+            description: Some("legacy format".to_string()),
+            query: "tag:legacy".to_string(),
+            created_at: 1,
+            modified_at: 1,
+            created_by: [0u8; 32],
+            config: crate::views::ViewConfig::default(),
+        };
+        let bytes = bincode::serialize(&legacy).unwrap();
+        store.views.insert(legacy.name.as_bytes(), bytes).unwrap();
+
+        let loaded = store.load_view_by_id(&legacy.id).unwrap();
+        assert_eq!(loaded.name, "Legacy");
+        assert!(loaded.parent_id.is_none());
     }
 }

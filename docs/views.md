@@ -19,6 +19,7 @@ LatticeFS includes several built-in views that are always available:
 
 ## What you can do with views
 - Create a view from an LQL query
+- Create nested views (dynamic parent/child)
 - List built‑in and dynamic views
 - Delete a dynamic view
 - Explain why an object matches a view
@@ -30,12 +31,30 @@ LatticeFS includes several built-in views that are always available:
 lfs view create "Projects" --query "tag:project"
 ```
 
+Create a nested view by referencing a parent view (UUID, path, or unique name):
+
+```bash
+lfs view create "Media" --query "tag:auto:mimetype:image/* OR tag:auto:mimetype:video/*"
+lfs view create "Images" --parent "Media" --query "tag:auto:mimetype:image/*"
+```
+
+The child query is composed with logical `AND` against all ancestors.
+For the example above, effective query for `Images` becomes:
+
+```text
+(tag:auto:mimetype:image/* OR tag:auto:mimetype:video/*) AND tag:auto:mimetype:image/*
+```
+
+If both parent and child define `SORT`/`LIMIT`, the child wins; if the child omits them, parent values are inherited.
+
 ## List views
 ```bash
 lfs view list
 ```
 
 This shows both built‑in and dynamic views. Dynamic views include their UUID IDs, which you can use anywhere a view name is accepted.
+
+Nested dynamic views are shown in a tree with their full path.
 
 ## Delete a view
 ```bash
@@ -45,16 +64,28 @@ lfs view delete <view-id>
 
 Only dynamic views can be deleted.
 
+If the target has children, choose a policy:
+
+```bash
+lfs view delete "Media" --cascade
+lfs view delete "Media" --detach-children
+```
+
+- `--cascade`: delete the view and all descendants
+- `--detach-children`: delete only the selected view and move direct children to root
+
 ## Explain matches for a view
 ```bash
 lfs view explain <object-id> --view "Projects"
 lfs view explain <object-id> --view <view-id>
+lfs view explain <object-id> --view "Media/Images"
 ```
 
 ## Export a view (to “see” its contents)
 ```bash
 lfs export "Projects" --output /tmp/projects --mode tree
 lfs export <view-id> --output /tmp/projects --mode tree
+lfs export "Media/Images" --output /tmp/images --mode tree
 ls /tmp/projects
 ```
 
@@ -64,15 +95,18 @@ The filenames are object IDs. Use `lfs get` to retrieve content for any ID.
 ```bash
 lfs share snapshot "Projects" --to <did:key:...>
 lfs share snapshot <view-id> --to <did:key:...>
+lfs share snapshot "Media/Images" --to <did:key:...>
 ```
 
 ## Is there a view “update” command?
-There is **no explicit update command**. Views are defined by a name and a query; to change it, delete and recreate:
+There is **no explicit CLI update command**. To change a view in CLI, delete and recreate:
 
 ```bash
 lfs view delete "Projects"
 lfs view create "Projects" --query "tag:project AND state:approved"
 ```
+
+The GUI supports editing a dynamic view directly.
 
 ## How to “view a view” (see what belongs to it)
 You have two supported ways:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -12,8 +12,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { updateView, type ViewInfo } from "@/lib/lfs";
 import { Loader2 } from "lucide-react";
+import { useViews } from "@/hooks/useViews";
+
+const ROOT_PARENT = "__root__";
 
 interface EditViewDialogProps {
   view: ViewInfo | null;
@@ -23,17 +33,50 @@ interface EditViewDialogProps {
 
 export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps) => {
   const queryClient = useQueryClient();
+  const { data: views } = useViews();
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
+  const [parentId, setParentId] = useState(ROOT_PARENT);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dynamicViews = useMemo(
+    () => (views?.filter((candidate) => candidate.viewType === "dynamic") || []),
+    [views]
+  );
+  const selectableParents = useMemo(() => {
+    if (!view) return dynamicViews;
+
+    const childrenByParent = new Map<string, string[]>();
+    for (const candidate of dynamicViews) {
+      if (!candidate.parentId) continue;
+      const entries = childrenByParent.get(candidate.parentId) || [];
+      entries.push(candidate.id);
+      childrenByParent.set(candidate.parentId, entries);
+    }
+
+    const blocked = new Set<string>([view.id]);
+    const stack = [view.id];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      for (const childId of childrenByParent.get(current) || []) {
+        if (!blocked.has(childId)) {
+          blocked.add(childId);
+          stack.push(childId);
+        }
+      }
+    }
+
+    return dynamicViews.filter((candidate) => !blocked.has(candidate.id));
+  }, [dynamicViews, view]);
 
   useEffect(() => {
     if (!view || !open) return;
     setName(view.name);
     setQuery(view.query);
     setDescription(view.description || "");
+    setParentId(view.parentId || ROOT_PARENT);
     setError(null);
   }, [view, open]);
 
@@ -54,6 +97,7 @@ export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps
         name: name.trim(),
         query: query.trim(),
         description: description.trim() || undefined,
+        parentId: parentId === ROOT_PARENT ? null : parentId,
       });
 
       await queryClient.invalidateQueries({ queryKey: ["views"] });
@@ -122,6 +166,27 @@ export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps
               onChange={(e) => setDescription(e.target.value)}
               disabled={isSaving}
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Übergeordnete Perspektive</Label>
+            <Select
+              value={parentId}
+              onValueChange={setParentId}
+              disabled={isSaving}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Keine (Root)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ROOT_PARENT}>Keine (Root)</SelectItem>
+                {selectableParents.map((candidate) => (
+                  <SelectItem key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {error && (

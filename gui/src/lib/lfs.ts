@@ -54,6 +54,7 @@ export interface ViewInfo {
   description: string;
   query: string;
   viewType: "builtin" | "dynamic";
+  parentId?: string | null;
   icon?: string | null;
   objectCount: number;
 }
@@ -159,6 +160,7 @@ export const listViews = async (): Promise<ViewInfo[]> => {
         description: string;
         query: string;
         view_type: string;
+        parent_id: string | null;
         icon: string | null;
         object_count: number;
       }>
@@ -170,6 +172,7 @@ export const listViews = async (): Promise<ViewInfo[]> => {
       description: v.description,
       query: v.query,
       viewType: v.view_type as "builtin" | "dynamic",
+      parentId: v.parent_id,
       icon: v.icon,
       objectCount: v.object_count,
     }));
@@ -292,6 +295,7 @@ export interface CreateViewArgs {
   name: string;
   query: string;
   description?: string;
+  parentId?: string | null;
 }
 
 export interface UpdateViewArgs {
@@ -299,7 +303,10 @@ export interface UpdateViewArgs {
   name: string;
   query: string;
   description?: string;
+  parentId?: string | null;
 }
+
+export type ChildPolicy = "cascade" | "detach";
 
 export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
   if (isTauriApp()) {
@@ -309,15 +316,24 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
       description: string;
       query: string;
       view_type: string;
+      parent_id: string | null;
       icon: string | null;
       object_count: number;
-    }>("create_view", { args });
+    }>("create_view", {
+      args: {
+        name: args.name,
+        query: args.query,
+        description: args.description,
+        parent_id: args.parentId ?? null,
+      },
+    });
     return {
       id: view.id,
       name: view.name,
       description: view.description,
       query: view.query,
       viewType: view.view_type as "builtin" | "dynamic",
+      parentId: view.parent_id,
       icon: view.icon,
       objectCount: view.object_count,
     };
@@ -333,15 +349,25 @@ export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
       description: string;
       query: string;
       view_type: string;
+      parent_id: string | null;
       icon: string | null;
       object_count: number;
-    }>("update_view", { args });
+    }>("update_view", {
+      args: {
+        id: args.id,
+        name: args.name,
+        query: args.query,
+        description: args.description,
+        parent_id: args.parentId ?? null,
+      },
+    });
     return {
       id: view.id,
       name: view.name,
       description: view.description,
       query: view.query,
       viewType: view.view_type as "builtin" | "dynamic",
+      parentId: view.parent_id,
       icon: view.icon,
       objectCount: view.object_count,
     };
@@ -349,12 +375,17 @@ export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
   return (await getMocks()).mockUpdateView(args);
 };
 
-export const deleteView = async (name: string): Promise<void> => {
+export const deleteView = async (
+  id: string,
+  childPolicy?: ChildPolicy,
+): Promise<void> => {
   if (isTauriApp()) {
-    await invoke("delete_view", { name });
+    await invoke("delete_view", {
+      args: { id, child_policy: childPolicy },
+    });
     return;
   }
-  return (await getMocks()).mockDeleteView(name);
+  return (await getMocks()).mockDeleteView(id, childPolicy);
 };
 
 // --- File Picker ---

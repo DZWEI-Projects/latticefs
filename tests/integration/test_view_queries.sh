@@ -19,6 +19,36 @@ object_a="$(echo "$output_a" | awk '{print $3}')"
 
 "$LFS_BIN" --repo "$repo" view create Demo --query "tag:project:demo"
 views="$("$LFS_BIN" --repo "$repo" view list)"
-echo "$views" | grep -q "Demo: tag:project:demo"
+echo "$views" | grep -q "Demo (id:"
 
 "$LFS_BIN" --repo "$repo" view explain "$object_a" --view Demo >/dev/null
+
+# Nested view: child query is composed with parent query using logical AND
+"$LFS_BIN" --repo "$repo" view create AllProjects --query "tag:project"
+"$LFS_BIN" --repo "$repo" view create DemoOnly --parent AllProjects --query "tag:project:demo"
+"$LFS_BIN" --repo "$repo" view explain "$object_a" --view AllProjects/DemoOnly >/dev/null
+
+# Ambiguous bare-name references should fail when sibling-unique names are reused under different parents
+"$LFS_BIN" --repo "$repo" view create OtherProjects --query "tag:project"
+"$LFS_BIN" --repo "$repo" view create DemoOnly --parent OtherProjects --query "tag:project:other"
+if "$LFS_BIN" --repo "$repo" view explain "$object_a" --view DemoOnly >/dev/null 2>&1; then
+  echo "expected ambiguous view reference to fail"
+  exit 1
+fi
+
+# Delete policies for views with children
+"$LFS_BIN" --repo "$repo" view create ParentToDelete --query "tag:project"
+"$LFS_BIN" --repo "$repo" view create ChildToDetach --parent ParentToDelete --query "tag:project:demo"
+if "$LFS_BIN" --repo "$repo" view delete ParentToDelete >/dev/null 2>&1; then
+  echo "expected delete without child policy to fail"
+  exit 1
+fi
+"$LFS_BIN" --repo "$repo" view delete ParentToDelete --detach-children
+
+"$LFS_BIN" --repo "$repo" view create ParentCascade --query "tag:project"
+"$LFS_BIN" --repo "$repo" view create ChildCascade --parent ParentCascade --query "tag:project:demo"
+"$LFS_BIN" --repo "$repo" view delete ParentCascade --cascade
+if "$LFS_BIN" --repo "$repo" view explain "$object_a" --view ChildCascade >/dev/null 2>&1; then
+  echo "expected cascaded child view to be deleted"
+  exit 1
+fi

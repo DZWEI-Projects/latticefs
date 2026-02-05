@@ -93,13 +93,30 @@ impl<'a> DynamicView<'a> {
     pub fn new(query: &str, store: &'a MetadataStore) -> Result<Self> {
         let parsed = parse(query)?;
 
-        Ok(Self {
-            query: parsed,
-            query_string: query.to_string(),
+        Ok(Self::from_parsed_with_source(
+            parsed,
+            query.to_string(),
+            store,
+        ))
+    }
+
+    /// Create a dynamic view from a parsed query.
+    pub fn from_parsed(query: Query, store: &'a MetadataStore) -> Self {
+        Self::from_parsed_with_source(query, "<composed>".to_string(), store)
+    }
+
+    fn from_parsed_with_source(
+        query: Query,
+        query_string: String,
+        store: &'a MetadataStore,
+    ) -> Self {
+        Self {
+            query,
+            query_string,
             config: ViewConfig::default(),
             store,
             cache: None,
-        })
+        }
     }
 
     /// Create with a specific configuration.

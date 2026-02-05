@@ -1,13 +1,19 @@
 //! Read-only FUSE filesystem for LatticeFS.
 
 use crate::error::Result;
-use crate::fuse::inode::{inode_for_view_name, InodeMapper, PROJECTS_INODE, RECENT_INODE, ROOT_INODE, VIEWS_INODE};
+use crate::fuse::inode::{
+    inode_for_view_name, InodeMapper, PROJECTS_INODE, RECENT_INODE, ROOT_INODE, VIEWS_INODE,
+};
 use crate::model::ObjectID;
 use crate::repo::LatticeRepo;
-use crate::views::{BuiltinView, BuiltinViews, DynamicView};
+use crate::views::{resolve_effective_query, BuiltinView, BuiltinViews, DynamicView, ViewID};
 use crate::{has_executable_tag, trust_level};
-use fuser::{FileAttr, FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyOpen, Request};
+use fuser::{
+    FileAttr, FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyOpen,
+    Request,
+};
 use lru::LruCache;
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::num::NonZeroUsize;
 use std::sync::Mutex;
@@ -18,7 +24,7 @@ const TTL: Duration = Duration::from_secs(1);
 #[derive(Debug, Clone)]
 enum ViewKind {
     Builtin(BuiltinView),
-    Dynamic(String),
+    Dynamic(ViewID),
 }
 
 pub struct LatticeFS {
@@ -48,14 +54,8 @@ impl LatticeFS {
 
         let mapper = self.inode_mapper();
         let inode = mapper.inode_for_object(object_id)?;
-        self.object_cache
-            .lock()
-            .unwrap()
-            .put(*object_id, inode);
-        self.inode_cache
-            .lock()
-            .unwrap()
-            .put(inode, *object_id);
+        self.object_cache.lock().unwrap().put(*object_id, inode);
+        self.inode_cache.lock().unwrap().put(inode, *object_id);
         Ok(inode)
     }
 
@@ -67,14 +67,8 @@ impl LatticeFS {
         let mapper = self.inode_mapper();
         let object_id = mapper.object_id_for_inode(inode)?;
         if let Some(object_id) = object_id {
-            self.object_cache
-                .lock()
-                .unwrap()
-                .put(object_id, inode);
-            self.inode_cache
-                .lock()
-                .unwrap()
-                .put(inode, object_id);
+            self.object_cache.lock().unwrap().put(object_id, inode);
+            self.inode_cache.lock().unwrap().put(inode, object_id);
             return Ok(Some(object_id));
         }
         Ok(None)
@@ -147,10 +141,10 @@ impl LatticeFS {
         }
 
         // Dynamic views
-        for view in self.repo.metadata.list_views()? {
-            let inode_for = inode_for_view_name(&view.name);
+        for (view_id, entry_name) in self.dynamic_view_entries()? {
+            let inode_for = inode_for_view_name(&entry_name);
             if inode == inode_for {
-                return Ok(Some(ViewKind::Dynamic(view.name)));
+                return Ok(Some(ViewKind::Dynamic(view_id)));
             }
         }
 
@@ -173,19 +167,46 @@ impl LatticeFS {
             entries.push((inode_for_view_name(&name), FileType::Directory, name));
         }
 
-        for view in self.repo.metadata.list_views()? {
-            entries.push((inode_for_view_name(&view.name), FileType::Directory, view.name));
+        for (_, entry_name) in self.dynamic_view_entries()? {
+            entries.push((
+                inode_for_view_name(&entry_name),
+                FileType::Directory,
+                entry_name,
+            ));
         }
 
+        Ok(entries)
+    }
+
+    fn dynamic_view_entries(&self) -> Result<Vec<(ViewID, String)>> {
+        let views = self.repo.metadata.list_views()?;
+        let mut name_counts: HashMap<String, usize> = HashMap::new();
+        for view in &views {
+            *name_counts.entry(view.name.clone()).or_insert(0) += 1;
+        }
+
+        let mut entries = Vec::with_capacity(views.len());
+        for view in views {
+            let count = name_counts.get(&view.name).copied().unwrap_or(0);
+            let display = if count > 1 {
+                let short_id = view.id.to_string().chars().take(8).collect::<String>();
+                format!("{} ({})", view.name, short_id)
+            } else {
+                view.name.clone()
+            };
+            entries.push((view.id, display));
+        }
         Ok(entries)
     }
 
     fn resolve_view_objects(&self, view: &ViewKind) -> Result<Vec<ObjectID>> {
         match view {
             ViewKind::Builtin(builtin) => BuiltinViews::new(&self.repo.metadata).evaluate(*builtin),
-            ViewKind::Dynamic(name) => {
-                let view = self.repo.metadata.load_view(name)?;
-                let mut dynamic = DynamicView::new(&view.query, &self.repo.metadata)?;
+            ViewKind::Dynamic(id) => {
+                let view = self.repo.metadata.load_view_by_id(id)?;
+                let effective = resolve_effective_query(&self.repo.metadata, &view)?;
+                let mut dynamic = DynamicView::from_parsed(effective, &self.repo.metadata)
+                    .with_config(view.config.clone());
                 dynamic.evaluate()
             }
         }
@@ -258,15 +279,13 @@ impl Filesystem for LatticeFS {
         };
 
         match self.object_in_view(&view, &object_id) {
-            Ok(true) => {
-                match self.inode_for_object(&object_id) {
-                    Ok(ino) => match self.file_attr(&object_id, ino) {
-                        Ok(attr) => reply.entry(&TTL, &attr, 0),
-                        Err(_) => reply.error(libc::ENOENT),
-                    },
+            Ok(true) => match self.inode_for_object(&object_id) {
+                Ok(ino) => match self.file_attr(&object_id, ino) {
+                    Ok(attr) => reply.entry(&TTL, &attr, 0),
                     Err(_) => reply.error(libc::ENOENT),
-                }
-            }
+                },
+                Err(_) => reply.error(libc::ENOENT),
+            },
             Ok(false) => reply.error(libc::ENOENT),
             Err(_) => reply.error(libc::ENOENT),
         }
@@ -319,7 +338,11 @@ impl Filesystem for LatticeFS {
             }
         } else if let Ok(Some(view)) = self.view_for_inode(ino) {
             entries.push((ino, FileType::Directory, ".".to_string()));
-            let parent = if ino == PROJECTS_INODE || ino == RECENT_INODE { ROOT_INODE } else { VIEWS_INODE };
+            let parent = if ino == PROJECTS_INODE || ino == RECENT_INODE {
+                ROOT_INODE
+            } else {
+                VIEWS_INODE
+            };
             entries.push((parent, FileType::Directory, "..".to_string()));
 
             match self.resolve_view_objects(&view) {

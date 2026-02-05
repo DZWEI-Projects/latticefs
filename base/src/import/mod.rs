@@ -7,7 +7,9 @@ pub mod scanner;
 use crate::error::{LatticeError, Result};
 use crate::model::{ActorID, Object, ObjectID, ObjectType, Tag, Version, VersionID};
 use crate::repo::LatticeRepo;
-use crate::views::{BuiltinView, BuiltinViews, DynamicView};
+use crate::views::{
+    resolve_dynamic_view_reference, resolve_effective_query, BuiltinView, BuiltinViews, DynamicView,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use std::path::Path;
 
@@ -260,14 +262,16 @@ fn append_tar_entry(
     Ok(())
 }
 
-fn resolve_view(repo: &LatticeRepo, view_name: &str) -> Result<Vec<ObjectID>> {
-    if let Some(builtin) = BuiltinView::by_name(view_name) {
+fn resolve_view(repo: &LatticeRepo, view_ref: &str) -> Result<Vec<ObjectID>> {
+    if let Some(builtin) = BuiltinView::by_name(view_ref) {
         let builtin_views = BuiltinViews::new(&repo.metadata);
         return builtin_views.evaluate(builtin);
     }
 
-    let view = repo.metadata.load_view(view_name)?;
-    let mut dynamic = DynamicView::new(&view.query, &repo.metadata)?;
+    let view = resolve_dynamic_view_reference(&repo.metadata, view_ref)?;
+    let effective = resolve_effective_query(&repo.metadata, &view)?;
+    let mut dynamic =
+        DynamicView::from_parsed(effective, &repo.metadata).with_config(view.config.clone());
     dynamic.evaluate()
 }
 

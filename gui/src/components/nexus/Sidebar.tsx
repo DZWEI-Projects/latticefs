@@ -26,12 +26,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { deleteView, type ViewInfo } from "@/lib/lfs";
+import { deleteView, type ChildPolicy, type ViewInfo } from "@/lib/lfs";
 import { NewViewDialog } from "./NewViewDialog";
 import { EditViewDialog } from "./EditViewDialog";
-import { useConfirmDialog } from "@/lib/confirm-dialog";
 import { toast } from "sonner";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -54,9 +62,10 @@ interface ViewItemProps {
   isActive: boolean;
   onClick: () => void;
   actions?: React.ReactNode;
+  depth?: number;
 }
 
-const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
+const ViewItem = ({ view, isActive, onClick, actions, depth = 0 }: ViewItemProps) => {
   const Icon = view.icon ? iconMap[view.icon] || Folder : Folder;
 
   return (
@@ -76,6 +85,7 @@ const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
         "hover:bg-muted/60",
         isActive && "bg-primary/10 text-primary hover:bg-primary/15"
       )}
+      style={{ paddingLeft: `${12 + depth * 14}px` }}
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1 text-left truncate">{view.name}</span>
@@ -105,6 +115,44 @@ const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
   );
 };
 
+export interface DynamicRow {
+  view: ViewInfo;
+  depth: number;
+}
+
+export function buildDynamicRows(dynamicViews: ViewInfo[]): DynamicRow[] {
+  const byParent = new Map<string | null, ViewInfo[]>();
+  for (const view of dynamicViews) {
+    const key = view.parentId ?? null;
+    const entries = byParent.get(key) || [];
+    entries.push(view);
+    byParent.set(key, entries);
+  }
+
+  for (const entries of byParent.values()) {
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const rows: DynamicRow[] = [];
+  const visited = new Set<string>();
+  const append = (parentId: string | null, depth: number) => {
+    const children = byParent.get(parentId) || [];
+    for (const view of children) {
+      if (visited.has(view.id)) continue;
+      visited.add(view.id);
+      rows.push({ view, depth });
+      append(view.id, depth + 1);
+    }
+  };
+  append(null, 0);
+  for (const view of dynamicViews) {
+    if (visited.has(view.id)) continue;
+    rows.push({ view, depth: 0 });
+    append(view.id, 1);
+  }
+  return rows;
+}
+
 export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: SidebarProps) => {
   const { data: views, isLoading } = useViews();
   const queryClient = useQueryClient();
@@ -113,58 +161,42 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   const [newViewDialogOpen, setNewViewDialogOpen] = useState(false);
   const [editingView, setEditingView] = useState<ViewInfo | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ViewInfo | null>(null);
+  const [isDeletingView, setIsDeletingView] = useState(false);
 
   const builtinViews = views?.filter((v) => v.viewType === "builtin") || [];
   const dynamicViews = views?.filter((v) => v.viewType === "dynamic") || [];
-
-  const { confirm, DialogComponent } = useConfirmDialog({
-    title: "Perspektive löschen",
-    message: pendingDelete
-      ? `"${pendingDelete.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
-      : "Diese Perspektive wirklich löschen?",
-    confirmLabel: "Löschen",
-    cancelLabel: "Abbrechen",
-  });
+  const dynamicRows = useMemo(() => buildDynamicRows(dynamicViews), [dynamicViews]);
+  const pendingChildren = useMemo(
+    () => (pendingDelete
+      ? dynamicViews.filter((view) => view.parentId === pendingDelete.id)
+      : []),
+    [dynamicViews, pendingDelete]
+  );
+  const pendingHasChildren = pendingChildren.length > 0;
 
   const handleViewCreated = (viewId: string) => {
     onViewSelect(viewId);
     setDynamicOpen(true);
   };
 
-  useEffect(() => {
+  const handleDelete = async (policy?: ChildPolicy) => {
     if (!pendingDelete) return;
-    
-    let isMounted = true;
-    
-    const run = async () => {
-      const confirmed = await confirm();
-      if (!isMounted || !confirmed) {
-        if (isMounted) setPendingDelete(null);
-        return;
+    setIsDeletingView(true);
+    try {
+      await deleteView(pendingDelete.id, policy);
+      await queryClient.invalidateQueries({ queryKey: ["views"] });
+      await queryClient.invalidateQueries({ queryKey: ["view-objects", pendingDelete.id] });
+      if (currentViewId === pendingDelete.id) {
+        onViewSelect("recent");
       }
-      try {
-        await deleteView(pendingDelete.name);
-        if (!isMounted) return;
-        
-        await queryClient.invalidateQueries({ queryKey: ["views"] });
-        await queryClient.invalidateQueries({ queryKey: ["view-objects", pendingDelete.id] });
-        if (currentViewId === pendingDelete.id) {
-          onViewSelect("recent");
-        }
-        toast.success("Perspektive gelöscht");
-      } catch (err) {
-        if (!isMounted) return;
-        toast.error(err instanceof Error ? err.message : "Perspektive konnte nicht gelöscht werden");
-      } finally {
-        if (isMounted) setPendingDelete(null);
-      }
-    };
-    run();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [pendingDelete, confirm, queryClient, currentViewId, onViewSelect]);
+      toast.success("Perspektive gelöscht");
+      setPendingDelete(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Perspektive konnte nicht gelöscht werden");
+    } finally {
+      setIsDeletingView(false);
+    }
+  };
 
   return (
     <div className="w-60 flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
@@ -211,10 +243,11 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
               Eigene Perspektiven
             </CollapsibleTrigger>
             <CollapsibleContent className="px-2 space-y-0.5 overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-              {dynamicViews.map((view) => (
+              {dynamicRows.map(({ view, depth }) => (
                 <ViewItem
                   key={view.id}
                   view={view}
+                  depth={depth}
                   isActive={currentViewId === view.id}
                   onClick={() => onViewSelect(view.id)}
                   actions={(
@@ -285,7 +318,56 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
           if (!open) setEditingView(null);
         }}
       />
-      <DialogComponent />
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingView) {
+            setPendingDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Perspektive löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete && pendingHasChildren
+                ? `"${pendingDelete.name}" hat ${pendingChildren.length} Unteransicht${pendingChildren.length === 1 ? "" : "en"}. Wähle, wie mit den Unteransichten umgegangen werden soll.`
+                : pendingDelete
+                  ? `"${pendingDelete.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
+                  : "Diese Perspektive wirklich löschen?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingView}>Abbrechen</AlertDialogCancel>
+            {pendingHasChildren ? (
+              <>
+                <Button
+                  variant="outline"
+                  disabled={isDeletingView}
+                  onClick={() => handleDelete("detach")}
+                >
+                  Kinder behalten
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={isDeletingView}
+                  onClick={() => handleDelete("cascade")}
+                >
+                  Unteransichten löschen
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="destructive"
+                disabled={isDeletingView}
+                onClick={() => handleDelete()}
+              >
+                Löschen
+              </Button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
