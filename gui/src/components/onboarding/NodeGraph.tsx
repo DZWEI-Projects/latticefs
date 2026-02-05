@@ -308,37 +308,40 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       {/* Tooltip overlay */}
       {activeTooltip && showTutorial && (
         <div 
-          className="absolute z-30 glass-strong rounded-lg p-3 max-w-[220px] animate-scale-in"
+          className="absolute z-30 transition-transform duration-500 ease-out-expo will-change-transform"
           style={{
-            left: `calc(50% + ${activeTooltip.position.x + 70}px)`,
-            top: `calc(50% + ${activeTooltip.position.y - 16}px)`,
+            left: "50%",
+            top: "50%",
+            transform: `translate(calc(${activeTooltip.position.x + 70}px), calc(${activeTooltip.position.y - 16}px))`,
           }}
         >
-          <div className="flex items-start gap-2.5">
-            <div className={cn(
-              "p-1.5 rounded-md flex-shrink-0",
-              colorClasses[activeTooltip.view.color].bg
-            )}>
-              {(() => {
-                const Icon = viewIcons[activeTooltip.view.icon] || Folder;
-                return <Icon className={cn("w-4 h-4", colorClasses[activeTooltip.view.color].text)} />;
-              })()}
+          <div className="glass-strong rounded-lg p-3 max-w-[220px] animate-scale-in">
+            <div className="flex items-start gap-2.5">
+              <div className={cn(
+                "p-1.5 rounded-md flex-shrink-0",
+                colorClasses[activeTooltip.view.color].bg
+              )}>
+                {(() => {
+                  const Icon = viewIcons[activeTooltip.view.icon] || Folder;
+                  return <Icon className={cn("w-4 h-4", colorClasses[activeTooltip.view.color].text)} />;
+                })()}
+              </div>
+              <div>
+                <h4 className="font-semibold text-foreground mb-1">
+                  {activeTooltip.view.name}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {activeTooltip.view.description}
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-semibold text-foreground mb-1">
-                {activeTooltip.view.name}
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                {activeTooltip.view.description}
-              </p>
-            </div>
+            <button
+              onClick={advanceTooltip}
+              className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              Weiter →
+            </button>
           </div>
-          <button
-            onClick={advanceTooltip}
-            className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
-          >
-            Weiter →
-          </button>
         </div>
       )}
       

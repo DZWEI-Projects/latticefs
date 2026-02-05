@@ -31,14 +31,14 @@ export const AnimatedButton = ({
 
   const variantClasses = {
     primary: cn(
-      "bg-primary text-primary-foreground border border-primary/30",
-      "hover:bg-primary/90 hover:border-primary/40",
-      "shadow-[inset_0_1px_0_hsl(var(--primary)/0.35)]",
+      "bg-gradient-to-b from-primary/95 to-primary/75 text-primary-foreground border border-primary/40",
+      "hover:from-primary/90 hover:to-primary/70 hover:border-primary/50",
+      "shadow-[inset_0_1px_0_hsl(var(--primary)/0.45),0_8px_20px_hsl(var(--background)/0.35)]",
       "active:scale-[0.98] active:shadow-none"
     ),
     secondary: cn(
-      "bg-secondary/15 text-secondary-foreground border border-secondary/25",
-      "hover:bg-secondary/25 hover:border-secondary/40",
+      "bg-gradient-to-b from-secondary/20 to-secondary/10 text-secondary-foreground border border-secondary/25",
+      "hover:from-secondary/25 hover:to-secondary/15 hover:border-secondary/40",
       "active:scale-[0.98]"
     ),
     ghost: cn(

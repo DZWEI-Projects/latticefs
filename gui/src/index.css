@@ -76,6 +76,9 @@
     --sidebar-accent-foreground: 240 5% 90%;
     --sidebar-border: 240 10% 15%;
     --sidebar-ring: 217 100% 65%;
+
+    --titlebar-bg: 240 15% 8%;
+    --titlebar-border: 240 12% 18%;
   }
 
   /* No light mode - NeuralFS is always dark */
@@ -113,6 +116,11 @@
   /* Glass morphism effect */
   .glass {
     background: hsl(var(--glass-bg) / 0.72);
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--glass-bg) / 0.9) 0%,
+      hsl(var(--glass-bg) / 0.7) 100%
+    );
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid hsl(var(--glass-border) / 0.4);
@@ -122,11 +130,52 @@
 
   .glass-strong {
     background: hsl(var(--glass-bg) / 0.86);
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--glass-bg) / 0.95) 0%,
+      hsl(var(--glass-bg) / 0.78) 100%
+    );
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid hsl(var(--glass-border) / 0.5);
     box-shadow: 0 16px 36px hsl(var(--background) / 0.55),
                 inset 0 1px 0 hsl(var(--glass-border) / 0.55);
+  }
+
+  .app-titlebar {
+    background: linear-gradient(
+        180deg,
+        hsl(var(--titlebar-bg) / 0.9) 0%,
+        hsl(var(--titlebar-bg) / 0.65) 100%
+      );
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border-bottom: 1px solid hsl(var(--titlebar-border) / 0.7);
+    box-shadow: inset 0 1px 0 hsl(var(--glass-border) / 0.6),
+                0 10px 24px hsl(var(--background) / 0.35);
+  }
+
+  .window-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.15);
+  }
+
+  .window-dot-red {
+    background: #ff5f57;
+    border-color: #e0443e;
+  }
+
+  .window-dot-yellow {
+    background: #febc2e;
+    border-color: #d79a26;
+  }
+
+  .window-dot-green {
+    background: #28c840;
+    border-color: #1ea833;
   }
 
   /* Glow effects */

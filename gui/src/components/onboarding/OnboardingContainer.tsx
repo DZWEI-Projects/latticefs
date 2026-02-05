@@ -71,20 +71,30 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
     >
       {/* Progress indicator */}
       {stage !== "complete" && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex gap-2">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <div
-              key={s}
-              className={cn(
-                "w-1.5 h-1.5 rounded-full transition-all duration-400",
-                s === stage
-                  ? "w-6 bg-primary"
-                  : s < (stage as number)
-                  ? "bg-primary/60"
-                  : "bg-muted-foreground/30"
-              )}
-            />
-          ))}
+        <div className="fixed top-0 left-0 right-0 z-50 app-titlebar">
+          <div className="flex items-center justify-between px-4 h-10">
+            <div className="flex items-center gap-2">
+              <span className="window-dot window-dot-red" />
+              <span className="window-dot window-dot-yellow" />
+              <span className="window-dot window-dot-green" />
+            </div>
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <div
+                  key={s}
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full transition-all duration-400",
+                    s === stage
+                      ? "w-6 bg-primary"
+                      : s < (stage as number)
+                      ? "bg-primary/60"
+                      : "bg-muted-foreground/30"
+                  )}
+                />
+              ))}
+            </div>
+            <div className="w-12" />
+          </div>
         </div>
       )}
       

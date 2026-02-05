@@ -38,12 +38,12 @@ export const ToggleSwitch = ({
       onClick={handleClick}
       className={cn(
         "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full",
-        "transition-colors duration-200 ease-out-expo",
+        "transition-colors duration-200 ease-out-expo border border-border/70",
         "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background",
         "disabled:cursor-not-allowed disabled:opacity-50",
         checked 
-          ? "bg-primary/70" 
-          : "bg-muted",
+          ? "bg-gradient-to-b from-primary/80 to-primary/60" 
+          : "bg-gradient-to-b from-muted/80 to-muted/60",
         className
       )}
     >
