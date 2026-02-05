@@ -19,8 +19,8 @@ export const GlassCard = ({
   return (
     <div
       className={cn(
-        "glass rounded-2xl p-6 opacity-0 animate-fade-up",
-        hover && "transition-all duration-500 ease-out-expo hover:scale-[1.02] hover:border-primary/20",
+        "glass rounded-xl p-4 opacity-0 animate-fade-up",
+        hover && "transition-all duration-400 ease-out-expo hover:scale-[1.01] hover:border-primary/25",
         glow && "glow-primary",
         className
       )}

@@ -37,34 +37,24 @@ export const ToggleSwitch = ({
       disabled={disabled}
       onClick={handleClick}
       className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full",
-        "transition-colors duration-300 ease-out-expo",
+        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full",
+        "transition-colors duration-200 ease-out-expo",
         "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background",
         "disabled:cursor-not-allowed disabled:opacity-50",
         checked 
-          ? "bg-primary/80" 
+          ? "bg-primary/70" 
           : "bg-muted",
         className
       )}
     >
-      {/* Track glow when active */}
-      {checked && (
-        <div 
-          className="absolute inset-0 rounded-full opacity-40"
-          style={{
-            boxShadow: "0 0 12px hsl(var(--primary) / 0.6)",
-          }}
-        />
-      )}
-      
       {/* Thumb */}
       <span
         className={cn(
-          "pointer-events-none absolute left-0.5 inline-block h-6 w-6 rounded-full bg-foreground shadow-lg",
-          "transition-all duration-300",
+          "pointer-events-none absolute left-0.5 inline-block h-4 w-4 rounded-full bg-foreground shadow",
+          "transition-all duration-200",
           isAnimating && "scale-90",
           checked 
-            ? "translate-x-5" 
+            ? "translate-x-4" 
             : "translate-x-0"
         )}
         style={{

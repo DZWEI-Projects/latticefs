@@ -47,7 +47,7 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
         return (
           <div className="flex items-center justify-center min-h-screen">
             <div className="text-center animate-fade-up">
-              <h1 className="text-4xl font-bold tracking-tighter mb-4 text-foreground">
+              <h1 className="text-3xl font-bold tracking-tighter mb-3 text-foreground">
                 Willkommen in deinem Lattice
               </h1>
               <p className="text-muted-foreground">
@@ -71,14 +71,14 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
     >
       {/* Progress indicator */}
       {stage !== "complete" && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex gap-2">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex gap-2">
           {[1, 2, 3, 4, 5].map((s) => (
             <div
               key={s}
               className={cn(
-                "w-2 h-2 rounded-full transition-all duration-500",
+                "w-1.5 h-1.5 rounded-full transition-all duration-400",
                 s === stage
-                  ? "w-8 bg-primary"
+                  ? "w-6 bg-primary"
                   : s < (stage as number)
                   ? "bg-primary/60"
                   : "bg-muted-foreground/30"

@@ -13,7 +13,7 @@
     --background-deep: 240 25% 3%;
     --foreground: 240 5% 90%;
 
-    --card: 240 15% 8%;
+    --card: 240 15% 9%;
     --card-foreground: 240 5% 90%;
 
     --popover: 240 15% 8%;
@@ -29,7 +29,7 @@
     --secondary-foreground: 240 5% 90%;
 
     /* Dark surfaces */
-    --muted: 240 10% 12%;
+    --muted: 240 10% 11%;
     --muted-foreground: 240 5% 48%;
 
     --accent: 263 70% 58%;
@@ -42,16 +42,16 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 240 5% 90%;
 
-    --border: 240 10% 15%;
+    --border: 240 10% 16%;
     --input: 240 10% 12%;
     --ring: 217 100% 65%;
 
-    --radius: 0.75rem;
+    --radius: 0.6rem;
 
     /* Glass effect variables */
-    --glass-bg: 240 15% 8%;
-    --glass-border: 240 10% 20%;
-    --glass-blur: 12px;
+    --glass-bg: 240 15% 10%;
+    --glass-border: 240 12% 24%;
+    --glass-blur: 10px;
 
     /* Gradient backgrounds */
     --gradient-start: 240 25% 3%;
@@ -68,7 +68,7 @@
     --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
     --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
 
-    --sidebar-background: 240 15% 6%;
+    --sidebar-background: 240 15% 7%;
     --sidebar-foreground: 240 5% 90%;
     --sidebar-primary: 217 100% 65%;
     --sidebar-primary-foreground: 240 20% 4%;
@@ -100,6 +100,10 @@
       hsl(var(--gradient-start)) 0%,
       hsl(var(--gradient-end)) 100%
     );
+    font-family: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
     min-height: 100vh;
     overflow-x: hidden;
   }
@@ -108,17 +112,21 @@
 @layer utilities {
   /* Glass morphism effect */
   .glass {
-    background: hsl(var(--glass-bg) / 0.6);
+    background: hsl(var(--glass-bg) / 0.72);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid hsl(var(--glass-border) / 0.3);
+    border: 1px solid hsl(var(--glass-border) / 0.4);
+    box-shadow: 0 10px 24px hsl(var(--background) / 0.45),
+                inset 0 1px 0 hsl(var(--glass-border) / 0.5);
   }
 
   .glass-strong {
-    background: hsl(var(--glass-bg) / 0.8);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid hsl(var(--glass-border) / 0.4);
+    background: hsl(var(--glass-bg) / 0.86);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid hsl(var(--glass-border) / 0.5);
+    box-shadow: 0 16px 36px hsl(var(--background) / 0.55),
+                inset 0 1px 0 hsl(var(--glass-border) / 0.55);
   }
 
   /* Glow effects */

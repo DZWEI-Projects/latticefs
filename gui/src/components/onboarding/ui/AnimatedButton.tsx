@@ -19,25 +19,26 @@ export const AnimatedButton = ({
   disabled = false,
   showArrow = true,
   variant = "primary",
-  size = "lg",
+  size = "md",
 }: AnimatedButtonProps) => {
   const [isPressed, setIsPressed] = useState(false);
 
   const sizeClasses = {
-    sm: "px-4 py-2 text-sm",
-    md: "px-6 py-3 text-base",
-    lg: "px-8 py-4 text-lg",
+    sm: "px-3.5 py-1.5 text-xs",
+    md: "px-5 py-2.5 text-sm",
+    lg: "px-6 py-3 text-base",
   };
 
   const variantClasses = {
     primary: cn(
-      "bg-primary text-primary-foreground",
-      "hover:bg-primary/90 hover:glow-primary",
-      "active:scale-[0.98]"
+      "bg-primary text-primary-foreground border border-primary/30",
+      "hover:bg-primary/90 hover:border-primary/40",
+      "shadow-[inset_0_1px_0_hsl(var(--primary)/0.35)]",
+      "active:scale-[0.98] active:shadow-none"
     ),
     secondary: cn(
-      "bg-secondary/20 text-secondary-foreground border border-secondary/30",
-      "hover:bg-secondary/30 hover:border-secondary/50",
+      "bg-secondary/15 text-secondary-foreground border border-secondary/25",
+      "hover:bg-secondary/25 hover:border-secondary/40",
       "active:scale-[0.98]"
     ),
     ghost: cn(
@@ -55,9 +56,9 @@ export const AnimatedButton = ({
       onMouseUp={() => setIsPressed(false)}
       onMouseLeave={() => setIsPressed(false)}
       className={cn(
-        "relative group flex items-center justify-center gap-3",
-        "rounded-xl font-medium tracking-tight",
-        "transition-all duration-300 ease-out-expo",
+        "relative group flex items-center justify-center gap-2",
+        "rounded-lg font-medium tracking-tight",
+        "transition-all duration-200 ease-out-expo",
         "disabled:opacity-50 disabled:cursor-not-allowed",
         "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background",
         sizeClasses[size],
@@ -70,7 +71,7 @@ export const AnimatedButton = ({
       {showArrow && (
         <ArrowRight 
           className={cn(
-            "w-5 h-5 transition-transform duration-300 ease-out-expo",
+            "w-4 h-4 transition-transform duration-300 ease-out-expo",
             "group-hover:translate-x-1"
           )}
         />
@@ -79,7 +80,7 @@ export const AnimatedButton = ({
       {/* Glow effect on hover */}
       <div 
         className={cn(
-          "absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300",
+          "absolute inset-0 rounded-lg opacity-0 transition-opacity duration-300",
           "bg-gradient-to-r from-primary/20 via-primary/10 to-primary/20",
           "group-hover:opacity-100",
           "pointer-events-none"

@@ -18,7 +18,7 @@ export const Logo = ({ className, animate = true }: LogoProps) => {
       {/* Logo glow effect */}
       <div 
         className={cn(
-          "absolute inset-0 rounded-full blur-2xl",
+          "absolute inset-0 rounded-full blur-xl",
           animate && "animate-pulse-glow"
         )}
         style={{
@@ -29,7 +29,7 @@ export const Logo = ({ className, animate = true }: LogoProps) => {
       {/* Logo SVG - Neural network inspired design */}
       <svg
         viewBox="0 0 80 80"
-        className="w-20 h-20 relative z-10"
+        className="w-16 h-16 relative z-10"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -73,7 +73,7 @@ export const Logo = ({ className, animate = true }: LogoProps) => {
       {/* Text */}
       <span 
         className={cn(
-          "absolute -bottom-8 text-xl font-semibold tracking-tight text-foreground",
+          "absolute -bottom-6 text-lg font-semibold tracking-tight text-foreground",
           animate && "opacity-0 animate-fade-up"
         )}
         style={{ animationDelay: animate ? "400ms" : "0ms", animationFillMode: "forwards" }}

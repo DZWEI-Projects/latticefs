@@ -68,43 +68,43 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
 
   return (
     <div className={cn(
-      "relative flex flex-col items-center justify-center min-h-screen px-6",
+      "relative flex flex-col items-center justify-center min-h-screen px-5",
       "transition-all duration-1000 ease-out-expo",
       isAnimatingOut && "scale-95 opacity-0"
     )}>
-      <ParticleBackground particleCount={30} />
+      <ParticleBackground particleCount={28} />
       
       {/* Shield activation overlay */}
       {isAnimatingOut && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="relative">
             <Shield 
-              className="w-32 h-32 text-primary animate-scale-in" 
+              className="w-24 h-24 text-primary animate-scale-in" 
               style={{ filter: "drop-shadow(0 0 40px hsl(var(--primary) / 0.6))" }}
             />
             <Check 
-              className="absolute inset-0 m-auto w-16 h-16 text-primary-foreground animate-scale-in"
+              className="absolute inset-0 m-auto w-12 h-12 text-primary-foreground animate-scale-in"
               style={{ animationDelay: "200ms" }}
             />
           </div>
         </div>
       )}
       
-      <div className="relative z-10 flex flex-col items-center max-w-lg w-full">
+      <div className="relative z-10 flex flex-col items-center max-w-md w-full">
         {/* Shield icon */}
         <div 
           className={cn(
-            "mb-8 transition-all duration-700 ease-out-expo",
+            "mb-6 transition-all duration-700 ease-out-expo",
             showShield ? "scale-100 opacity-100" : "scale-50 opacity-0"
           )}
         >
           <div className="relative">
             <div 
-              className="absolute inset-0 rounded-full blur-2xl animate-pulse-glow"
+              className="absolute inset-0 rounded-full blur-xl animate-pulse-glow"
               style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%)" }}
             />
             <Shield 
-              className="w-20 h-20 text-primary relative z-10"
+              className="w-16 h-16 text-primary relative z-10"
               style={{ filter: "drop-shadow(0 0 20px hsl(var(--primary) / 0.4))" }}
             />
           </div>
@@ -112,19 +112,19 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
         
         {/* Header */}
         <div 
-          className="text-center mb-8 opacity-0 animate-fade-up"
+          className="text-center mb-6 opacity-0 animate-fade-up"
           style={{ animationDelay: "200ms", animationFillMode: "forwards" }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tighter mb-3">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tighter mb-2">
             NeuralFS schützt dich von Grund auf
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Diese Einstellungen sind bereits aktiviert.
           </p>
         </div>
         
         {/* Security options */}
-        <div className="w-full space-y-4 mb-6">
+        <div className="w-full space-y-3 mb-5">
           {securityOptions.map((option, index) => (
             <GlassCard
               key={option.id}
@@ -135,19 +135,19 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
                 settings[option.id] && "border-primary/30"
               )}
             >
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-3">
                 <div className={cn(
-                  "flex-shrink-0 p-3 rounded-xl transition-colors duration-300",
+                  "flex-shrink-0 p-2 rounded-lg transition-colors duration-300",
                   settings[option.id] ? "bg-primary/20" : "bg-muted"
                 )}>
                   <option.icon className={cn(
-                    "w-5 h-5 transition-colors duration-300",
+                    "w-4 h-4 transition-colors duration-300",
                     settings[option.id] ? "text-primary" : "text-muted-foreground"
                   )} />
                 </div>
                 
                 <div className="flex-grow">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1.5">
                     <h4 className="font-semibold text-foreground">
                       {option.title}
                     </h4>
@@ -172,7 +172,7 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
         
         {/* Advanced settings link */}
         <p 
-          className="text-sm text-muted-foreground/60 mb-8 cursor-pointer hover:text-muted-foreground transition-colors opacity-0 animate-fade-up"
+          className="text-xs text-muted-foreground/60 mb-6 cursor-pointer hover:text-muted-foreground transition-colors opacity-0 animate-fade-up"
           style={{ animationDelay: "850ms", animationFillMode: "forwards" }}
         >
           Richtlinien später anpassen →
@@ -183,7 +183,7 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
           className="opacity-0 animate-fade-up"
           style={{ animationDelay: "950ms", animationFillMode: "forwards" }}
         >
-          <AnimatedButton onClick={handleProceed}>
+          <AnimatedButton onClick={handleProceed} size="md">
             Sieht gut aus
           </AnimatedButton>
         </div>

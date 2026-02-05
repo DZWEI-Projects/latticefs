@@ -75,7 +75,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
         const view = mockViews[tooltipIndex];
         // Position tooltip near the view node
         const angle = (tooltipIndex / mockViews.length) * Math.PI * 2 - Math.PI / 2;
-        const radius = 180;
+        const radius = 150;
         setActiveTooltip({
           view,
           position: {
@@ -99,7 +99,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
   // Calculate node positions in a circular layout
   const getViewPosition = (index: number, total: number) => {
     const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
-    const radius = 180;
+    const radius = 150;
     return {
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
@@ -113,7 +113,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
     if (viewIndex === -1) return { x: 0, y: 0 };
     
     const viewPos = getViewPosition(viewIndex, mockViews.length);
-    const offset = 50 + fileIndex * 5;
+    const offset = 42 + fileIndex * 4;
     const angle = (fileIndex * 0.8) + viewIndex;
     
     return {
@@ -209,22 +209,22 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       {/* Nodes container */}
       <div 
         className="relative z-10"
-        style={{ width: 500, height: 500 }}
+        style={{ width: 440, height: 440 }}
       >
         {/* Central hub */}
         <div 
           className={cn(
             "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-            "w-20 h-20 rounded-full bg-primary/20 border-2 border-primary/40",
+            "w-16 h-16 rounded-full bg-primary/20 border-2 border-primary/40",
             "flex items-center justify-center",
             "transition-all duration-700 ease-out-expo",
             animationPhase >= 1 ? "scale-100 opacity-100" : "scale-0 opacity-0"
           )}
         >
-          <div className="w-12 h-12 rounded-full bg-primary/30 flex items-center justify-center animate-pulse-glow">
-            <div className="w-6 h-6 rounded-full bg-primary" />
+          <div className="w-10 h-10 rounded-full bg-primary/30 flex items-center justify-center animate-pulse-glow">
+            <div className="w-5 h-5 rounded-full bg-primary" />
           </div>
-          <span className="absolute -bottom-8 text-sm font-medium text-foreground whitespace-nowrap">
+          <span className="absolute -bottom-6 text-xs font-medium text-foreground whitespace-nowrap">
             Dein Lattice
           </span>
         </div>
@@ -252,15 +252,15 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
               onMouseLeave={() => setHoveredView(null)}
             >
               <div className={cn(
-                "w-14 h-14 rounded-xl border-2 flex items-center justify-center",
+                "w-12 h-12 rounded-lg border-2 flex items-center justify-center",
                 "transition-all duration-300",
                 colors.bg,
                 colors.border,
                 hoveredView === view.id && "glow-primary"
               )}>
-                <Icon className={cn("w-6 h-6", colors.text)} />
+                <Icon className={cn("w-5 h-5", colors.text)} />
               </div>
-              <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs font-medium text-foreground whitespace-nowrap">
+              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[11px] font-medium text-foreground whitespace-nowrap">
                 {view.name}
               </span>
             </div>
@@ -288,15 +288,15 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
               onMouseLeave={() => setHoveredFile(null)}
             >
               <div className={cn(
-                "w-8 h-8 rounded-lg bg-muted border border-muted-foreground/20",
-                "flex items-center justify-center text-xs font-medium",
+                "w-7 h-7 rounded-md bg-muted border border-muted-foreground/20",
+                "flex items-center justify-center text-[10px] font-medium",
                 "transition-all duration-300",
                 isHighlighted && "border-primary/60 bg-primary/10"
               )}>
                 {file.extension?.toUpperCase().slice(0, 3)}
               </div>
               {isHighlighted && (
-                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-foreground whitespace-nowrap max-w-[100px] truncate">
+                <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[9px] text-foreground whitespace-nowrap max-w-[92px] truncate">
                   {file.name}
                 </span>
               )}
@@ -308,34 +308,34 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       {/* Tooltip overlay */}
       {activeTooltip && showTutorial && (
         <div 
-          className="absolute z-30 glass-strong rounded-xl p-4 max-w-xs animate-scale-in"
+          className="absolute z-30 glass-strong rounded-lg p-3 max-w-[220px] animate-scale-in"
           style={{
-            left: `calc(50% + ${activeTooltip.position.x + 80}px)`,
-            top: `calc(50% + ${activeTooltip.position.y - 20}px)`,
+            left: `calc(50% + ${activeTooltip.position.x + 70}px)`,
+            top: `calc(50% + ${activeTooltip.position.y - 16}px)`,
           }}
         >
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-2.5">
             <div className={cn(
-              "p-2 rounded-lg flex-shrink-0",
+              "p-1.5 rounded-md flex-shrink-0",
               colorClasses[activeTooltip.view.color].bg
             )}>
               {(() => {
                 const Icon = viewIcons[activeTooltip.view.icon] || Folder;
-                return <Icon className={cn("w-5 h-5", colorClasses[activeTooltip.view.color].text)} />;
+                return <Icon className={cn("w-4 h-4", colorClasses[activeTooltip.view.color].text)} />;
               })()}
             </div>
             <div>
               <h4 className="font-semibold text-foreground mb-1">
                 {activeTooltip.view.name}
               </h4>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {activeTooltip.view.description}
               </p>
             </div>
           </div>
           <button
             onClick={advanceTooltip}
-            className="mt-3 text-sm text-primary hover:text-primary/80 transition-colors"
+            className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
           >
             Weiter →
           </button>
@@ -344,19 +344,19 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       
       {/* Insight card */}
       {showInsight && showTutorial && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 glass-strong rounded-xl p-6 max-w-md animate-slide-in-up">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 glass-strong rounded-xl p-5 max-w-sm animate-slide-in-up">
           <button
             onClick={() => setShowInsight(false)}
-            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+            className="absolute top-2.5 right-2.5 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
           
-          <p className="text-foreground mb-4 leading-relaxed">
+          <p className="text-sm text-foreground mb-4 leading-relaxed">
             <span className="text-primary font-medium">Diese Datei erscheint an mehreren Stellen</span> — aber sie existiert nur einmal. Das sind keine Ordner. Das sind <span className="text-secondary">Perspektiven</span>.
           </p>
           
-          <AnimatedButton onClick={onNext} size="md">
+          <AnimatedButton onClick={onNext} size="sm">
             Weiter
           </AnimatedButton>
         </div>
@@ -364,8 +364,8 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       
       {/* Skip button if not showing tutorial */}
       {!showTutorial && animationPhase >= 4 && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30">
-          <AnimatedButton onClick={onNext} size="md">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+          <AnimatedButton onClick={onNext} size="sm">
             Weiter
           </AnimatedButton>
         </div>
