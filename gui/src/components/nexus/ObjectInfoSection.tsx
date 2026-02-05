@@ -15,6 +15,7 @@ interface ObjectInfoSectionProps {
   object: ObjectInfo;
   currentViewId?: string;
   mimeType?: string | null;
+  versionCount?: number;
   onCopyId: () => void;
   onViewSelect: (viewId: string) => void;
 }
@@ -63,9 +64,11 @@ export const ObjectInfoSection = ({
   object,
   currentViewId,
   mimeType,
+  versionCount,
   onCopyId,
   onViewSelect,
 }: ObjectInfoSectionProps) => {
+  const resolvedVersionCount = versionCount ?? object.versionCount ?? 1;
   return (
     <section className="space-y-2">
       <h3 className="text-xs font-semibold text-foreground/75 uppercase tracking-wider">
@@ -104,6 +107,12 @@ export const ObjectInfoSection = ({
             {formatDate(object.modifiedAt)}
           </span>
         </div>
+        {resolvedVersionCount > 1 && (
+          <div className="flex items-center justify-between">
+            <span className="text-foreground/75">Versionen</span>
+            <span className="font-medium">{resolvedVersionCount}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span className="text-foreground/75">Objekt-ID</span>
           <button

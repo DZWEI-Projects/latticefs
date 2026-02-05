@@ -14,6 +14,9 @@ import type {
   CreateViewArgs,
   UpdateViewArgs,
   TagInfo,
+  ObjectVersion,
+  VersionDiffResult,
+  VersionState,
 } from "./lfs";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -320,6 +323,115 @@ const mockObjectsData: ObjectInfo[] = [
   },
 ];
 
+const mockVersionText: Record<string, Record<string, string>> = {
+  "obj-005": {
+    "ver-005-1": `# Raccoon Notes\n\nInitial project notes.\n`,
+    "ver-005-2": `# Raccoon Notes\n\nInitial project notes.\n\n## Scope\n- MVP timeline\n`,
+    "ver-005-3": `# Raccoon Notes\n\nInitial project notes.\n\n## Scope\n- MVP timeline\n- Release checklist\n`,
+  },
+  "obj-008": {
+    "ver-008-1": `def greet(name: str) -> str:\n    return f\"Hello, {name}!\"\n`,
+    "ver-008-2": `def greet(name: str) -> str:\n    return f\"Hi, {name}!\"\n\nprint(greet(\"Lattice\"))\n`,
+  },
+  "obj-012": {
+    "ver-012-1": `# API Documentation\n\nReleased API surface. No further edits allowed.\n`,
+  },
+};
+
+const mockVersionData: Record<string, ObjectVersion[]> = {
+  "obj-005": [
+    {
+      id: "ver-005-1",
+      index: 1,
+      createdAt: Date.now() - 86400000 * 6,
+      sizeBytes: 12000,
+      state: "approved",
+      parentVersion: null,
+      message: "Initial notes",
+      isCurrent: false,
+    },
+    {
+      id: "ver-005-2",
+      index: 2,
+      createdAt: Date.now() - 86400000 * 4,
+      sizeBytes: 13000,
+      state: "review",
+      parentVersion: "ver-005-1",
+      message: "Add scope section",
+      isCurrent: false,
+    },
+    {
+      id: "ver-005-3",
+      index: 3,
+      createdAt: Date.now() - 86400000 * 1,
+      sizeBytes: 15000,
+      state: "draft",
+      parentVersion: "ver-005-2",
+      message: "Checklist update",
+      isCurrent: true,
+    },
+  ],
+  "obj-008": [
+    {
+      id: "ver-008-1",
+      index: 1,
+      createdAt: Date.now() - 86400000 * 3,
+      sizeBytes: 4200,
+      state: "discarded",
+      parentVersion: null,
+      message: "First snippet",
+      isCurrent: false,
+    },
+    {
+      id: "ver-008-2",
+      index: 2,
+      createdAt: Date.now() - 86400000 * 1,
+      sizeBytes: 4500,
+      state: "draft",
+      parentVersion: "ver-008-1",
+      message: "Improve greeting",
+      isCurrent: true,
+    },
+  ],
+  "obj-012": [
+    {
+      id: "ver-012-1",
+      index: 1,
+      createdAt: Date.now() - 86400000 * 2,
+      sizeBytes: 32000,
+      state: "sealed",
+      parentVersion: null,
+      message: "Release candidate",
+      isCurrent: true,
+    },
+  ],
+};
+
+const createVersionId = () => `ver-${Math.random().toString(36).slice(2, 10)}`;
+
+const ensureVersionData = (objectId: string): ObjectVersion[] => {
+  if (!mockVersionData[objectId]) {
+    mockVersionData[objectId] = [
+      {
+        id: createVersionId(),
+        index: 1,
+        createdAt: Date.now() - 86400000,
+        sizeBytes: 0,
+        state: "draft",
+        parentVersion: null,
+        message: "Initial version",
+        isCurrent: true,
+      },
+    ];
+  }
+  return mockVersionData[objectId];
+};
+
+mockObjectsData.forEach((obj) => {
+  const versions = mockVersionData[obj.id];
+  obj.versionCount = versions ? versions.length : 1;
+});
+
 export const mockListViews = async (): Promise<ViewInfo[]> => {
   await delay(100);
   return mockViewsData;
@@ -388,6 +500,156 @@ export const mockOpenObject = async (_objectId: string): Promise<void> => {
   await delay(150);
 };
 
+// --- Version Mocks ---
+
+const applyAutoAdvance = (state: VersionState): VersionState => {
+  if (state === "review") return "approved";
+  if (state === "draft") return "discarded";
+  return state;
+};
+
+export const mockListObjectVersions = async (
+  objectId: string,
+): Promise<ObjectVersion[]> => {
+  await delay(120);
+  return ensureVersionData(objectId);
+};
+
+export const mockDiffObjectVersions = async (
+  objectId: string,
+  leftVersionId: string,
+  rightVersionId: string,
+): Promise<VersionDiffResult> => {
+  await delay(120);
+  const leftText = mockVersionText[objectId]?.[leftVersionId] ?? "";
+  const rightText = mockVersionText[objectId]?.[rightVersionId] ?? "";
+  if (leftText === rightText) {
+    return {
+      kind: "none",
+      diff: "No differences",
+      leftSize: leftText.length,
+      rightSize: rightText.length,
+      firstDiff: null,
+    };
+  }
+
+  const leftLines = leftText.split("\n");
+  const rightLines = rightText.split("\n");
+  const diffLines: string[] = ["--- left", "+++ right"];
+  const max = Math.max(leftLines.length, rightLines.length);
+  for (let i = 0; i < max; i += 1) {
+    const l = leftLines[i];
+    const r = rightLines[i];
+    if (l !== undefined && l !== r) diffLines.push(`-${l}`);
+    if (r !== undefined && l !== r) diffLines.push(`+${r}`);
+    if (l !== undefined && r !== undefined && l === r) diffLines.push(` ${l}`);
+  }
+  return {
+    kind: "text",
+    diff: diffLines.join("\n"),
+    leftSize: leftText.length,
+    rightSize: rightText.length,
+    firstDiff: null,
+  };
+};
+
+export const mockGetObjectVersionText = async (
+  objectId: string,
+  versionId: string,
+): Promise<string> => {
+  await delay(120);
+  const content = mockVersionText[objectId]?.[versionId];
+  if (content === undefined) {
+    throw new Error("Binary content");
+  }
+  return content;
+};
+
+export const mockReviseObjectFromText = async (
+  objectId: string,
+  content: string,
+  message?: string,
+): Promise<void> => {
+  await delay(150);
+  const versions = ensureVersionData(objectId);
+  const current = versions.find((version) => version.isCurrent) ?? versions.at(-1);
+  if (current?.state === "sealed") {
+    throw new Error("Object is sealed");
+  }
+  if (current) {
+    current.state = applyAutoAdvance(current.state);
+    current.isCurrent = false;
+  }
+  const newId = createVersionId();
+  const newVersion: ObjectVersion = {
+    id: newId,
+    index: versions.length + 1,
+    createdAt: Date.now(),
+    sizeBytes: content.length,
+    state: "draft",
+    parentVersion: current?.id ?? null,
+    message: message ?? null,
+    isCurrent: true,
+  };
+  versions.push(newVersion);
+  mockVersionText[objectId] = {
+    ...(mockVersionText[objectId] ?? {}),
+    [newId]: content,
+  };
+  const object = findObject(objectId);
+  if (object) {
+    object.modifiedAt = Date.now();
+    object.versionCount = versions.length;
+  }
+};
+
+export const mockReviseObjectFromFile = async (
+  objectId: string,
+  path: string,
+  message?: string,
+): Promise<void> => {
+  await delay(150);
+  await mockReviseObjectFromText(
+    objectId,
+    `Imported content from ${path}`,
+    message,
+  );
+};
+
+export const mockSetObjectVersionState = async (
+  objectId: string,
+  versionId: string,
+  state: VersionState,
+): Promise<void> => {
+  await delay(120);
+  const versions = ensureVersionData(objectId);
+  const target = versions.find((version) => version.id === versionId);
+  if (!target) {
+    throw new Error("Version not found");
+  }
+  target.state = state;
+};
+
+export const mockCheckoutObjectVersion = async (
+  objectId: string,
+  versionId: string,
+): Promise<void> => {
+  await delay(120);
+  const versions = ensureVersionData(objectId);
+  versions.forEach((version) => {
+    version.isCurrent = version.id === versionId;
+  });
+};
+
+export const mockExportObjectVersion = async (
+  _objectId: string,
+  _versionId: string,
+  _outputPath: string,
+  _mode: "tree" | "archive",
+): Promise<void> => {
+  await delay(150);
+};
+
 // --- View Management Mocks ---
 
 let dynamicViewCounter = 1;
@@ -443,4 +705,11 @@ export const mockPickFolders = async (): Promise<string[] | null> => {
   await delay(100);
   // In browser mode, return mock paths
   return ["~/Documents/Projects"];
+};
+
+export const mockPickExportPath = async (
+  suggestedName?: string,
+): Promise<string | null> => {
+  await delay(100);
+  return suggestedName ? `~/Exports/${suggestedName}` : "~/Exports/export.bin";
 };

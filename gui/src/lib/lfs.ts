@@ -69,6 +69,34 @@ export interface ObjectInfo {
   tags: TagInfo[];
   views: string[];
   trustLevel?: number | null;
+  versionCount?: number;
+}
+
+export type VersionState =
+  | "draft"
+  | "review"
+  | "approved"
+  | "discarded"
+  | "sealed"
+  | "archived";
+
+export interface ObjectVersion {
+  id: string;
+  index: number;
+  createdAt: number;
+  sizeBytes: number;
+  state: VersionState;
+  parentVersion?: string | null;
+  message?: string | null;
+  isCurrent: boolean;
+}
+
+export interface VersionDiffResult {
+  kind: "text" | "binary" | "none";
+  diff: string;
+  leftSize: number;
+  rightSize: number;
+  firstDiff?: number | null;
 }
 
 export const isTauriApp = () => {
@@ -191,6 +219,7 @@ export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
         tags: Array<{ key: string; value: string }>;
         views: string[];
         trust_level: number | null;
+        version_count: number;
       }>
     >("get_view_objects", { viewId });
     // Transform snake_case to camelCase
@@ -205,6 +234,7 @@ export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
       tags: o.tags,
       views: o.views,
       trustLevel: o.trust_level,
+      versionCount: o.version_count,
     }));
   }
   return (await getMocks()).mockGetViewObjects(viewId);
@@ -224,6 +254,7 @@ export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {
         tags: Array<{ key: string; value: string }>;
         views: string[];
         trust_level: number | null;
+        version_count: number;
       }>
     >("evaluate_query", { query });
     // Transform snake_case to camelCase
@@ -238,6 +269,7 @@ export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {
       tags: o.tags,
       views: o.views,
       trustLevel: o.trust_level,
+      versionCount: o.version_count,
     }));
   }
   return (await getMocks()).mockEvaluateQuery(query);
@@ -284,6 +316,150 @@ export const openObject = async (objectId: string): Promise<void> => {
     return;
   }
   return (await getMocks()).mockOpenObject(objectId);
+};
+
+// --- Version Operations ---
+
+export const listObjectVersions = async (
+  objectId: string,
+): Promise<ObjectVersion[]> => {
+  if (isTauriApp()) {
+    const versions = await invoke<
+      Array<{
+        id: string;
+        index: number;
+        created_at: number;
+        size_bytes: number;
+        state: VersionState;
+        parent_version: string | null;
+        message: string | null;
+        is_current: boolean;
+      }>
+    >("list_object_versions", { objectId });
+    return versions.map((version) => ({
+      id: version.id,
+      index: version.index,
+      createdAt: version.created_at,
+      sizeBytes: version.size_bytes,
+      state: version.state,
+      parentVersion: version.parent_version,
+      message: version.message,
+      isCurrent: version.is_current,
+    }));
+  }
+  return (await getMocks()).mockListObjectVersions(objectId);
+};
+
+export const diffObjectVersions = async (
+  objectId: string,
+  leftVersionId: string,
+  rightVersionId: string,
+): Promise<VersionDiffResult> => {
+  if (isTauriApp()) {
+    const diff = await invoke<{
+      kind: "text" | "binary" | "none";
+      diff: string;
+      left_size: number;
+      right_size: number;
+      first_diff?: number | null;
+    }>("diff_object_versions", {
+      objectId,
+      leftVersionId,
+      rightVersionId,
+    });
+    return {
+      kind: diff.kind,
+      diff: diff.diff,
+      leftSize: diff.left_size,
+      rightSize: diff.right_size,
+      firstDiff: diff.first_diff ?? null,
+    };
+  }
+  return (await getMocks()).mockDiffObjectVersions(
+    objectId,
+    leftVersionId,
+    rightVersionId,
+  );
+};
+
+export const getObjectVersionText = async (
+  objectId: string,
+  versionId: string,
+): Promise<string> => {
+  if (isTauriApp()) {
+    return invoke<string>("get_object_version_text", { objectId, versionId });
+  }
+  return (await getMocks()).mockGetObjectVersionText(objectId, versionId);
+};
+
+export const reviseObjectFromText = async (
+  objectId: string,
+  content: string,
+  message?: string,
+): Promise<void> => {
+  if (isTauriApp()) {
+    await invoke("revise_object_from_text", { objectId, content, message });
+    return;
+  }
+  return (await getMocks()).mockReviseObjectFromText(objectId, content, message);
+};
+
+export const reviseObjectFromFile = async (
+  objectId: string,
+  path: string,
+  message?: string,
+): Promise<void> => {
+  if (isTauriApp()) {
+    await invoke("revise_object_from_file", { objectId, path, message });
+    return;
+  }
+  return (await getMocks()).mockReviseObjectFromFile(objectId, path, message);
+};
+
+export const setObjectVersionState = async (
+  objectId: string,
+  versionId: string,
+  state: VersionState,
+): Promise<void> => {
+  if (isTauriApp()) {
+    await invoke("set_version_state", { objectId, versionId, state });
+    return;
+  }
+  return (await getMocks()).mockSetObjectVersionState(objectId, versionId, state);
+};
+
+export const checkoutObjectVersion = async (
+  objectId: string,
+  versionId: string,
+): Promise<void> => {
+  if (isTauriApp()) {
+    await invoke("checkout_object_version", { objectId, versionId });
+    return;
+  }
+  return (await getMocks()).mockCheckoutObjectVersion(objectId, versionId);
+};
+
+export const exportObjectVersion = async (
+  objectId: string,
+  versionId: string,
+  outputPath: string,
+  mode: "tree" | "archive",
+): Promise<void> => {
+  if (isTauriApp()) {
+    await invoke("export_object_version", {
+      objectId,
+      versionId,
+      outputPath,
+      mode,
+    });
+    return;
+  }
+  return (await getMocks()).mockExportObjectVersion(
+    objectId,
+    versionId,
+    outputPath,
+    mode,
+  );
 };
 
 // --- View Management ---
@@ -371,6 +547,21 @@ export const pickFiles = async (): Promise<string[] | null> => {
     return Array.isArray(selected) ? selected : [selected];
   }
   return (await getMocks()).mockPickFiles();
+};
+
+export const pickExportPath = async (
+  suggestedName?: string,
+): Promise<string | null> => {
+  if (isTauriApp()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const selected = await save({
+      defaultPath: suggestedName,
+      title: "Exportziel wählen",
+    });
+    if (!selected) return null;
+    return selected;
+  }
+  return (await getMocks()).mockPickExportPath(suggestedName);
 };
 
 export const pickFolders = async (): Promise<string[] | null> => {

@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { ObjectInfoSection } from "@/components/nexus/ObjectInfoSection";
 import { TagDetailsSection } from "@/components/nexus/TagDetailsSection";
 import { formatExifFieldLabel } from "@/lib/metadataDisplay";
+import { useObjectVersions } from "@/hooks/useObjectVersions";
+import { ObjectVersionsSection } from "@/components/nexus/ObjectVersionsSection";
 
 interface ObjectDetailPanelProps {
   object: ObjectInfo;
@@ -62,6 +64,11 @@ export const ObjectDetailPanel = ({
   onViewSelect,
 }: ObjectDetailPanelProps) => {
   const [trustValue, setTrustValue] = useState<number>(object.trustLevel ?? 70);
+  const {
+    data: versions,
+    isLoading: versionsLoading,
+    refetch: refetchVersions,
+  } = useObjectVersions(object.id);
   const { userTags, systemTags, id3Tags, exifTags, mimeType } = useMemo(() => {
     const user: TagInfo[] = [];
     const system: TagInfo[] = [];
@@ -145,6 +152,7 @@ export const ObjectDetailPanel = ({
           object={object}
           currentViewId={currentViewId}
           mimeType={mimeType}
+          versionCount={versions?.length}
           onCopyId={handleCopyId}
           onViewSelect={onViewSelect}
         />
@@ -197,6 +205,13 @@ export const ObjectDetailPanel = ({
             />
           </section>
         )}
+
+        <ObjectVersionsSection
+          object={object}
+          versions={versions}
+          isLoading={versionsLoading}
+          onRefresh={() => void refetchVersions()}
+        />
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
