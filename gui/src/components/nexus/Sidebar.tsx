@@ -209,6 +209,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-muted-foreground hover:text-foreground"
+                          aria-label={`Optionen für ${view.name}`}
                         >
                           <MoreVertical className="w-3.5 h-3.5" />
                         </Button>
