@@ -5,6 +5,7 @@ import { ParticleBackground } from "./ui/ParticleBackground";
 import { Search, Clock, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { initRepo, isTauriApp } from "@/lib/lfs";
 
 interface WelcomeScreenProps {
   onNext: () => void;
@@ -30,11 +31,26 @@ const philosophyCards = [
 
 export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreateLattice = () => {
-    setIsTransitioning(true);
-    // Allow animation to play before transitioning
-    setTimeout(onNext, 800);
+  const handleCreateLattice = async () => {
+    if (!isTauriApp()) {
+      setError("Die Desktop-App ist erforderlich, um dein Lattice zu initialisieren.");
+      return;
+    }
+    setError(null);
+    setIsInitializing(true);
+    try {
+      await initRepo();
+      setIsTransitioning(true);
+      setTimeout(onNext, 800);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Initialisierung fehlgeschlagen.";
+      setError(message);
+    } finally {
+      setIsInitializing(false);
+    }
   };
 
   return (
@@ -106,10 +122,13 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
           className="opacity-0 animate-fade-up"
           style={{ animationDelay: "1400ms", animationFillMode: "forwards" }}
         >
-          <AnimatedButton onClick={handleCreateLattice}>
-            Create My Lattice
+          <AnimatedButton onClick={handleCreateLattice} disabled={isInitializing}>
+            {isInitializing ? "Initialisiere..." : "Create My Lattice"}
           </AnimatedButton>
         </div>
+        {error && (
+          <p className="mt-4 text-sm text-warning">{error}</p>
+        )}
       </div>
     </div>
   );

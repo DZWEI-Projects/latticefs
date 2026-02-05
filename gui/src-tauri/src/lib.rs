@@ -1,6 +1,12 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .invoke_handler(tauri::generate_handler![
+      crate::commands::get_repo_info,
+      crate::commands::init_repo,
+      crate::commands::import_paths,
+      crate::commands::create_sample_files,
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -14,3 +20,5 @@ pub fn run() {
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
+
+mod commands;
