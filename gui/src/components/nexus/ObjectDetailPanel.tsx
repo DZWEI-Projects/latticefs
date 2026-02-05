@@ -1,25 +1,16 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { useViews } from "@/hooks/useViews";
 import type { ObjectInfo, TagInfo } from "@/lib/lfs";
 import { cn } from "@/lib/utils";
-import { Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
-import {
-  Popover,
-  PopoverArrow,
-  PopoverContent,
-  PopoverTrigger,
-} from "../ui/popover";
 import { toast } from "sonner";
+import { ObjectInfoSection } from "@/components/nexus/ObjectInfoSection";
+import { TagDetailsSection } from "@/components/nexus/TagDetailsSection";
+import { formatExifFieldLabel } from "@/lib/metadataDisplay";
 
 interface ObjectDetailPanelProps {
   object: ObjectInfo;
@@ -32,46 +23,6 @@ interface ObjectDetailPanelProps {
   onViewSelect: (viewId: string) => void;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`.replace(
-    ".",
-    ",",
-  );
-}
-
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatViews(views: string[]): string {
-  return views.length === 1
-    ? "einer Perspektive"
-    : `${views.length} Perspektiven`;
-}
-
-function formatObjectType(type: ObjectInfo["objectType"]): string {
-  switch (type) {
-    case "blob":
-      return "Datei";
-    case "tree":
-      return "Ordner";
-    case "commit":
-      return "Commit";
-    default:
-      return type;
-  }
-}
-
 function isAutoTag(tag: TagInfo) {
   return tag.key.startsWith("auto:");
 }
@@ -82,12 +33,6 @@ function isSystemTag(tag: TagInfo) {
 
 const ID3_PREFIX = "auto:id3:";
 const EXIF_PREFIX = "auto:exif:";
-
-function formatTagLabel(raw: string): string {
-  if (!raw) return "—";
-  const withSpaces = raw.replace(/_/g, " ");
-  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
-}
 
 function parseTagInput(keyInput: string, valueInput: string): TagInfo | null {
   const key = keyInput.trim();
@@ -117,21 +62,24 @@ export const ObjectDetailPanel = ({
   onViewSelect,
 }: ObjectDetailPanelProps) => {
   const [trustValue, setTrustValue] = useState<number>(object.trustLevel ?? 70);
-  const [autoTagsOpen, setAutoTagsOpen] = useState(false);
-  const { userTags, autoTags, systemTags, id3Tags, exifTags } = useMemo(() => {
+  const { userTags, systemTags, id3Tags, exifTags, mimeType } = useMemo(() => {
     const user: TagInfo[] = [];
-    const auto: TagInfo[] = [];
     const system: TagInfo[] = [];
     const id3: TagInfo[] = [];
     const exif: TagInfo[] = [];
+    let detectedMimeType: string | null = null;
     for (const tag of object.tags) {
       if (isAutoTag(tag)) {
+        if (tag.key === "auto:mimetype" && !detectedMimeType) {
+          detectedMimeType = tag.value;
+          continue;
+        }
         if (tag.key.startsWith(ID3_PREFIX)) {
           id3.push(tag);
-        } else if (tag.key.startsWith(EXIF_PREFIX)) {
+          continue;
+        }
+        if (tag.key.startsWith(EXIF_PREFIX)) {
           exif.push(tag);
-        } else {
-          auto.push(tag);
         }
       } else if (isSystemTag(tag)) {
         system.push(tag);
@@ -141,10 +89,10 @@ export const ObjectDetailPanel = ({
     }
     return {
       userTags: user,
-      autoTags: auto,
       systemTags: system,
       id3Tags: id3,
       exifTags: exif,
+      mimeType: detectedMimeType,
     };
   }, [object.tags]);
 
@@ -179,7 +127,7 @@ export const ObjectDetailPanel = ({
   );
 
   return (
-    <aside className="w-80 lg:w-[400px] border-l border-border/50 bg-background/80 flex flex-col">
+    <aside className="w-80 lg:w-[400px] xl:w-[470px] border-l border-border/50 bg-background/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
         <div>
           <p className="text-xs text-foreground/75">Details</p>
@@ -193,61 +141,13 @@ export const ObjectDetailPanel = ({
       </div>
 
       <div className="flex-1 overflow-auto px-4 py-4 space-y-6">
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold text-foreground/75 uppercase tracking-wider">
-            Informationen
-          </h3>
-          <div className="space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-foreground/75">Dateiendung</span>
-              <span className="font-medium uppercase">
-                {object.extension || "—"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-foreground/75">Objektart</span>
-              <span className="font-medium">{formatObjectType(object.objectType)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-foreground/75">Größe</span>
-              <span className="font-medium">
-                {formatBytes(object.sizeBytes)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-foreground/75">Erstellt</span>
-              <span className="font-medium">
-                {formatDate(object.createdAt)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-foreground/75">Geändert</span>
-              <span className="font-medium">
-                {formatDate(object.modifiedAt)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-foreground/75">Objekt-ID</span>
-              <button
-                type="button"
-                className={cn(
-                  "font-medium font-mono text-[11px] truncate max-w-[180px]",
-                  "text-foreground/80 hover:text-primary hover:underline",
-                  "transition-colors",
-                )}
-                title="Objekt-ID kopieren"
-                onClick={handleCopyId}
-              >
-                {object.id}
-              </button>
-            </div>
-            <ViewsInspector
-              value={object.views}
-              currentViewId={currentViewId}
-              onViewSelect={onViewSelect}
-            />
-          </div>
-        </section>
+        <ObjectInfoSection
+          object={object}
+          currentViewId={currentViewId}
+          mimeType={mimeType}
+          onCopyId={handleCopyId}
+          onViewSelect={onViewSelect}
+        />
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -277,33 +177,8 @@ export const ObjectDetailPanel = ({
           title="Bildmetadaten (EXIF)"
           tags={exifTags}
           prefix={EXIF_PREFIX}
+          labelFormatter={formatExifFieldLabel}
         />
-
-        <section className="space-y-3">
-          <Collapsible open={autoTagsOpen} onOpenChange={setAutoTagsOpen}>
-            <div className="flex items-center justify-between">
-              <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold text-foreground/75 uppercase tracking-wider hover:text-foreground transition-colors">
-                <ChevronDown
-                  className={cn(
-                    "w-3 h-3 transition-transform",
-                    !autoTagsOpen && "-rotate-90",
-                  )}
-                />
-                Automatische Tags
-              </CollapsibleTrigger>
-              <span className="text-xs text-muted-foreground">
-                {autoTags.length}
-              </span>
-            </div>
-            <CollapsibleContent className="pt-2">
-              <ReadOnlyTagsList
-                tags={autoTags}
-                emptyLabel="Keine automatischen Tags erkannt."
-                badgeLabel="AUTO"
-              />
-            </CollapsibleContent>
-          </Collapsible>
-        </section>
 
         {systemTags.length > 0 && (
           <section className="space-y-3">
@@ -613,145 +488,6 @@ function ReadOnlyTagsList({
           </Badge>
         </div>
       ))}
-    </div>
-  );
-}
-
-function TagDetailsSection({
-  title,
-  tags,
-  prefix,
-}: {
-  title: string;
-  tags: TagInfo[];
-  prefix: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const details = useMemo(
-    () =>
-      tags
-        .map((tag) => ({
-          key: `${tag.key}:${tag.value}`,
-          label: formatTagLabel(tag.key.replace(prefix, "")),
-          value: tag.value,
-        }))
-        .sort((a, b) =>
-          a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true }),
-        ),
-    [tags, prefix],
-  );
-
-  if (tags.length === 0) return null;
-
-  return (
-    <section className="space-y-3">
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <div className="flex items-center justify-between">
-          <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold text-foreground/75 uppercase tracking-wider hover:text-foreground transition-colors">
-            <ChevronDown
-              className={cn(
-                "w-3 h-3 transition-transform",
-                !open && "-rotate-90",
-              )}
-            />
-            {title}
-          </CollapsibleTrigger>
-          <span className="text-xs text-muted-foreground">{tags.length}</span>
-        </div>
-        <CollapsibleContent className="pt-2">
-          <div className="space-y-2 text-xs">
-            {details.map((detail) => (
-              <div
-                key={detail.key}
-                className="flex items-center justify-between gap-2"
-              >
-                <span className="text-foreground/75">{detail.label}</span>
-                <span
-                  className="font-medium text-right truncate max-w-[180px]"
-                  title={detail.value}
-                >
-                  {detail.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </section>
-  );
-}
-
-function ViewsInspector({
-  value,
-  currentViewId,
-  onViewSelect,
-}: {
-  value: string[];
-  currentViewId?: string;
-  onViewSelect: (viewId: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const { data: views, isLoading } = useViews();
-
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-foreground/75">Perspektive</span>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <span
-            className="font-medium cursor-pointer hover:text-primary hover:underline"
-            onClick={() => setOpen(!open)}
-          >
-            In {formatViews(value)}
-          </span>
-        </PopoverTrigger>
-        <PopoverContent className="w-72">
-          <PopoverArrow />
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h4 className="text-sm font-semibold">Perspektiven</h4>
-              <p className="text-xs text-muted-foreground">
-                Dieses Objekt ist in {formatViews(value)} verfügbar.
-              </p>
-            </div>
-            {isLoading ? (
-              <p className="text-xs text-muted-foreground">Lädt...</p>
-            ) : views && views.length > 0 ? (
-              <div className="space-y-1">
-                {views
-                  .filter((view) => value.includes(view.id))
-                  .map((view) => {
-                    const isActive = currentViewId === view.id;
-                    return (
-                      <button
-                        key={view.id}
-                        type="button"
-                        onClick={() => {
-                          onViewSelect(view.id);
-                          setOpen(false);
-                        }}
-                        className={cn(
-                          "w-full flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors",
-                          "hover:bg-muted/60",
-                          isActive && "bg-primary/10 text-primary hover:bg-primary/15",
-                        )}
-                      >
-                        <span className="flex-1 text-left truncate">{view.name}</span>
-                        <Badge variant="secondary" className="text-[10px]">
-                          Enthält
-                        </Badge>
-                      </button>
-                    );
-                  })}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Keine Perspektiven gefunden.
-              </p>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
     </div>
   );
 }
