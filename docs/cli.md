@@ -2,6 +2,26 @@
 
 This document lists every CLI command, subcommand, and its arguments, with examples and example output.
 
+## Localization
+
+LatticeFS automatically detects your operating system locale and displays built-in view names and descriptions in your language. Currently supported:
+
+- **English** (en_*)
+- **German** (all other locales, default fallback)
+
+Built-in view names can be referenced in either language:
+
+| English | German |
+|---------|--------|
+| recent | neueste |
+| projects | projekte |
+| drafts | entwürfe |
+| review / pending review | zur prüfung |
+| approved | genehmigt |
+| all / all objects | alle objekte |
+
+Examples throughout this document show English output, but German systems will see localized names automatically.
+
 ## Global flags
 - `-v`, `-vv` — increase verbosity
 - `--repo <path>` — override repository root
@@ -156,10 +176,13 @@ List objects for a view with minimal tag output.
 Notes:
 - By default, auto/system tags are hidden. Use `--all-tags` to include them.
 - Tags ending in `_b64` are base64url-decoded for display. Use `--raw-tags` to show both encoded and decoded values.
+- Built-in view names are accepted in both English and German.
 
 Example:
 ```bash
 lfs stats view-objects recent --all-tags
+# or in German:
+lfs stats view-objects neueste --all-tags
 ```
 
 ### `lfs stats views`
@@ -581,6 +604,8 @@ Deleted view Projects (<view-id>)
 ### `lfs view explain <ref> [--query '<lql>'] [--view <name|id>]`
 Explain why an object matches a query or view.
 
+Note: Built-in view names are accepted in both English and German.
+
 Example (explicit query):
 ```bash
 lfs view explain <object-id> --query "tag:project:phoenix"
@@ -592,10 +617,15 @@ Object <object-id>: MATCHED
 ✓ tag:project:phoenix (actual: tag:project:phoenix)
 ```
 
-Example (named view):
+Example (named view, English):
 ```bash
 lfs view explain <object-id> --view "Projects"
 lfs view explain <object-id> --view <view-id>
+```
+
+Example (named view, German):
+```bash
+lfs view explain <object-id> --view "Projekte"
 ```
 
 Example output:
@@ -772,6 +802,7 @@ Arguments:
 
 Notes:
 - If you pass a view ID (UUID), the CLI will export that view and print its name and ID.
+- Built-in view names are accepted in both English and German.
 
 Example (single object):
 ```bash
@@ -783,10 +814,15 @@ Example output:
 Exported <object-id>
 ```
 
-Example (view to directory):
+Example (view to directory, English):
 ```bash
 lfs export "Projects" --output ~/Exports/projects --mode tree
 lfs export <view-id> --output ~/Exports/projects --mode tree
+```
+
+Example (view to directory, German):
+```bash
+lfs export "Projekte" --output ~/Exports/projekte --mode tree
 ```
 
 Example output:

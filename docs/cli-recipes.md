@@ -2,6 +2,8 @@
 
 This guide maps common goals to the exact CLI commands, flags, and arguments you should use. It also compares each task to the “old way” you’d do it in a traditional filesystem so the shift in mental model is clear.
 
+**Note**: Built-in view names (like "Recent", "Projects") are automatically displayed in your system's locale. English and German are supported. Both language names work in commands (e.g., `recent` or `neueste`). See [Localization](i18n-localization.md).
+
 ## Start a new repo
 Old way: you might create a new folder and start dropping files into it.
 

@@ -2,6 +2,21 @@
 
 Views are query-backed projections over objects. They let you group, filter, and export data without copying it.
 
+## Built-in Views
+
+LatticeFS includes several built-in views that are always available:
+
+| View | Query | Description |
+|------|-------|-------------|
+| Recent | `updated within 7d SORT updated DESC LIMIT 100` | Objects updated in the last 7 days |
+| Projects | `tag:project SORT updated DESC` | Objects tagged as projects |
+| Drafts | `state:draft SORT updated DESC` | Objects in draft state |
+| Review | `state:review SORT updated DESC` | Objects pending review |
+| Approved | `state:approved SORT updated DESC` | Approved objects |
+| All | `trust >= 0` | All objects in the repository |
+
+**Localization**: Built-in view names and descriptions are automatically displayed in your system's locale. English and German are currently supported, with German as the default for non-English locales. Both English and German names work in CLI commands (e.g., `lfs stats view recent` or `lfs stats view neueste`). See [Localization](i18n-localization.md) for details.
+
 ## What you can do with views
 - Create a view from an LQL query
 - List built‑in and dynamic views
