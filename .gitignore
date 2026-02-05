@@ -36,9 +36,6 @@ go.work.sum
 .vscode/
 *.code-workspace
 
-# Cursor
-.cursor/
-
 # IntelliJ IDEA / GoLand
 .idea/
 *.iml
