@@ -64,6 +64,10 @@ impl Tag {
         // Get full tag path
         let full_path = self.full_path();
 
+        if pattern.contains('*') {
+            return wildcard_match(pattern, &full_path);
+        }
+
         // Check if pattern matches the full path (hierarchical prefix match)
         if full_path.starts_with(pattern) {
             // Make sure it's a proper hierarchical boundary
@@ -102,6 +106,46 @@ impl Tag {
     pub fn is_user_defined(&self) -> bool {
         self.key.starts_with("user:")
     }
+}
+
+fn wildcard_match(pattern: &str, text: &str) -> bool {
+    if pattern == "*" {
+        return true;
+    }
+
+    let mut parts = pattern.split('*').peekable();
+    let mut pos = 0usize;
+
+    if let Some(first) = parts.next() {
+        if !first.is_empty() {
+            if !text.starts_with(first) {
+                return false;
+            }
+            pos = first.len();
+        }
+    }
+
+    let mut last_part: Option<&str> = None;
+    for part in parts {
+        if part.is_empty() {
+            continue;
+        }
+        last_part = Some(part);
+        if let Some(found) = text[pos..].find(part) {
+            pos += found + part.len();
+        } else {
+            return false;
+        }
+    }
+
+    if !pattern.ends_with('*') {
+        if let Some(last) = last_part {
+            return text.ends_with(last);
+        }
+        return text.len() == pos;
+    }
+
+    true
 }
 
 /// Get current timestamp in microseconds
@@ -175,6 +219,20 @@ mod tests {
         // Should not match different patterns
         assert!(!tag.matches("tag"));
         assert!(!tag.matches("project:apollo"));
+    }
+
+    #[test]
+    fn test_tag_matches_wildcard() {
+        let tag = Tag::new(
+            "auto:mimetype".to_string(),
+            "image/jpeg".to_string(),
+            test_actor(),
+        );
+
+        assert!(tag.matches("auto:mimetype:image/*"));
+        assert!(tag.matches("auto:mimetype:*/*"));
+        assert!(tag.matches("auto:mimetype:*"));
+        assert!(!tag.matches("auto:mimetype:video/*"));
     }
 
     #[test]

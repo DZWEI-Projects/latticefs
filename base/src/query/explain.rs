@@ -360,19 +360,7 @@ impl<'a> Explainer<'a> {
 
     /// Check if a tag matches a pattern.
     fn tag_matches(&self, pattern: &str, tag: &Tag) -> bool {
-        let full_path = tag.full_path();
-
-        // Exact match
-        if full_path == pattern {
-            return true;
-        }
-
-        // Hierarchical match
-        if full_path.starts_with(pattern) && full_path.chars().nth(pattern.len()) == Some(':') {
-            return true;
-        }
-
-        false
+        tag.matches(pattern)
     }
 
     /// Resolve an object reference to a set of IDs.

@@ -117,19 +117,7 @@ impl<'a> QueryEvaluator<'a> {
 
     /// Check if a tag matches a pattern (hierarchical).
     fn tag_matches(&self, pattern: &str, tag: &Tag) -> bool {
-        let full_path = tag.full_path();
-
-        // Exact match
-        if full_path == pattern {
-            return true;
-        }
-
-        // Hierarchical match: pattern "project" matches "project:phoenix"
-        if full_path.starts_with(pattern) && full_path.chars().nth(pattern.len()) == Some(':') {
-            return true;
-        }
-
-        false
+        tag.matches(pattern)
     }
 
     /// Evaluate a type predicate.
