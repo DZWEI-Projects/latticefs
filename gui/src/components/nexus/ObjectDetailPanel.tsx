@@ -127,7 +127,7 @@ export const ObjectDetailPanel = ({
   );
 
   return (
-    <aside className="w-80 lg:w-[400px] xl:w-[470px] border-l border-border/50 bg-background/80 flex flex-col">
+    <aside className="w-80 xl:w-[400px] 2xl:w-[470px] border-l border-border/50 bg-background/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
         <div>
           <p className="text-xs text-foreground/75">Details</p>

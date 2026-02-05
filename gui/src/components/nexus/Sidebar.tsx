@@ -89,7 +89,12 @@ const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
       </span>
       {actions && (
         <div
-          className="flex items-center"
+          className={cn(
+            "flex items-center overflow-hidden w-0 opacity-0 ml-0 pointer-events-none",
+            "transition-[width,opacity,margin] duration-150 ease-out",
+            "group-hover:w-6 group-hover:opacity-100 group-hover:ml-1 group-hover:pointer-events-auto",
+            "group-focus-within:w-6 group-focus-within:opacity-100 group-focus-within:ml-1 group-focus-within:pointer-events-auto"
+          )}
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -208,7 +213,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-muted-foreground hover:text-foreground"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
                           aria-label={`Optionen für ${view.name}`}
                         >
                           <MoreVertical className="w-3.5 h-3.5" />
