@@ -152,11 +152,11 @@ impl<'a> Parser<'a> {
         self.expect(Token::Colon)?;
 
         let mut path = Vec::new();
-        path.push(self.parse_identifier()?);
+        path.push(self.parse_tag_segment()?);
 
         while self.check(&Token::Colon) {
             self.advance()?;
-            path.push(self.parse_identifier()?);
+            path.push(self.parse_tag_segment()?);
         }
 
         Ok(Predicate::Tag { path })
@@ -434,11 +434,11 @@ impl<'a> Parser<'a> {
                 self.expect(Token::Colon)?;
 
                 let mut path = Vec::new();
-                path.push(self.parse_identifier()?);
+                path.push(self.parse_tag_segment()?);
 
                 while self.check(&Token::Colon) {
                     self.advance()?;
-                    path.push(self.parse_identifier()?);
+                    path.push(self.parse_tag_segment()?);
                 }
 
                 Ok(ObjectRef::Tag(path))
@@ -564,6 +564,34 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parse a tag path segment, allowing quoted strings and slash-containing values.
+    fn parse_tag_segment(&mut self) -> Result<String> {
+        let mut segment = match &self.current {
+            Token::String(s) => {
+                let s = s.clone();
+                self.advance()?;
+                s
+            }
+            _ => self.parse_identifier()?,
+        };
+
+        while self.check(&Token::Slash) {
+            self.advance()?;
+            let next = match &self.current {
+                Token::String(s) => {
+                    let s = s.clone();
+                    self.advance()?;
+                    s
+                }
+                _ => self.parse_identifier()?,
+            };
+            segment.push('/');
+            segment.push_str(&next);
+        }
+
+        Ok(segment)
+    }
+
     /// Parse a timestamp value and return Unix microseconds.
     fn parse_timestamp_value(&mut self) -> Result<i64> {
         let raw = match self.current() {
@@ -676,6 +704,18 @@ mod tests {
         match query.expr {
             Expr::Predicate(Predicate::Tag { path }) => {
                 assert_eq!(path, vec!["project", "phoenix"]);
+            }
+            _ => panic!("Expected tag predicate"),
+        }
+    }
+
+    #[test]
+    fn test_tag_with_slash_value() {
+        let query = parse("tag:auto:mimetype:image/jpeg").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Tag { path }) => {
+                assert_eq!(path, vec!["auto", "mimetype", "image/jpeg"]);
             }
             _ => panic!("Expected tag predicate"),
         }
