@@ -55,7 +55,7 @@ export const ViewSelector = ({ value, onChange }: ViewSelectorProps) => {
     >
       <ToggleGroupItem
         value="graph"
-        aria-label="Graph view"
+        aria-label="Graph-Perspektive"
         className={cn(
           "h-7 w-7 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm"
         )}
@@ -64,7 +64,7 @@ export const ViewSelector = ({ value, onChange }: ViewSelectorProps) => {
       </ToggleGroupItem>
       <ToggleGroupItem
         value="grid"
-        aria-label="Grid view"
+        aria-label="Raster-Perspektive"
         className={cn(
           "h-7 w-7 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm"
         )}
@@ -73,7 +73,7 @@ export const ViewSelector = ({ value, onChange }: ViewSelectorProps) => {
       </ToggleGroupItem>
       <ToggleGroupItem
         value="list"
-        aria-label="List view"
+        aria-label="Listen-Perspektive"
         className={cn(
           "h-7 w-7 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm"
         )}
@@ -97,9 +97,10 @@ export const ViewSelector = ({ value, onChange }: ViewSelectorProps) => {
           }}
         >
           <p className="text-sm">
-            <strong>Graph View</strong> is the default — it shows how your
-            objects connect across views. If you prefer a traditional layout,
-            switch to Grid or List view anytime.
+            <strong>Graph-Perspektive</strong> ist der Standard — sie zeigt, wie
+            deine Objekte über Perspektiven hinweg verbunden sind. Wenn du ein
+            klassisches Layout bevorzugst, wechsle jederzeit zur Raster- oder
+            Listen-Perspektive.
           </p>
         </TooltipContent>
       </Tooltip>

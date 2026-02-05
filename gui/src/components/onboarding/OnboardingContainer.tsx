@@ -241,7 +241,7 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
                 type="number"
                 min="1"
                 max="5"
-                placeholder="Step"
+                placeholder="Schritt"
                 value={devStepInput}
                 onChange={(e) => setDevStepInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -257,7 +257,7 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
                 onClick={handleDevStepJump}
                 className="h-7 text-xs"
               >
-                Go
+                Los
               </Button>
             </div>
           )}

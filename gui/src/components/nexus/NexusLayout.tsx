@@ -104,8 +104,8 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
 
   const handleObjectOpen = useCallback((object: ObjectInfo) => {
     openObject(object.id)
-      .then(() => toast.success(`Opened ${object.name}`))
-      .catch((err) => toast.error(err?.message || "Failed to open file"));
+      .then(() => toast.success(`${object.name} geöffnet`))
+      .catch((err) => toast.error(err?.message || "Datei konnte nicht geöffnet werden"));
   }, []);
 
   const handleRequestAddTag = useCallback((object: ObjectInfo) => {
@@ -133,9 +133,9 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
               : obj
           )
         );
-        toast.success("Tag added");
+        toast.success("Eigenschaft hinzugefügt");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to add tag");
+        toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht hinzugefügt werden");
       }
     },
     [tagTargetId]
@@ -157,9 +157,9 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
             : obj
         )
       );
-      toast.success("Tag removed");
+      toast.success("Eigenschaft entfernt");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove tag");
+      toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht entfernt werden");
     }
   }, []);
 
@@ -173,9 +173,9 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
             : obj
         )
       );
-      toast.success("Trust score updated");
+      toast.success("Sicherheitsgrad aktualisiert");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update trust");
+      toast.error(err instanceof Error ? err.message : "Sicherheitsgrad konnte nicht aktualisiert werden");
     }
   }, []);
 

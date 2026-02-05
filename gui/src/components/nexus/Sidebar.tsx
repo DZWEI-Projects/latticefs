@@ -96,12 +96,12 @@ export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: Sideb
                 !builtinOpen && "-rotate-90"
               )}
             />
-            Views
+            Perspektiven
           </CollapsibleTrigger>
           <CollapsibleContent className="px-2 space-y-0.5">
             {isLoading ? (
               <div className="px-3 py-2 text-sm text-muted-foreground">
-                Loading...
+                Lädt...
               </div>
             ) : (
               builtinViews.map((view) => (
@@ -126,7 +126,7 @@ export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: Sideb
                   !dynamicOpen && "-rotate-90"
                 )}
               />
-              Custom Views
+              Eigene Perspektiven
             </CollapsibleTrigger>
             <CollapsibleContent className="px-2 space-y-0.5">
               {dynamicViews.map((view) => (
@@ -151,7 +151,7 @@ export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: Sideb
           onClick={() => setNewViewDialogOpen(true)}
         >
           <Plus className="w-4 h-4" />
-          <span className="text-sm">New View</span>
+          <span className="text-sm">Neue Perspektive</span>
         </Button>
         <Button
           variant="ghost"

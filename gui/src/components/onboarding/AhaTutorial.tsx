@@ -284,7 +284,7 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
                   <div className="flex items-center gap-2.5 text-xs">
                     <Download className="w-4 h-4 text-warning" />
                     <span className="text-muted-foreground">
-                      Tag: <span className="text-warning">inbox:downloads</span>
+                      Eigenschaft: <span className="text-warning">inbox:downloads</span>
                     </span>
                   </div>
                   <div className="flex items-center gap-2.5 text-xs">

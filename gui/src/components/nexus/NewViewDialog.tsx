@@ -35,7 +35,7 @@ export const NewViewDialog = ({
 
   const handleCreate = async () => {
     if (!name.trim() || !query.trim()) {
-      setError("Name and query are required");
+      setError("Name und Filtersyntax sind erforderlich");
       return;
     }
 
@@ -79,10 +79,11 @@ export const NewViewDialog = ({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Create New View</DialogTitle>
+          <DialogTitle>Neue Perspektive erstellen</DialogTitle>
           <DialogDescription>
-            Views are saved queries that organize your objects. Use LQL syntax
-            to define what objects appear in this view.
+            Perspektiven sind gespeicherte Filterausdrücke, die deine Objekte
+            organisieren. Nutze die LQL-Filtersyntax, um festzulegen, welche
+            Objekte in dieser Perspektive erscheinen.
           </DialogDescription>
         </DialogHeader>
 
@@ -91,7 +92,7 @@ export const NewViewDialog = ({
             <Label htmlFor="name">Name</Label>
             <Input
               id="name"
-              placeholder="My Custom View"
+              placeholder="Meine eigene Perspektive"
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={isCreating}
@@ -99,10 +100,10 @@ export const NewViewDialog = ({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="query">Query (LQL)</Label>
+            <Label htmlFor="query">Filtersyntax (LQL)</Label>
             <Textarea
               id="query"
-              placeholder="tag:project AND updated within 30d"
+              placeholder="tag:projekt AND updated within 30d"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               disabled={isCreating}
@@ -110,16 +111,16 @@ export const NewViewDialog = ({
               rows={3}
             />
             <p className="text-xs text-muted-foreground">
-              Examples: <code>tag:work</code>, <code>type:pdf</code>,{" "}
+              Beispiele: <code>tag:arbeit</code>, <code>type:pdf</code>,{" "}
               <code>updated within 7d</code>
             </p>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="description">Description (optional)</Label>
+            <Label htmlFor="description">Beschreibung (optional)</Label>
             <Input
               id="description"
-              placeholder="Files related to..."
+              placeholder="Dateien zu..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={isCreating}
@@ -135,11 +136,11 @@ export const NewViewDialog = ({
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={isCreating}>
-            Cancel
+            Abbrechen
           </Button>
           <Button onClick={handleCreate} disabled={isCreating || !name || !query}>
             {isCreating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Create View
+            Perspektive erstellen
           </Button>
         </DialogFooter>
       </DialogContent>

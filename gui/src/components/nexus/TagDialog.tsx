@@ -37,26 +37,26 @@ export const TagDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[360px]">
         <DialogHeader>
-          <DialogTitle>Add tag</DialogTitle>
+          <DialogTitle>Eigenschaft hinzufügen</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <Input
-            placeholder="Key (e.g. project)"
+            placeholder="Gruppe (z. B. Projekt)"
             value={key}
             onChange={(e) => setKey(e.target.value)}
           />
           <Input
-            placeholder="Value (e.g. phoenix)"
+            placeholder="Wert (z. B. Phoenix)"
             value={value}
             onChange={(e) => setValue(e.target.value)}
           />
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            Abbrechen
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
-            Add tag
+            Hinzufügen
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -330,7 +330,7 @@ export const pickFiles = async (): Promise<string[] | null> => {
     const selected = await open({
       multiple: true,
       directory: false,
-      title: "Select files to import",
+      title: "Dateien zum Import auswählen",
     });
     if (!selected) return null;
     return Array.isArray(selected) ? selected : [selected];
@@ -344,7 +344,7 @@ export const pickFolders = async (): Promise<string[] | null> => {
     const selected = await open({
       multiple: true,
       directory: true,
-      title: "Select folders to import",
+      title: "Ordner zum Import auswählen",
     });
     if (!selected) return null;
     return Array.isArray(selected) ? selected : [selected];

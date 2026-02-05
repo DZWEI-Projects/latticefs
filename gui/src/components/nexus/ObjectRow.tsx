@@ -79,9 +79,9 @@ function formatDate(timestamp: number): string {
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
   
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays === 0) return "Heute";
+  if (diffDays === 1) return "Gestern";
+  if (diffDays < 7) return `vor ${diffDays} Tagen`;
   
   return date.toLocaleDateString(undefined, {
     month: "short",
@@ -161,7 +161,7 @@ export const ObjectRow = ({
       </div>
 
       {/* Trust */}
-      <div className={cn("w-16 text-right text-xs tabular-nums", getTrustColor(object.trustLevel))}>
+      <div className={cn("w-24 text-right text-xs tabular-nums", getTrustColor(object.trustLevel))}>
         {object.trustLevel !== null && object.trustLevel !== undefined
           ? `${object.trustLevel}%`
           : "—"}

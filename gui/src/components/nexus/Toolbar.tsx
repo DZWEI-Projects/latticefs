@@ -76,11 +76,11 @@ export const Toolbar = ({
       {/* Current view name */}
       <div className="flex items-center gap-2 min-w-0">
         <h1 className="text-sm font-semibold truncate">
-          {currentView?.name || "All Objects"}
+          {currentView?.name || "Alle Objekte"}
         </h1>
         {currentView && (
           <span className="text-xs text-muted-foreground">
-            {currentView.objectCount} objects
+            {currentView.objectCount} {currentView.objectCount === 1 ? "Objekt" : "Objekte"}
           </span>
         )}
       </div>
@@ -93,7 +93,7 @@ export const Toolbar = ({
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           type="text"
-          placeholder="Search objects..."
+          placeholder="Objekte suchen..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="h-8 pl-8 text-sm bg-muted/30 border-transparent focus:border-primary/50"
@@ -111,7 +111,7 @@ export const Toolbar = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+          <DropdownMenuLabel>Sortieren nach</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={sort.field}
             onValueChange={(value) => handleSortFieldChange(value as SortField)}
@@ -119,11 +119,11 @@ export const Toolbar = ({
             {(
               [
                 { label: "Name", value: "name" },
-                { label: "Type", value: "extension" },
-                { label: "Size", value: "sizeBytes" },
-                { label: "Modified", value: "modifiedAt" },
-                { label: "Created", value: "createdAt" },
-                { label: "Trust", value: "trustLevel" },
+                { label: "Typ", value: "extension" },
+                { label: "Größe", value: "sizeBytes" },
+                { label: "Geändert", value: "modifiedAt" },
+                { label: "Erstellt", value: "createdAt" },
+                { label: "Sicherheitsgrad", value: "trustLevel" },
               ] as Array<{ label: string; value: SortField }>
             ).map((option) => (
               <DropdownMenuRadioItem key={option.value} value={option.value}>
@@ -141,7 +141,7 @@ export const Toolbar = ({
             }
           >
             <SortIcon className="w-4 h-4 mr-2" />
-            Toggle direction
+            Sortierreihenfolge umkehren
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -157,7 +157,7 @@ export const Toolbar = ({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                File type
+                Dateityp
               </Label>
               <Select
                 value={filters.type}
@@ -166,24 +166,24 @@ export const Toolbar = ({
                 }
               >
                 <SelectTrigger className="h-8">
-                  <SelectValue placeholder="All types" />
+                  <SelectValue placeholder="Alle Typen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  <SelectItem value="document">Documents</SelectItem>
-                  <SelectItem value="image">Images</SelectItem>
+                  <SelectItem value="all">Alle Typen</SelectItem>
+                  <SelectItem value="document">Dokumente</SelectItem>
+                  <SelectItem value="image">Bilder</SelectItem>
                   <SelectItem value="video">Videos</SelectItem>
                   <SelectItem value="audio">Audio</SelectItem>
                   <SelectItem value="code">Code</SelectItem>
-                  <SelectItem value="archive">Archives</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="archive">Archive</SelectItem>
+                  <SelectItem value="other">Andere</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                Minimum trust
+                Mindest-Sicherheitsgrad
               </Label>
               <Slider
                 value={[filters.trustMin ?? 0]}
@@ -195,7 +195,7 @@ export const Toolbar = ({
                 }
               />
               <div className="text-xs text-muted-foreground">
-                {filters.trustMin === null ? "Any score" : `${filters.trustMin}% or higher`}
+                {filters.trustMin === null ? "Beliebig" : `${filters.trustMin}% oder höher`}
               </div>
               <Button
                 variant="ghost"
@@ -203,16 +203,16 @@ export const Toolbar = ({
                 className="h-7 text-xs"
                 onClick={() => onFiltersChange({ ...filters, trustMin: null })}
               >
-                Clear trust filter
+                Sicherheitsfilter zurücksetzen
               </Button>
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                Tag contains
+                Eigenschaft enthält
               </Label>
               <Input
-                placeholder="Search tags..."
+                placeholder="Eigenschaften suchen..."
                 value={filters.tag}
                 onChange={(e) =>
                   onFiltersChange({ ...filters, tag: e.target.value })
@@ -223,7 +223,7 @@ export const Toolbar = ({
 
             <div className="flex items-center justify-between">
               <Label htmlFor="only-tagged" className="text-sm">
-                Only tagged objects
+                Nur Objekte mit Eigenschaften
               </Label>
               <Switch
                 id="only-tagged"
@@ -247,11 +247,11 @@ export const Toolbar = ({
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
             <Import className="w-4 h-4 mr-2" />
-            Import Files
+            Dateien importieren
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>Export View</DropdownMenuItem>
-          <DropdownMenuItem>Share View</DropdownMenuItem>
+          <DropdownMenuItem>Perspektive exportieren</DropdownMenuItem>
+          <DropdownMenuItem>Perspektive teilen</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
