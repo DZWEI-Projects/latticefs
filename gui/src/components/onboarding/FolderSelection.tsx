@@ -15,12 +15,15 @@ import {
 } from "lucide-react";
 import {
   createSampleFiles,
+  documentDir,
+  downloadDir,
+  homeDir,
   importPaths,
-  isTauriApp,
+  joinPath,
   onImportProgress,
+  pictureDir,
   type ImportSummary,
 } from "@/lib/lfs";
-import { documentDir, downloadDir, homeDir, join, pictureDir } from "@tauri-apps/api/path";
 
 interface FolderSelectionProps {
   onNext: () => void;
@@ -67,7 +70,7 @@ const folderOptions: FolderOption[] = [
     defaultSelected: false,
     resolvePath: async () => {
       const home = await homeDir();
-      return home ? join(home, "Projects") : null;
+      return home ? joinPath(home, "Projects") : null;
     },
     tags: ["source:projects"],
   },
@@ -148,10 +151,6 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
   };
 
   const handleScan = async () => {
-    if (!isTauriApp()) {
-      setImportError("Die Desktop-App ist erforderlich, um Dateien zu importieren.");
-      return;
-    }
     if (selectedFolders.size === 0) return;
     setIsScanning(true);
     setImportError(null);
@@ -197,10 +196,6 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
   };
 
   const handleCreateSamples = async () => {
-    if (!isTauriApp()) {
-      setImportError("Die Desktop-App ist erforderlich, um Beispieldateien zu erstellen.");
-      return;
-    }
     setIsCreatingSamples(true);
     setImportError(null);
     try {
@@ -218,41 +213,41 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
 
   if (isScanning || importSummary) {
     return (
-      <div className="relative flex flex-col items-center justify-center min-h-screen px-6">
-        <ParticleBackground particleCount={40} />
+      <div className="relative flex flex-col items-center justify-center min-h-screen px-5">
+        <ParticleBackground particleCount={35} />
 
-        <div className="relative z-10 flex flex-col items-center max-w-md text-center">
+        <div className="relative z-10 flex flex-col items-center max-w-sm text-center">
           {/* Scanning animation */}
-          <div className="relative mb-8">
+          <div className="relative mb-6">
             <div
-              className="w-32 h-32 rounded-full border-4 border-primary/20 flex items-center justify-center"
+              className="w-24 h-24 rounded-full border-4 border-primary/20 flex items-center justify-center"
               style={{
                 background: `conic-gradient(hsl(var(--primary)) ${scanProgress * 3.6}deg, transparent 0deg)`,
               }}
             >
-              <div className="w-28 h-28 rounded-full bg-background flex items-center justify-center">
-                <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              <div className="w-20 h-20 rounded-full bg-background flex items-center justify-center">
+                <Loader2 className="w-9 h-9 text-primary animate-spin" />
               </div>
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold tracking-tight mb-2">
+          <h2 className="text-xl font-bold tracking-tight mb-2">
             Analysiere deine Dateien
           </h2>
-          <p className="text-muted-foreground mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Scanne: {currentScanFolder}
           </p>
-          <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+          <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full bg-primary transition-all duration-300 ease-out"
               style={{ width: `${scanProgress}%` }}
             />
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             {Math.round(scanProgress)}%
           </p>
           {importSummary && (
-            <div className="mt-6 text-sm text-muted-foreground space-y-2">
+            <div className="mt-5 text-sm text-muted-foreground space-y-2">
               <p>
                 Importiert: <span className="text-foreground">{importSummary.imported}</span>
               </p>
@@ -260,7 +255,7 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
                 Fehler: <span className="text-foreground">{importSummary.failed}</span>
               </p>
               {importSummary.failed > 0 && (
-                <div className="text-left max-h-32 overflow-y-auto rounded-md border border-muted/40 bg-muted/20 p-3">
+                <div className="text-left max-h-28 overflow-y-auto rounded-md border border-muted/40 bg-muted/20 p-3">
                   <ul className="list-disc list-inside space-y-1">
                     {importSummary.errors.map((error) => (
                       <li key={error}>{error}</li>
@@ -269,7 +264,7 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
                 </div>
               )}
               {importSummary.failed > 0 && (
-                <AnimatedButton onClick={onNext} size="md">
+                <AnimatedButton onClick={onNext} size="sm">
                   Weiter
                 </AnimatedButton>
               )}
@@ -281,25 +276,25 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
   }
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen px-6">
-      <ParticleBackground particleCount={40} />
+    <div className="relative flex flex-col items-center justify-center min-h-screen px-5">
+      <ParticleBackground particleCount={35} />
 
-      <div className="relative z-10 flex flex-col items-center max-w-lg w-full">
+      <div className="relative z-10 flex flex-col items-center max-w-md w-full">
         {/* Header */}
         <div
-          className="text-center mb-10 opacity-0 animate-fade-up"
+          className="text-center mb-6 opacity-0 animate-fade-up"
           style={{ animationFillMode: "forwards" }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tighter mb-3">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tighter mb-2">
             Was soll NeuralFS über dich lernen?
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Wähle die Ordner aus, die du einbinden möchtest.
           </p>
         </div>
 
         {/* Folder grid */}
-        <div className="grid grid-cols-2 gap-4 w-full mb-6">
+        <div className="grid grid-cols-2 gap-3 w-full mb-4">
           {availableFolders.map((folder, index) => (
             <GlassCard
               key={folder.id}
@@ -317,13 +312,13 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
                 <div className="flex items-center gap-3">
                   <div
                     className={cn(
-                      "p-2 rounded-lg transition-colors duration-300",
+                      "p-1.5 rounded-lg transition-colors duration-300",
                       selectedFolders.has(folder.id) ? "bg-primary/20" : "bg-muted"
                     )}
                   >
                     <folder.icon
                       className={cn(
-                        "w-5 h-5 transition-colors duration-300",
+                        "w-4 h-4 transition-colors duration-300",
                         selectedFolders.has(folder.id) ? "text-primary" : "text-muted-foreground"
                       )}
                     />
@@ -345,40 +340,40 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
             className="cursor-pointer col-span-2 opacity-70 hover:opacity-100"
           >
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-muted">
-                <FolderPlus className="w-5 h-5 text-muted-foreground" />
+              <div className="p-1.5 rounded-lg bg-muted">
+                <FolderPlus className="w-4 h-4 text-muted-foreground" />
               </div>
               <span className="text-muted-foreground">Weitere Ordner auswählen...</span>
             </div>
           </GlassCard>
         </div>
 
-        <div className="flex flex-col items-center gap-3 mb-6">
+        <div className="flex flex-col items-center gap-2.5 mb-5">
           <AnimatedButton
             onClick={handleCreateSamples}
             variant="secondary"
-            size="md"
+            size="sm"
             showArrow={false}
-            disabled={isCreatingSamples || !isTauriApp()}
+            disabled={isCreatingSamples}
           >
             <Plus className="w-4 h-4" />
             {isCreatingSamples ? "Erstelle Dateien..." : "Beispieldateien erstellen"}
           </AnimatedButton>
           {sampleRoot && (
-            <p className="text-xs text-muted-foreground text-center">
+            <p className="text-[11px] text-muted-foreground text-center">
               Beispielordner: {sampleRoot}
             </p>
           )}
           {sampleFiles.length > 0 && (
-            <p className="text-xs text-muted-foreground text-center">
+            <p className="text-[11px] text-muted-foreground text-center">
               {sampleFiles.length} Dateien bereit für den Import.
             </p>
           )}
           {importError && (
-            <p className="text-xs text-warning text-center">{importError}</p>
+            <p className="text-[11px] text-warning text-center">{importError}</p>
           )}
           {isResolvingPaths && (
-            <p className="text-xs text-muted-foreground text-center">
+            <p className="text-[11px] text-muted-foreground text-center">
               Ordnerpfade werden geladen...
             </p>
           )}
@@ -386,7 +381,7 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
 
         {/* Reassurance text */}
         <p
-          className="text-sm text-muted-foreground/70 text-center mb-8 opacity-0 animate-fade-up"
+          className="text-xs text-muted-foreground/70 text-center mb-6 opacity-0 animate-fade-up"
           style={{ animationDelay: "700ms", animationFillMode: "forwards" }}
         >
           Keine Sorge — nichts wird geändert oder verschoben.
@@ -399,7 +394,8 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
         >
           <AnimatedButton
             onClick={handleScan}
-            disabled={selectedFolders.size === 0 || isResolvingPaths || !isTauriApp()}
+            disabled={selectedFolders.size === 0 || isResolvingPaths}
+            size="md"
           >
             Ausgewählte Ordner scannen
           </AnimatedButton>

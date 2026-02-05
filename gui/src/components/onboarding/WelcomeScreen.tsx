@@ -5,7 +5,7 @@ import { ParticleBackground } from "./ui/ParticleBackground";
 import { Search, Clock, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { initRepo, isTauriApp } from "@/lib/lfs";
+import { initRepo } from "@/lib/lfs";
 
 interface WelcomeScreenProps {
   onNext: () => void;
@@ -35,10 +35,6 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
   const [error, setError] = useState<string | null>(null);
 
   const handleCreateLattice = async () => {
-    if (!isTauriApp()) {
-      setError("Die Desktop-App ist erforderlich, um dein Lattice zu initialisieren.");
-      return;
-    }
     setError(null);
     setIsInitializing(true);
     try {
@@ -55,11 +51,11 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
 
   return (
     <div className={cn(
-      "relative flex flex-col items-center justify-center min-h-screen px-6",
+      "relative flex flex-col items-center justify-center min-h-screen px-5",
       "transition-all duration-1000 ease-out-expo",
       isTransitioning && "scale-95 opacity-0"
     )}>
-      <ParticleBackground particleCount={60} />
+      <ParticleBackground particleCount={45} />
       
       {/* Lattice expansion animation overlay */}
       {isTransitioning && (
@@ -73,21 +69,21 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
         </div>
       )}
       
-      <div className="relative z-10 flex flex-col items-center max-w-xl">
+      <div className="relative z-10 flex flex-col items-center max-w-lg">
         {/* Logo */}
-        <div className="mb-16">
+        <div className="mb-10">
           <Logo animate />
         </div>
         
         {/* Welcome text */}
         <div 
-          className="text-center mb-12 opacity-0 animate-fade-up"
+          className="text-center mb-8 opacity-0 animate-fade-up"
           style={{ animationDelay: "600ms", animationFillMode: "forwards" }}
         >
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tighter mb-4 text-foreground">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tighter mb-3 text-foreground">
             Willkommen bei NeuralFS
           </h1>
-          <p className="text-lg text-muted-foreground max-w-md mx-auto leading-relaxed">
+          <p className="text-base text-muted-foreground max-w-sm mx-auto leading-relaxed">
             Deine Dateien leben nicht mehr in Ordnern.
             <br />
             Sie leben in Bedeutung, Zeit und Beziehungen.
@@ -95,15 +91,15 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
         </div>
         
         {/* Philosophy cards */}
-        <div className="grid gap-4 w-full mb-12">
+        <div className="grid gap-3 w-full mb-8">
           {philosophyCards.map((card, index) => (
             <GlassCard
               key={card.title}
               delay={800 + index * 200}
-              className="flex items-start gap-4"
+              className="flex items-start gap-3"
             >
-              <div className="flex-shrink-0 p-3 rounded-xl bg-primary/10">
-                <card.icon className="w-6 h-6 text-primary" />
+              <div className="flex-shrink-0 p-2.5 rounded-lg bg-primary/10">
+                <card.icon className="w-5 h-5 text-primary" />
               </div>
               <div>
                 <h3 className="font-semibold text-foreground mb-1">
@@ -122,7 +118,7 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
           className="opacity-0 animate-fade-up"
           style={{ animationDelay: "1400ms", animationFillMode: "forwards" }}
         >
-          <AnimatedButton onClick={handleCreateLattice} disabled={isInitializing}>
+          <AnimatedButton onClick={handleCreateLattice} disabled={isInitializing} size="md">
             {isInitializing ? "Initialisiere..." : "Create My Lattice"}
           </AnimatedButton>
         </div>
