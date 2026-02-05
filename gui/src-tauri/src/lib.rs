@@ -8,6 +8,11 @@ pub fn run() {
       crate::commands::import_paths,
       crate::commands::create_sample_files,
       crate::commands::get_onboarding_graph,
+      crate::commands::list_views,
+      crate::commands::get_view_objects,
+      crate::commands::evaluate_query,
+      crate::commands::create_view,
+      crate::commands::delete_view,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

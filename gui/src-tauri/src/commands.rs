@@ -9,7 +9,7 @@ use latticefs_base::query::{parse, QueryEvaluator};
 use latticefs_base::views::{BuiltinView, BuiltinViews};
 use latticefs_base::LatticeRepo;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
 
@@ -314,4 +314,272 @@ pub fn get_onboarding_graph() -> Result<OnboardingGraphData, String> {
     files.truncate(MAX_FILES);
 
     Ok(OnboardingGraphData { files })
+}
+
+// ============================================================================
+// Nexus / Hub View Commands
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TagInfo {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ViewInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub query: String,
+    pub view_type: String, // "builtin" | "dynamic"
+    pub icon: Option<String>,
+    pub object_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ObjectInfo {
+    pub id: String,
+    pub name: String,
+    pub extension: Option<String>,
+    pub object_type: String,
+    pub size_bytes: u64,
+    pub created_at: i64,
+    pub modified_at: i64,
+    pub tags: Vec<TagInfo>,
+    pub views: Vec<String>,
+    pub trust_level: Option<u8>,
+}
+
+fn builtin_view_icon(view: BuiltinView) -> Option<String> {
+    match view {
+        BuiltinView::Recent => Some("Clock".to_string()),
+        BuiltinView::Projects => Some("Folder".to_string()),
+        BuiltinView::Drafts => Some("FileEdit".to_string()),
+        BuiltinView::Review => Some("Eye".to_string()),
+        BuiltinView::Approved => Some("CheckCircle".to_string()),
+        BuiltinView::All => Some("Grid".to_string()),
+    }
+}
+
+fn object_to_info(
+    repo: &LatticeRepo,
+    object_id: &ObjectID,
+    view_memberships: Option<&Vec<String>>,
+) -> Option<ObjectInfo> {
+    let object = repo.metadata.load_object(object_id).ok()?;
+    let name = display_name(&object.tags, object_id);
+    let extension = file_extension(&name);
+
+    // Load current version for size info
+    let version = repo.metadata.load_version(&object.current_version).ok();
+    let size_bytes = version.as_ref().map(|v| v.size_bytes).unwrap_or(0);
+    let modified_at = version.as_ref().map(|v| v.created_at).unwrap_or(object.created_at);
+
+    // Get trust level from tags
+    let trust_level = object
+        .tags
+        .iter()
+        .find(|t| t.key == "trust")
+        .and_then(|t| t.value.parse::<u8>().ok());
+
+    // Convert tags
+    let tags: Vec<TagInfo> = object
+        .tags
+        .iter()
+        .filter(|t| !t.key.starts_with("auto:") && !t.key.starts_with("system:"))
+        .map(|t| TagInfo {
+            key: t.key.clone(),
+            value: t.value.clone(),
+        })
+        .collect();
+
+    let object_type = match object.object_type {
+        latticefs_base::model::ObjectType::Blob => "blob",
+        latticefs_base::model::ObjectType::Tree => "tree",
+        latticefs_base::model::ObjectType::Commit => "commit",
+    };
+
+    Some(ObjectInfo {
+        id: object_id.to_string(),
+        name,
+        extension,
+        object_type: object_type.to_string(),
+        size_bytes,
+        created_at: object.created_at,
+        modified_at,
+        tags,
+        views: view_memberships.cloned().unwrap_or_default(),
+        trust_level,
+    })
+}
+
+#[tauri::command]
+pub fn list_views() -> Result<Vec<ViewInfo>, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let builtin = BuiltinViews::new(&repo.metadata);
+
+    let mut views = Vec::new();
+
+    // Add built-in views
+    for bv in BuiltinView::all() {
+        let count = builtin.count(*bv).unwrap_or(0);
+        views.push(ViewInfo {
+            id: bv.name().to_lowercase().replace(' ', "-"),
+            name: bv.name().to_string(),
+            description: bv.description().to_string(),
+            query: bv.query().to_string(),
+            view_type: "builtin".to_string(),
+            icon: builtin_view_icon(*bv),
+            object_count: count,
+        });
+    }
+
+    // Add dynamic views from metadata store
+    if let Ok(dynamic_views) = repo.metadata.list_views() {
+        for view in dynamic_views {
+            // Count objects for this view
+            let count = eval_query(&repo, &view.query)
+                .map(|ids| ids.len())
+                .unwrap_or(0);
+            views.push(ViewInfo {
+                id: view.id.to_string(),
+                name: view.name.clone(),
+                description: view.description.clone().unwrap_or_default(),
+                query: view.query.clone(),
+                view_type: "dynamic".to_string(),
+                icon: None,
+                object_count: count,
+            });
+        }
+    }
+
+    Ok(views)
+}
+
+#[tauri::command]
+pub fn get_view_objects(view_id: String) -> Result<Vec<ObjectInfo>, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+
+    // Try to find the view (builtin or dynamic)
+    let query = if let Some(bv) = BuiltinView::by_name(&view_id) {
+        bv.query().to_string()
+    } else if let Ok(view) = repo.metadata.load_view(&view_id) {
+        view.query.clone()
+    } else {
+        return Err(format!("View not found: {}", view_id));
+    };
+
+    let object_ids = eval_query(&repo, &query)?;
+
+    // Build view memberships for each object
+    let builtin = BuiltinViews::new(&repo.metadata);
+    let mut view_memberships: HashMap<ObjectID, Vec<String>> = HashMap::new();
+
+    // Check which builtin views each object belongs to
+    for bv in BuiltinView::all() {
+        if let Ok(bv_ids) = builtin.evaluate(*bv) {
+            let bv_set: HashSet<ObjectID> = bv_ids.into_iter().collect();
+            for oid in &object_ids {
+                if bv_set.contains(oid) {
+                    view_memberships
+                        .entry(*oid)
+                        .or_default()
+                        .push(bv.name().to_lowercase().replace(' ', "-"));
+                }
+            }
+        }
+    }
+
+    let objects: Vec<ObjectInfo> = object_ids
+        .iter()
+        .filter_map(|oid| object_to_info(&repo, oid, view_memberships.get(oid)))
+        .collect();
+
+    Ok(objects)
+}
+
+#[tauri::command]
+pub fn evaluate_query(query: String) -> Result<Vec<ObjectInfo>, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_ids = eval_query(&repo, &query)?;
+
+    let objects: Vec<ObjectInfo> = object_ids
+        .iter()
+        .filter_map(|oid| object_to_info(&repo, oid, None))
+        .collect();
+
+    Ok(objects)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateViewArgs {
+    pub name: String,
+    pub query: String,
+    pub description: Option<String>,
+}
+
+fn validate_view_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("View name cannot be empty".to_string());
+    }
+    if name.contains('/') || name.contains('\0') {
+        return Err("View name contains invalid characters".to_string());
+    }
+    // Check if it conflicts with a builtin view
+    if BuiltinView::by_name(name).is_some() {
+        return Err(format!("Cannot use reserved name: {}", name));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
+    validate_view_name(&args.name)?;
+
+    // Validate the query syntax
+    parse(&args.query).map_err(|err| format!("Invalid query: {}", err))?;
+
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let identity = load_or_create_identity()?;
+    let actor = identity.public_bytes();
+
+    let mut view = latticefs_base::views::View::new(args.name.clone(), args.query.clone(), actor);
+    if let Some(desc) = args.description {
+        view = view.with_description(desc);
+    }
+
+    repo.metadata
+        .store_view(&view)
+        .map_err(|err| err.to_string())?;
+
+    // Return the created view info
+    let count = eval_query(&repo, &args.query)
+        .map(|ids| ids.len())
+        .unwrap_or(0);
+
+    Ok(ViewInfo {
+        id: view.id.to_string(),
+        name: view.name,
+        description: view.description.unwrap_or_default(),
+        query: view.query,
+        view_type: "dynamic".to_string(),
+        icon: None,
+        object_count: count,
+    })
+}
+
+#[tauri::command]
+pub fn delete_view(name: String) -> Result<(), String> {
+    // Cannot delete builtin views
+    if BuiltinView::by_name(&name).is_some() {
+        return Err("Cannot delete built-in views".to_string());
+    }
+
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    repo.metadata
+        .delete_view(&name)
+        .map_err(|err| err.to_string())?;
+
+    Ok(())
 }

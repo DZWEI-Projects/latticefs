@@ -54,7 +54,7 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
     if (isExiting) {
       // Wait a bit to not have it jump too hard
       const timer = setTimeout(() => {
-        navigate("/home");
+        navigate("/nexus");
       }, 1995);
       return () => clearTimeout(timer);
     }

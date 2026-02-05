@@ -41,6 +41,36 @@ export interface OnboardingGraphData {
   files: OnboardingFile[];
 }
 
+// --- Nexus / Hub View Types ---
+
+export interface TagInfo {
+  key: string;
+  value: string;
+}
+
+export interface ViewInfo {
+  id: string;
+  name: string;
+  description: string;
+  query: string;
+  viewType: "builtin" | "dynamic";
+  icon?: string | null;
+  objectCount: number;
+}
+
+export interface ObjectInfo {
+  id: string;
+  name: string;
+  extension?: string | null;
+  objectType: "blob" | "tree" | "commit";
+  sizeBytes: number;
+  createdAt: number;
+  modifiedAt: number;
+  tags: TagInfo[];
+  views: string[];
+  trustLevel?: number | null;
+}
+
 export const isTauriApp = () =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -110,4 +140,169 @@ export const pictureDir = async (): Promise<string> => {
 export const joinPath = async (...paths: string[]): Promise<string> => {
   if (isTauriApp()) return tauriPath.join(...paths);
   return (await getMocks()).mockJoin(...paths);
+};
+
+// --- Nexus / Hub View Operations ---
+
+export const listViews = async (): Promise<ViewInfo[]> => {
+  if (isTauriApp()) {
+    const views = await invoke<
+      Array<{
+        id: string;
+        name: string;
+        description: string;
+        query: string;
+        view_type: string;
+        icon: string | null;
+        object_count: number;
+      }>
+    >("list_views");
+    // Transform snake_case to camelCase
+    return views.map((v) => ({
+      id: v.id,
+      name: v.name,
+      description: v.description,
+      query: v.query,
+      viewType: v.view_type as "builtin" | "dynamic",
+      icon: v.icon,
+      objectCount: v.object_count,
+    }));
+  }
+  return (await getMocks()).mockListViews();
+};
+
+export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
+  if (isTauriApp()) {
+    const objects = await invoke<
+      Array<{
+        id: string;
+        name: string;
+        extension: string | null;
+        object_type: string;
+        size_bytes: number;
+        created_at: number;
+        modified_at: number;
+        tags: Array<{ key: string; value: string }>;
+        views: string[];
+        trust_level: number | null;
+      }>
+    >("get_view_objects", { viewId });
+    // Transform snake_case to camelCase
+    return objects.map((o) => ({
+      id: o.id,
+      name: o.name,
+      extension: o.extension,
+      objectType: o.object_type as "blob" | "tree" | "commit",
+      sizeBytes: o.size_bytes,
+      createdAt: o.created_at,
+      modifiedAt: o.modified_at,
+      tags: o.tags,
+      views: o.views,
+      trustLevel: o.trust_level,
+    }));
+  }
+  return (await getMocks()).mockGetViewObjects(viewId);
+};
+
+export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {
+  if (isTauriApp()) {
+    const objects = await invoke<
+      Array<{
+        id: string;
+        name: string;
+        extension: string | null;
+        object_type: string;
+        size_bytes: number;
+        created_at: number;
+        modified_at: number;
+        tags: Array<{ key: string; value: string }>;
+        views: string[];
+        trust_level: number | null;
+      }>
+    >("evaluate_query", { query });
+    // Transform snake_case to camelCase
+    return objects.map((o) => ({
+      id: o.id,
+      name: o.name,
+      extension: o.extension,
+      objectType: o.object_type as "blob" | "tree" | "commit",
+      sizeBytes: o.size_bytes,
+      createdAt: o.created_at,
+      modifiedAt: o.modified_at,
+      tags: o.tags,
+      views: o.views,
+      trustLevel: o.trust_level,
+    }));
+  }
+  return (await getMocks()).mockEvaluateQuery(query);
+};
+
+// --- View Management ---
+
+export interface CreateViewArgs {
+  name: string;
+  query: string;
+  description?: string;
+}
+
+export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
+  if (isTauriApp()) {
+    const view = await invoke<{
+      id: string;
+      name: string;
+      description: string;
+      query: string;
+      view_type: string;
+      icon: string | null;
+      object_count: number;
+    }>("create_view", { args });
+    return {
+      id: view.id,
+      name: view.name,
+      description: view.description,
+      query: view.query,
+      viewType: view.view_type as "builtin" | "dynamic",
+      icon: view.icon,
+      objectCount: view.object_count,
+    };
+  }
+  return (await getMocks()).mockCreateView(args);
+};
+
+export const deleteView = async (name: string): Promise<void> => {
+  if (isTauriApp()) {
+    await invoke("delete_view", { name });
+    return;
+  }
+  return (await getMocks()).mockDeleteView(name);
+};
+
+// --- File Picker ---
+
+export const pickFiles = async (): Promise<string[] | null> => {
+  if (isTauriApp()) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      multiple: true,
+      directory: false,
+      title: "Select files to import",
+    });
+    if (!selected) return null;
+    return Array.isArray(selected) ? selected : [selected];
+  }
+  return (await getMocks()).mockPickFiles();
+};
+
+export const pickFolders = async (): Promise<string[] | null> => {
+  if (isTauriApp()) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      multiple: true,
+      directory: true,
+      title: "Select folders to import",
+    });
+    if (!selected) return null;
+    return Array.isArray(selected) ? selected : [selected];
+  }
+  return (await getMocks()).mockPickFolders();
 };
