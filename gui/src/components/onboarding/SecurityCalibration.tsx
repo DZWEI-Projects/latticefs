@@ -137,12 +137,14 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
             >
               <div className="flex items-start gap-3">
                 <div className={cn(
-                  "flex-shrink-0 p-2 rounded-lg transition-colors duration-300",
-                  settings[option.id] ? "bg-primary/20" : "bg-muted"
+                  "flex-shrink-0 rounded-lg transition-all duration-300",
+                  settings[option.id] ? "bg-primary/20" : "bg-muted",
+                  settings[option.id] ? "p-2" : "p-1",
                 )}>
                   <option.icon className={cn(
-                    "w-4 h-4 transition-colors duration-300",
-                    settings[option.id] ? "text-primary" : "text-muted-foreground"
+                    "transition-all duration-300",
+                    settings[option.id] ? "text-primary" : "text-muted-foreground",
+                    settings[option.id] ? "w-4 h-4" : "w-3 h-3"
                   )} />
                 </div>
                 
