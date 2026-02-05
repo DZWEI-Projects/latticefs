@@ -18,7 +18,7 @@ import { Loader2 } from "lucide-react";
 interface NewViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onViewCreated?: (viewId: string) => void;
+  onViewCreated?: (viewName: string) => void;
 }
 
 export const NewViewDialog = ({
@@ -57,7 +57,7 @@ export const NewViewDialog = ({
       setQuery("");
       setDescription("");
       onOpenChange(false);
-      onViewCreated?.(view.id);
+      onViewCreated?.(view.name);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

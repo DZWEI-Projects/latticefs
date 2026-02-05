@@ -10,11 +10,11 @@ import type { ViewInfo, ObjectInfo } from "@/lib/lfs";
 export type ViewMode = "graph" | "grid" | "list";
 
 interface NexusLayoutProps {
-  currentViewId?: string;
-  onViewChange: (viewId: string) => void;
+  currentViewName?: string;
+  onViewChange: (viewName: string) => void;
 }
 
-export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) => {
+export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     // Check localStorage for saved preference, default to graph
     const saved = localStorage.getItem("nexus-view-mode");
@@ -66,7 +66,7 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
-          currentViewId={currentViewId}
+          currentViewName={currentViewName}
           onViewSelect={onViewChange}
         />
 
@@ -74,7 +74,7 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Toolbar */}
           <Toolbar
-            currentViewId={currentViewId}
+            currentViewName={currentViewName}
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
             searchQuery={searchQuery}
@@ -83,7 +83,7 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
 
           {/* Content */}
           <ContentArea
-            viewId={currentViewId}
+            viewName={currentViewName}
             viewMode={viewMode}
             selectedObjects={selectedObjects}
             onObjectSelect={handleObjectSelect}
@@ -93,7 +93,7 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
 
           {/* Status bar */}
           <StatusBar
-            viewId={currentViewId}
+            viewName={currentViewName}
             selectedCount={selectedObjects.length}
           />
         </div>

@@ -199,14 +199,14 @@ const mockObjectsData: ObjectInfo[] = [
   },
   {
     id: "obj-005",
-    name: "Meeting_Notes_Phoenix.md",
+    name: "Raccoon_Notes.md",
     extension: "md",
     objectType: "blob",
     sizeBytes: 15000,
     createdAt: Date.now() - 86400000 * 4,
     modifiedAt: Date.now() - 86400000 * 1,
     tags: [
-      { key: "project", value: "phoenix" },
+      { key: "project", value: "raccoon" },
       { key: "type", value: "notes" },
     ],
     views: ["recent", "projects", "drafts"],
@@ -214,7 +214,7 @@ const mockObjectsData: ObjectInfo[] = [
   },
   {
     id: "obj-006",
-    name: "Budget_2024.xlsx",
+    name: "Raccoon_Budget_2024.xlsx",
     extension: "xlsx",
     objectType: "blob",
     sizeBytes: 89000,
@@ -229,14 +229,14 @@ const mockObjectsData: ObjectInfo[] = [
   },
   {
     id: "obj-007",
-    name: "Präsentation_Q1.pptx",
+    name: "Raccoon_Presentation_Q1.pptx",
     extension: "pptx",
     objectType: "blob",
     sizeBytes: 12500000,
     createdAt: Date.now() - 86400000 * 6,
     modifiedAt: Date.now() - 86400000 * 1,
     tags: [
-      { key: "project", value: "phoenix" },
+      { key: "project", value: "raccoon" },
       { key: "type", value: "presentation" },
     ],
     views: ["recent", "projects"],
@@ -244,14 +244,14 @@ const mockObjectsData: ObjectInfo[] = [
   },
   {
     id: "obj-008",
-    name: "code_snippet.py",
+    name: "Raccoon_Code_Snippet.py",
     extension: "py",
     objectType: "blob",
     sizeBytes: 4500,
     createdAt: Date.now() - 86400000 * 2,
     modifiedAt: Date.now() - 86400000 * 1,
     tags: [
-      { key: "project", value: "phoenix" },
+      { key: "project", value: "raccoon" },
       { key: "type", value: "code" },
     ],
     views: ["recent", "projects", "drafts"],
@@ -318,12 +318,12 @@ export const mockListViews = async (): Promise<ViewInfo[]> => {
   return mockViewsData;
 };
 
-export const mockGetViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
+export const mockGetViewObjects = async (viewName: string): Promise<ObjectInfo[]> => {
   await delay(150);
-  if (viewId === "all-objects" || viewId === "all") {
+  if (viewName === "all-objects" || viewName === "all") {
     return mockObjectsData;
   }
-  return mockObjectsData.filter((obj) => obj.views.includes(viewId));
+  return mockObjectsData.filter((obj) => obj.views.includes(viewName));
 };
 
 export const mockEvaluateQuery = async (_query: string): Promise<ObjectInfo[]> => {

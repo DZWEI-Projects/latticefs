@@ -3,7 +3,7 @@ import { useViewObjects } from "@/hooks/useViewObjects";
 import { HardDrive, CheckCircle } from "lucide-react";
 
 interface StatusBarProps {
-  viewId?: string;
+  viewName?: string;
   selectedCount: number;
 }
 
@@ -15,8 +15,8 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-export const StatusBar = ({ viewId, selectedCount }: StatusBarProps) => {
-  const { data: objects } = useViewObjects(viewId || "all-objects");
+export const StatusBar = ({ viewName, selectedCount }: StatusBarProps) => {
+  const { data: objects } = useViewObjects(viewName || "all-objects");
 
   const objectCount = objects?.length || 0;
   const totalSize = objects?.reduce((acc, obj) => acc + obj.sizeBytes, 0) || 0;

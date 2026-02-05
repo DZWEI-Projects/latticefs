@@ -13,12 +13,12 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      <Sonner />
+      <Sonner richColors />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/nexus" element={<Nexus />} />
-          <Route path="/nexus/:viewId" element={<Nexus />} />
+          <Route path="/nexus/:viewName" element={<Nexus />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

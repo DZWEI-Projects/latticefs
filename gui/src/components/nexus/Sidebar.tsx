@@ -32,8 +32,8 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 interface SidebarProps {
-  currentViewId?: string;
-  onViewSelect: (viewId: string) => void;
+  currentViewName?: string;
+  onViewSelect: (viewName: string) => void;
 }
 
 interface ViewItemProps {
@@ -69,7 +69,7 @@ const ViewItem = ({ view, isActive, onClick }: ViewItemProps) => {
   );
 };
 
-export const Sidebar = ({ currentViewId, onViewSelect }: SidebarProps) => {
+export const Sidebar = ({ currentViewName, onViewSelect }: SidebarProps) => {
   const { data: views, isLoading } = useViews();
   const [builtinOpen, setBuiltinOpen] = useState(true);
   const [dynamicOpen, setDynamicOpen] = useState(true);
@@ -78,8 +78,8 @@ export const Sidebar = ({ currentViewId, onViewSelect }: SidebarProps) => {
   const builtinViews = views?.filter((v) => v.viewType === "builtin") || [];
   const dynamicViews = views?.filter((v) => v.viewType === "dynamic") || [];
 
-  const handleViewCreated = (viewId: string) => {
-    onViewSelect(viewId);
+  const handleViewCreated = (viewName: string) => {
+    onViewSelect(viewName);
     setDynamicOpen(true);
   };
 
@@ -107,8 +107,8 @@ export const Sidebar = ({ currentViewId, onViewSelect }: SidebarProps) => {
                 <ViewItem
                   key={view.id}
                   view={view}
-                  isActive={currentViewId === view.id}
-                  onClick={() => onViewSelect(view.id)}
+                  isActive={currentViewName === view.name}
+                  onClick={() => onViewSelect(view.name)}
                 />
               ))
             )}
@@ -128,12 +128,12 @@ export const Sidebar = ({ currentViewId, onViewSelect }: SidebarProps) => {
               Custom Views
             </CollapsibleTrigger>
             <CollapsibleContent className="px-2 space-y-0.5">
-              {dynamicViews.map((view) => (
+              {              dynamicViews.map((view) => (
                 <ViewItem
                   key={view.id}
                   view={view}
-                  isActive={currentViewId === view.id}
-                  onClick={() => onViewSelect(view.id)}
+                  isActive={currentViewName === view.name}
+                  onClick={() => onViewSelect(view.name)}
                 />
               ))}
             </CollapsibleContent>

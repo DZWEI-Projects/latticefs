@@ -1,14 +1,13 @@
-import { cn } from "@/lib/utils";
 import { useViewObjects } from "@/hooks/useViewObjects";
+import type { ObjectInfo } from "@/lib/lfs";
+import { FolderOpen, Loader2 } from "lucide-react";
 import { GraphView } from "./GraphView";
 import { GridView } from "./GridView";
 import { ListView } from "./ListView";
-import { Loader2, FolderOpen } from "lucide-react";
 import type { ViewMode } from "./NexusLayout";
-import type { ObjectInfo } from "@/lib/lfs";
 
 interface ContentAreaProps {
-  viewId?: string;
+  viewName?: string;
   viewMode: ViewMode;
   selectedObjects: string[];
   onObjectSelect: (objectId: string, multiSelect?: boolean) => void;
@@ -17,14 +16,14 @@ interface ContentAreaProps {
 }
 
 export const ContentArea = ({
-  viewId,
+  viewName,
   viewMode,
   selectedObjects,
   onObjectSelect,
   onObjectOpen,
   searchQuery,
 }: ContentAreaProps) => {
-  const { data: objects, isLoading, error } = useViewObjects(viewId || "all-objects");
+  const { data: objects, isLoading, error } = useViewObjects(viewName || "All");
 
   // Filter objects by search query
   const filteredObjects = objects?.filter((obj) => {
@@ -45,7 +44,7 @@ export const ContentArea = ({
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="w-8 h-8 animate-spin" />
-          <span className="text-sm">Loading objects...</span>
+          <span className="text-sm">Objekte werden geladen...</span>
         </div>
       </div>
     );
@@ -55,7 +54,7 @@ export const ContentArea = ({
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-destructive">
-          <span className="text-sm">Failed to load objects</span>
+          <span className="text-sm">Fehler beim Laden der Objekte</span>
           <span className="text-xs text-muted-foreground">{error.message}</span>
         </div>
       </div>
@@ -68,7 +67,7 @@ export const ContentArea = ({
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <FolderOpen className="w-12 h-12 opacity-40" />
           <span className="text-sm">
-            {searchQuery ? "No objects match your search" : "No objects in this view"}
+            {searchQuery ? "Keine Objekte passen zu deiner Suche" : "Keine Objekte in dieser Ansicht"}
           </span>
         </div>
       </div>

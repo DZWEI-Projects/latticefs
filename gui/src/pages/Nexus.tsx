@@ -3,18 +3,18 @@ import { useCallback, useEffect } from "react";
 import { NexusLayout } from "@/components/nexus/NexusLayout";
 
 const Nexus = () => {
-  const { viewId } = useParams<{ viewId?: string }>();
+  const { viewName } = useParams<{ viewName?: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   // Default to "recent" view if no view is specified
-  const currentViewId = viewId || "recent";
+  const currentViewName = viewName || "recent";
 
   const handleViewChange = useCallback(
-    (newViewId: string) => {
+    (newViewName: string) => {
       // Preserve any query params (like view mode)
       const params = searchParams.toString();
-      const url = `/nexus/${newViewId}${params ? `?${params}` : ""}`;
+      const url = `/nexus/${newViewName}${params ? `?${params}` : ""}`;
       navigate(url);
     },
     [navigate, searchParams]
@@ -22,14 +22,14 @@ const Nexus = () => {
 
   // Redirect to default view if on base /nexus path
   useEffect(() => {
-    if (!viewId) {
+    if (!viewName) {
       navigate("/nexus/recent", { replace: true });
     }
-  }, [viewId, navigate]);
+  }, [viewName, navigate]);
 
   return (
     <NexusLayout
-      currentViewId={currentViewId}
+      currentViewName={currentViewName}
       onViewChange={handleViewChange}
     />
   );

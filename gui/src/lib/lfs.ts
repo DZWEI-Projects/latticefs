@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as tauriPath from "@tauri-apps/api/path";
+import { toast } from "sonner";
 
 // Types
 export interface RepoInfo {
@@ -71,8 +72,9 @@ export interface ObjectInfo {
   trustLevel?: number | null;
 }
 
-export const isTauriApp = () =>
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+export const isTauriApp = () => {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+};
 
 // Lazy-load mocks only when needed (avoids bundling in production Tauri build)
 const getMocks = () => import("./lfs.mock");
@@ -90,7 +92,7 @@ export const initRepo = async (): Promise<RepoInfo> => {
 };
 
 export const importPaths = async (
-  targets: ImportTarget[]
+  targets: ImportTarget[],
 ): Promise<ImportSummary> => {
   if (isTauriApp()) return invoke<ImportSummary>("import_paths", { targets });
   return (await getMocks()).mockImportPaths(targets);
@@ -107,7 +109,7 @@ export const getOnboardingGraph = async (): Promise<OnboardingGraphData> => {
 };
 
 export const onImportProgress = async (
-  handler: (progress: ImportProgress) => void
+  handler: (progress: ImportProgress) => void,
 ): Promise<UnlistenFn> => {
   if (isTauriApp()) {
     return listen<ImportProgress>("import_progress", (e) => handler(e.payload));
@@ -171,8 +173,9 @@ export const listViews = async (): Promise<ViewInfo[]> => {
   return (await getMocks()).mockListViews();
 };
 
-export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
+export const getViewObjects = async (viewName: string): Promise<ObjectInfo[]> => {
   if (isTauriApp()) {
+    const viewId = viewName;
     const objects = await invoke<
       Array<{
         id: string;
@@ -201,7 +204,7 @@ export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
       trustLevel: o.trust_level,
     }));
   }
-  return (await getMocks()).mockGetViewObjects(viewId);
+  return (await getMocks()).mockGetViewObjects(viewName);
 };
 
 export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {

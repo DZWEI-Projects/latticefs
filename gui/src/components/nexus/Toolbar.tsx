@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useViewById } from "@/hooks/useViews";
+import { useViewByName } from "@/hooks/useViews";
 import { ViewSelector } from "./ViewSelector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import type { ViewMode } from "./NexusLayout";
 import { ImportDialog } from "./ImportDialog";
 
 interface ToolbarProps {
-  currentViewId?: string;
+  currentViewName?: string;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   searchQuery: string;
@@ -29,13 +29,13 @@ interface ToolbarProps {
 }
 
 export const Toolbar = ({
-  currentViewId,
+  currentViewName,
   viewMode,
   onViewModeChange,
   searchQuery,
   onSearchChange,
 }: ToolbarProps) => {
-  const { data: currentView } = useViewById(currentViewId);
+  const { data: currentView } = useViewByName(currentViewName);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   return (
