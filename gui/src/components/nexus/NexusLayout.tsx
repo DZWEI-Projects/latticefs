@@ -253,10 +253,12 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
             {activeObject && detailPanelOpen && (
               <ObjectDetailPanel
                 object={activeObject}
+                currentViewId={currentViewId}
                 onClose={() => setDetailPanelOpen(false)}
                 onRequestAddTag={handleRequestAddTag}
                 onRemoveTag={handleRemoveTag}
                 onSetTrust={handleSetTrust}
+                onViewSelect={onViewChange}
               />
             )}
           </div>
