@@ -4,7 +4,14 @@ use latticefs_base::query::{parse, Explainer};
 use latticefs_base::views::{BuiltinView, View};
 use latticefs_base::LatticeRepo;
 
-use super::common::{ensure_identity, identity_actor, resolve_object_id};
+use super::common::{
+    ensure_identity,
+    identity_actor,
+    resolve_dynamic_view,
+    resolve_object_id,
+    resolve_view_reference,
+    ResolvedView,
+};
 
 #[derive(Subcommand, Debug)]
 pub enum ViewCommand {
@@ -32,6 +39,7 @@ pub struct ListArgs {}
 
 #[derive(Args, Debug)]
 pub struct DeleteArgs {
+    /// View name or ID
     pub name: String,
 }
 
@@ -41,6 +49,7 @@ pub struct ExplainArgs {
     #[arg(long)]
     pub query: Option<String>,
     #[arg(long)]
+    /// View name or ID
     pub view: Option<String>,
 }
 
@@ -64,7 +73,7 @@ async fn create(repo: LatticeRepo, args: CreateArgs) -> Result<()> {
 
     let view = View::new(args.name.clone(), args.query, actor);
     repo.metadata.store_view(&view)?;
-    println!("Created view {}", view.name);
+    println!("Created view {} ({})", view.name, view.id);
     Ok(())
 }
 
@@ -76,14 +85,15 @@ async fn list(repo: LatticeRepo) -> Result<()> {
 
     println!("\nDynamic views:");
     for view in repo.metadata.list_views()? {
-        println!("- {}: {}", view.name, view.query);
+        println!("- {} (id: {}): {}", view.name, view.id, view.query);
     }
     Ok(())
 }
 
 async fn delete(repo: LatticeRepo, args: DeleteArgs) -> Result<()> {
-    repo.metadata.delete_view(&args.name)?;
-    println!("Deleted view {}", args.name);
+    let view = resolve_dynamic_view(&repo, &args.name)?;
+    repo.metadata.delete_view(&view.name)?;
+    println!("Deleted view {} ({})", view.name, view.id);
     Ok(())
 }
 
@@ -93,10 +103,9 @@ async fn explain(repo: LatticeRepo, args: ExplainArgs) -> Result<()> {
     let query = if let Some(q) = args.query {
         q
     } else if let Some(view_name) = args.view {
-        if let Some(builtin) = BuiltinView::by_name(&view_name) {
-            builtin.query().to_string()
-        } else {
-            repo.metadata.load_view(&view_name)?.query
+        match resolve_view_reference(&repo, &view_name)? {
+            ResolvedView::Builtin(builtin) => builtin.query().to_string(),
+            ResolvedView::Dynamic(view) => view.query,
         }
     } else {
         // Default to built-in "Recent" view for convenience

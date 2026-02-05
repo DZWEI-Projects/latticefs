@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use latticefs_base::views::{BuiltinView, View};
 use latticefs_base::{Config, KeyManager, LatticeRepo};
 use latticefs_base::{Identity, ObjectID, VersionID};
 use std::path::{Path, PathBuf};
@@ -42,6 +43,53 @@ pub fn resolve_object_id(repo: &LatticeRepo, reference: &str) -> Result<ObjectID
     }
 
     Err(anyhow!("Unknown object reference: {}", reference))
+}
+
+pub enum ResolvedView {
+    Builtin(BuiltinView),
+    Dynamic(View),
+}
+
+pub fn resolve_view_reference(repo: &LatticeRepo, reference: &str) -> Result<ResolvedView> {
+    if let Some(builtin) = BuiltinView::by_name(reference) {
+        return Ok(ResolvedView::Builtin(builtin));
+    }
+
+    if let Ok(uuid) = uuid::Uuid::parse_str(reference) {
+        if let Some(view) = find_view_by_id(repo, &uuid)? {
+            return Ok(ResolvedView::Dynamic(view));
+        }
+    }
+
+    let view = repo.metadata.load_view(reference)?;
+    Ok(ResolvedView::Dynamic(view))
+}
+
+pub fn resolve_dynamic_view(repo: &LatticeRepo, reference: &str) -> Result<View> {
+    if let Ok(uuid) = uuid::Uuid::parse_str(reference) {
+        if let Some(view) = find_view_by_id(repo, &uuid)? {
+            return Ok(view);
+        }
+    }
+
+    match repo.metadata.load_view(reference) {
+        Ok(view) => Ok(view),
+        Err(err) => {
+            if BuiltinView::by_name(reference).is_some() {
+                return Err(anyhow!("Built-in views cannot be modified"));
+            }
+            Err(anyhow!("{}", err.to_string()))
+        }
+    }
+}
+
+pub fn find_view_by_id(repo: &LatticeRepo, id: &uuid::Uuid) -> Result<Option<View>> {
+    for view in repo.metadata.list_views()? {
+        if view.id.as_uuid() == id {
+            return Ok(Some(view));
+        }
+    }
+    Ok(None)
 }
 
 pub fn parse_ref_with_version(

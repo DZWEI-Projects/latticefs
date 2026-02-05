@@ -20,11 +20,12 @@ lfs view create "Projects" --query "tag:project"
 lfs view list
 ```
 
-This shows both built‑in and dynamic views.
+This shows both built‑in and dynamic views. Dynamic views include their UUID IDs, which you can use anywhere a view name is accepted.
 
 ## Delete a view
 ```bash
 lfs view delete "Projects"
+lfs view delete <view-id>
 ```
 
 Only dynamic views can be deleted.
@@ -32,11 +33,13 @@ Only dynamic views can be deleted.
 ## Explain matches for a view
 ```bash
 lfs view explain <object-id> --view "Projects"
+lfs view explain <object-id> --view <view-id>
 ```
 
 ## Export a view (to “see” its contents)
 ```bash
 lfs export "Projects" --output /tmp/projects --mode tree
+lfs export <view-id> --output /tmp/projects --mode tree
 ls /tmp/projects
 ```
 
@@ -45,6 +48,7 @@ The filenames are object IDs. Use `lfs get` to retrieve content for any ID.
 ## Share a view snapshot
 ```bash
 lfs share snapshot "Projects" --to <did:key:...>
+lfs share snapshot <view-id> --to <did:key:...>
 ```
 
 ## Is there a view “update” command?

@@ -3,12 +3,12 @@
 This document explains how to list objects in LatticeFS, including “all objects” and filtered subsets (per‑tag, per‑state, etc.).
 
 ## Is there a direct "list objects" command?
-There is **no dedicated `lfs objects list` command** in the CLI. However, you can list objects in a view directly using the **`lfs stats view-objects`** command (see [CLI Reference](cli.md#lfs-stats-view-objects-name---all-tags---raw-tags) for details).
+There is **no dedicated `lfs objects list` command** in the CLI. However, you can list objects in a view directly using the **`lfs stats view-objects`** command (see [CLI Reference](cli.md#lfs-stats-view-objects-nameid---all-tags---raw-tags) for details).
 
 For more extensive operations, listing is done through **views** and **exports**, which are backed by Lattice Query Language (LQL).
 
 In practice, you can list objects by:
-- using `lfs stats view-objects <view-name>` to print object IDs and tags directly to stdout,
+- using `lfs stats view-objects <view-name|view-id>` to print object IDs and tags directly to stdout,
 - exporting a view to a directory (filenames are object IDs), or
 - browsing a view via the read‑only FUSE mount.
 
@@ -28,7 +28,7 @@ To include all tags (including system/auto tags):
 lfs stats view-objects "All" --all-tags
 ```
 
-For full details and options, see the [CLI Reference](cli.md#lfs-stats-view-objects-name---all-tags---raw-tags).
+For full details and options, see the [CLI Reference](cli.md#lfs-stats-view-objects-nameid---all-tags---raw-tags).
 
 ## List all objects
 Use the built‑in `All` view and export it.

@@ -2,10 +2,16 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use latticefs_base::LatticeRepo;
 use latticefs_base::crypto::{Capability, Permission, PublicKey};
-use latticefs_base::views::{BuiltinView, ViewSnapshot};
+use latticefs_base::views::ViewSnapshot;
 
 use super::common::{
-    ensure_identity, identity_actor, parse_duration, resolve_identity_password, resolve_object_id,
+    ensure_identity,
+    identity_actor,
+    parse_duration,
+    resolve_identity_password,
+    resolve_object_id,
+    resolve_view_reference,
+    ResolvedView,
 };
 
 #[derive(Args, Debug)]
@@ -35,8 +41,8 @@ pub enum ShareSubcommand {
 
 #[derive(Args, Debug)]
 pub struct ShareSnapshotArgs {
-    /// View name to snapshot
-    pub view_name: String,
+    /// View name or ID to snapshot
+    pub view: String,
 }
 
 pub async fn run(repo: LatticeRepo, command: ShareCommand) -> Result<()> {
@@ -122,7 +128,7 @@ async fn share_snapshot(
     let identity = ensure_identity("default", password.as_deref())?;
     let audience = parse_public_key(&to)?;
 
-    let (snapshot, resource) = create_snapshot(&repo, &args.view_name, identity_actor(&identity))?;
+    let (snapshot, resource) = create_snapshot(&repo, &args.view, identity_actor(&identity))?;
     for object_id in snapshot.object_ids.iter() {
         let object = repo.metadata.load_object(object_id)?;
         repo.authorize_object_permission(&object, Permission::Share, true)?;
@@ -163,26 +169,29 @@ fn parse_public_key(input: &str) -> Result<PublicKey> {
 
 fn create_snapshot(
     repo: &LatticeRepo,
-    view_name: &str,
+    view_ref: &str,
     actor: [u8; 32],
 ) -> Result<(ViewSnapshot, String)> {
-    if let Some(builtin) = BuiltinView::by_name(view_name) {
-        let mut dynamic = latticefs_base::views::DynamicView::new(builtin.query(), &repo.metadata)?;
-        let object_ids = dynamic.evaluate()?;
-        let snapshot = ViewSnapshot::new(
-            view_name.to_string(),
-            builtin.query().to_string(),
-            object_ids,
-            actor,
-        );
-        let resource = format!("latticefs:view:{}", view_name);
-        return Ok((snapshot, resource));
+    match resolve_view_reference(repo, view_ref)? {
+        ResolvedView::Builtin(builtin) => {
+            let mut dynamic =
+                latticefs_base::views::DynamicView::new(builtin.query(), &repo.metadata)?;
+            let object_ids = dynamic.evaluate()?;
+            let snapshot = ViewSnapshot::new(
+                view_ref.to_string(),
+                builtin.query().to_string(),
+                object_ids,
+                actor,
+            );
+            let resource = format!("latticefs:view:{}", view_ref);
+            Ok((snapshot, resource))
+        }
+        ResolvedView::Dynamic(view) => {
+            let mut dynamic = latticefs_base::views::DynamicView::new(&view.query, &repo.metadata)?;
+            let object_ids = dynamic.evaluate()?;
+            let snapshot = ViewSnapshot::from_view(&view, object_ids, actor);
+            let resource = format!("latticefs:view:{}", view.name);
+            Ok((snapshot, resource))
+        }
     }
-
-    let view = repo.metadata.load_view(view_name)?;
-    let mut dynamic = latticefs_base::views::DynamicView::new(&view.query, &repo.metadata)?;
-    let object_ids = dynamic.evaluate()?;
-    let snapshot = ViewSnapshot::from_view(&view, object_ids, actor);
-    let resource = format!("latticefs:view:{}", view.name);
-    Ok((snapshot, resource))
 }

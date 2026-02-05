@@ -141,7 +141,7 @@ Example:
 lfs stats object <object-id> --all-versions
 ```
 
-### `lfs stats view <name>`
+### `lfs stats view <name|id>`
 Show statistics for a built-in or dynamic view.
 
 Example:
@@ -149,7 +149,7 @@ Example:
 lfs stats view recent
 ```
 
-### `lfs stats view-objects <name> [--all-tags] [--raw-tags]`
+### `lfs stats view-objects <name|id> [--all-tags] [--raw-tags]`
 List objects for a view with minimal tag output.
 
 Notes:
@@ -508,7 +508,7 @@ lfs view create "Projects" --query "tag:project"
 
 Example output:
 ```text
-Created view Projects
+Created view Projects (<view-id>)
 ```
 
 ### `lfs view list`
@@ -530,10 +530,13 @@ Built-in views:
 - All Objects: All objects in the repository
 
 Dynamic views:
-- Projects: tag:project
+- Projects (id: <view-id>): tag:project
 ```
 
-### `lfs view delete <name>`
+Notes:
+- Dynamic view IDs are UUIDs and can be used anywhere a view name is accepted.
+
+### `lfs view delete <name|id>`
 Delete a dynamic view.
 
 Example:
@@ -543,10 +546,10 @@ lfs view delete "Projects"
 
 Example output:
 ```text
-Deleted view Projects
+Deleted view Projects (<view-id>)
 ```
 
-### `lfs view explain <ref> [--query '<lql>'] [--view <name>]`
+### `lfs view explain <ref> [--query '<lql>'] [--view <name|id>]`
 Explain why an object matches a query or view.
 
 Example (explicit query):
@@ -563,6 +566,7 @@ Object <object-id>: MATCHED
 Example (named view):
 ```bash
 lfs view explain <object-id> --view "Projects"
+lfs view explain <object-id> --view <view-id>
 ```
 
 Example output:
@@ -593,7 +597,7 @@ CID: <capability-cid>
 UCAN: <ucan-token>
 ```
 
-### `lfs share snapshot <view-name> --to <pubkey> [--cap <perm>] [--expires <dur>]`
+### `lfs share snapshot <view-name|view-id> --to <pubkey> [--cap <perm>] [--expires <dur>]`
 Create and share a view snapshot.
 
 Example:
@@ -730,12 +734,15 @@ No quarantined objects
 
 ## Export
 
-### `lfs export <ref|view> --output <path> [--mode <tree|archive>]`
+### `lfs export <ref|view-name|view-id> --output <path> [--mode <tree|archive>]`
 Export a single object or a view.
 
 Arguments:
 - `--mode tree` — export to directory tree (default)
 - `--mode archive` — export to tar archive
+
+Notes:
+- If you pass a view ID (UUID), the CLI will export that view and print its name and ID.
 
 Example (single object):
 ```bash
@@ -750,6 +757,7 @@ Exported <object-id>
 Example (view to directory):
 ```bash
 lfs export "Projects" --output ~/Exports/projects --mode tree
+lfs export <view-id> --output ~/Exports/projects --mode tree
 ```
 
 Example output:
