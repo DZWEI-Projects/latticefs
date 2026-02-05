@@ -35,6 +35,7 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
   }, []);
 
   const handleComplete = useCallback(() => {
+    localStorage.setItem("lfs-onboarding-complete", "true");
     transitionToStage("complete");
     onComplete?.();
   }, [onComplete, transitionToStage]);

@@ -10,6 +10,7 @@ import {
   Plus,
   Settings,
   ChevronDown,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,9 +19,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useState } from "react";
-import type { ViewInfo } from "@/lib/lfs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { deleteView, type ViewInfo } from "@/lib/lfs";
 import { NewViewDialog } from "./NewViewDialog";
+import { EditViewDialog } from "./EditViewDialog";
+import { useConfirmDialog } from "@/lib/confirm-dialog";
+import { toast } from "sonner";
 
 const iconMap: Record<string, React.ElementType> = {
   Clock,
@@ -41,16 +53,25 @@ interface ViewItemProps {
   view: ViewInfo;
   isActive: boolean;
   onClick: () => void;
+  actions?: React.ReactNode;
 }
 
-const ViewItem = ({ view, isActive, onClick }: ViewItemProps) => {
+const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
   const Icon = view.icon ? iconMap[view.icon] || Folder : Folder;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm",
+        "group w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm",
         "transition-colors duration-150",
         "hover:bg-muted/60",
         isActive && "bg-primary/10 text-primary hover:bg-primary/15"
@@ -66,23 +87,69 @@ const ViewItem = ({ view, isActive, onClick }: ViewItemProps) => {
       >
         {view.objectCount}
       </span>
-    </button>
+      {actions && (
+        <div
+          className="flex items-center"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {actions}
+        </div>
+      )}
+    </div>
   );
 };
 
 export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: SidebarProps) => {
   const { data: views, isLoading } = useViews();
+  const queryClient = useQueryClient();
   const [builtinOpen, setBuiltinOpen] = useState(true);
   const [dynamicOpen, setDynamicOpen] = useState(true);
   const [newViewDialogOpen, setNewViewDialogOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ViewInfo | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ViewInfo | null>(null);
 
   const builtinViews = views?.filter((v) => v.viewType === "builtin") || [];
   const dynamicViews = views?.filter((v) => v.viewType === "dynamic") || [];
+
+  const { confirm, DialogComponent } = useConfirmDialog({
+    title: "Perspektive löschen",
+    message: pendingDelete
+      ? `"${pendingDelete.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
+      : "Diese Perspektive wirklich löschen?",
+    confirmLabel: "Löschen",
+    cancelLabel: "Abbrechen",
+  });
 
   const handleViewCreated = (viewId: string) => {
     onViewSelect(viewId);
     setDynamicOpen(true);
   };
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+    const run = async () => {
+      const confirmed = await confirm();
+      if (!confirmed) {
+        setPendingDelete(null);
+        return;
+      }
+      try {
+        await deleteView(pendingDelete.name);
+        await queryClient.invalidateQueries({ queryKey: ["views"] });
+        await queryClient.invalidateQueries({ queryKey: ["view-objects", pendingDelete.id] });
+        if (currentViewId === pendingDelete.id) {
+          onViewSelect("recent");
+        }
+        toast.success("Perspektive gelöscht");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Perspektive konnte nicht gelöscht werden");
+      } finally {
+        setPendingDelete(null);
+      }
+    };
+    run();
+  }, [pendingDelete, confirm, queryClient, currentViewId, onViewSelect]);
 
   return (
     <div className="w-60 flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
@@ -135,6 +202,31 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
                   view={view}
                   isActive={currentViewId === view.id}
                   onClick={() => onViewSelect(view.id)}
+                  actions={(
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-muted-foreground hover:text-foreground"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onSelect={() => setEditingView(view)}>
+                          Bearbeiten
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => setPendingDelete(view)}
+                        >
+                          Löschen
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 />
               ))}
             </CollapsibleContent>
@@ -169,6 +261,15 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
         onOpenChange={setNewViewDialogOpen}
         onViewCreated={handleViewCreated}
       />
+
+      <EditViewDialog
+        open={!!editingView}
+        view={editingView}
+        onOpenChange={(open) => {
+          if (!open) setEditingView(null);
+        }}
+      />
+      <DialogComponent />
     </div>
   );
 };

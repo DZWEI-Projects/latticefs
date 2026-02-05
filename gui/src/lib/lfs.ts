@@ -90,6 +90,11 @@ export const initRepo = async (): Promise<RepoInfo> => {
   return (await getMocks()).mockInitRepo();
 };
 
+export const checkInitialized = async (): Promise<boolean> => {
+  if (isTauriApp()) return invoke<boolean>("check_initialized");
+  return (await getMocks()).mockCheckInitialized();
+};
+
 export const importPaths = async (
   targets: ImportTarget[],
 ): Promise<ImportSummary> => {
@@ -289,6 +294,13 @@ export interface CreateViewArgs {
   description?: string;
 }
 
+export interface UpdateViewArgs {
+  id: string;
+  name: string;
+  query: string;
+  description?: string;
+}
+
 export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
   if (isTauriApp()) {
     const view = await invoke<{
@@ -311,6 +323,30 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
     };
   }
   return (await getMocks()).mockCreateView(args);
+};
+
+export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
+  if (isTauriApp()) {
+    const view = await invoke<{
+      id: string;
+      name: string;
+      description: string;
+      query: string;
+      view_type: string;
+      icon: string | null;
+      object_count: number;
+    }>("update_view", { args });
+    return {
+      id: view.id,
+      name: view.name,
+      description: view.description,
+      query: view.query,
+      viewType: view.view_type as "builtin" | "dynamic",
+      icon: view.icon,
+      objectCount: view.object_count,
+    };
+  }
+  return (await getMocks()).mockUpdateView(args);
 };
 
 export const deleteView = async (name: string): Promise<void> => {

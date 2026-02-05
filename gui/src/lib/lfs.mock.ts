@@ -12,6 +12,7 @@ import type {
   ViewInfo,
   ObjectInfo,
   CreateViewArgs,
+  UpdateViewArgs,
   TagInfo,
 } from "./lfs";
 
@@ -34,6 +35,11 @@ export const mockInitRepo = async (): Promise<RepoInfo> => {
     root: "~/LatticeFS",
     configPath: "~/.config/latticefs/config.toml",
   };
+};
+
+export const mockCheckInitialized = async (): Promise<boolean> => {
+  await delay(100);
+  return false;
 };
 
 export const mockImportPaths = async (
@@ -399,6 +405,22 @@ export const mockCreateView = async (args: CreateViewArgs): Promise<ViewInfo> =>
   };
   mockViewsData.push(newView);
   return newView;
+};
+
+export const mockUpdateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
+  await delay(180);
+  const index = mockViewsData.findIndex((v) => v.id === args.id);
+  if (index === -1) {
+    throw new Error("Perspektive nicht gefunden");
+  }
+  const updated: ViewInfo = {
+    ...mockViewsData[index],
+    name: args.name,
+    description: args.description || "",
+    query: args.query,
+  };
+  mockViewsData[index] = updated;
+  return updated;
 };
 
 export const mockDeleteView = async (name: string): Promise<void> => {

@@ -4,7 +4,7 @@ use latticefs_base::config::Config;
 use latticefs_base::crypto::{Identity, KeyManager};
 use latticefs_base::error::LatticeError;
 use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
-use latticefs_base::model::{ObjectID, Tag};
+use latticefs_base::model::{timestamp_now, ObjectID, Tag};
 use latticefs_base::query::{parse, QueryEvaluator};
 use latticefs_base::views::{BuiltinView, BuiltinViews, Locale};
 use latticefs_base::LatticeRepo;
@@ -94,6 +94,22 @@ pub fn get_repo_info() -> Result<RepoInfo, String> {
 pub fn init_repo() -> Result<RepoInfo, String> {
     LatticeRepo::init().map_err(|err| err.to_string())?;
     repo_info()
+}
+
+#[tauri::command]
+pub fn check_initialized() -> bool {
+    let config_exists = latticefs_base::config::config_path().exists();
+    if !config_exists {
+        return false;
+    }
+    
+    // Check if meta database exists (indicates repo was actually used)
+    let config = match Config::load_or_default() {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let meta_path = config.storage_path().join("meta");
+    meta_path.exists()
 }
 
 #[tauri::command]
@@ -703,6 +719,14 @@ pub struct CreateViewArgs {
     pub description: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateViewArgs {
+    pub id: String,
+    pub name: String,
+    pub query: String,
+    pub description: Option<String>,
+}
+
 fn validate_view_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("View name cannot be empty".to_string());
@@ -739,6 +763,65 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
 
     // Return the created view info
     let count = eval_query(&repo, &args.query)
+        .map(|ids| ids.len())
+        .unwrap_or(0);
+
+    Ok(ViewInfo {
+        id: view.id.to_string(),
+        name: view.name,
+        description: view.description.unwrap_or_default(),
+        query: view.query,
+        view_type: "dynamic".to_string(),
+        icon: None,
+        object_count: count,
+    })
+}
+
+#[tauri::command]
+pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
+    validate_view_name(&args.name)?;
+
+    // Validate the query syntax
+    parse(&args.query).map_err(|err| format!("Invalid query: {}", err))?;
+
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+
+    let views = repo
+        .metadata
+        .list_views()
+        .map_err(|err| err.to_string())?;
+
+    let mut view = views
+        .iter()
+        .find(|view| view.id.to_string() == args.id || view.name == args.id)
+        .cloned()
+        .ok_or_else(|| format!("View not found: {}", args.id))?;
+
+    if view.name != args.name {
+        if views.iter().any(|candidate| {
+            candidate.name == args.name && candidate.id.to_string() != view.id.to_string()
+        }) {
+            return Err(format!("View with name '{}' already exists", args.name));
+        }
+    }
+
+    let previous_name = view.name.clone();
+    view.name = args.name;
+    view.query = args.query;
+    view.description = args.description;
+    view.modified_at = timestamp_now();
+
+    if previous_name != view.name {
+        repo.metadata
+            .delete_view(&previous_name)
+            .map_err(|err| err.to_string())?;
+    }
+
+    repo.metadata
+        .store_view(&view)
+        .map_err(|err| err.to_string())?;
+
+    let count = eval_query(&repo, &view.query)
         .map(|ids| ids.len())
         .unwrap_or(0);
 
