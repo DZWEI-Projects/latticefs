@@ -105,7 +105,7 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
       {/* Node graph (simplified) */}
       <div 
         className="relative z-10"
-        style={{ width: NODE_CONTAINER_SIZE, height: NODE_CONTAINER_SIZE, marginRight: showContextPanel ? "260px" : "0" }}
+        style={{ width: NODE_CONTAINER_SIZE, height: NODE_CONTAINER_SIZE }}
       >
         {/* SVG for connections - positioned inside the node container for correct alignment */}
         <svg 
@@ -190,14 +190,21 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
         })}
         
         {/* Highlighted file node */}
-        {highlightedFile && (
+        {highlightedFile && (() => {
+          const highlightedViewPosition = getViewPosition(4, mockViews.length);
+          const highlightedFileOffset = {
+            x: highlightedViewPosition.x - 30,
+            y: highlightedViewPosition.y,
+          };
+
+          return (
           <div
             className={cn(
               "absolute left-1/2 top-1/2 transition-all duration-500 cursor-pointer group",
               step === "highlight" && "animate-node-pulse"
             )}
             style={{
-              transform: `translate(calc(-50% + ${getViewPosition(4, mockViews.length).x - 30}px), calc(-50% + ${getViewPosition(4, mockViews.length).y}px))`,
+              transform: `translate(calc(-50% + ${highlightedFileOffset.x}px), calc(-50% + ${highlightedFileOffset.y}px))`,
             }}
             onClick={handleWhyClick}
           >
@@ -221,108 +228,123 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
               </div>
             )}
           </div>
-        )}
-      </div>
-      
-      {/* Context panel */}
-      {showContextPanel && highlightedFile && (
-        <div 
-          className={cn(
-            "absolute right-6 top-1/2 -translate-y-1/2 w-72 z-20",
-            "animate-slide-in-right"
-          )}
-        >
-          <GlassCard hover={false} delay={0} className="opacity-100">
-            <button
-              onClick={() => {
-                setShowContextPanel(false);
-                setStep("highlight");
+        );
+        })()}
+
+        {/* Context panel */}
+        {showContextPanel && highlightedFile && (() => {
+          const highlightedViewPosition = getViewPosition(4, mockViews.length);
+          const highlightedFileOffset = {
+            x: highlightedViewPosition.x - 30,
+            y: highlightedViewPosition.y,
+          };
+
+          return (
+            <div 
+              className={cn(
+                "absolute w-72 z-20 -translate-y-1/2",
+                "animate-slide-in-right"
+              )}
+              style={{
+                left: `${NODE_CENTER + highlightedFileOffset.x + 42}px`,
+                top: `${NODE_CENTER + highlightedFileOffset.y}px`,
               }}
-              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <X className="w-4 h-4" />
-            </button>
-            
-            <div className="mb-3">
-              <h3 className="font-semibold text-foreground mb-1">
-                {highlightedFile.name}
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Dieses Objekt erscheint hier, weil:
-              </p>
-            </div>
-            
-            <div className="space-y-2.5 mb-5">
-              <div className="flex items-center gap-2.5 text-xs">
-                <Clock className="w-4 h-4 text-primary" />
-                <span className="text-muted-foreground">Heute heruntergeladen</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-xs">
-                <Download className="w-4 h-4 text-warning" />
-                <span className="text-muted-foreground">
-                  Tag: <span className="text-warning">inbox:downloads</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5 text-xs">
-                <Shield className="w-4 h-4 text-warning" />
-                <span className="text-muted-foreground">In Quarantäne</span>
-              </div>
-            </div>
-            
-            {step === "context" && (
-              <>
-                <div className="border-t border-border pt-3 mb-3">
-                  <p className="text-xs text-muted-foreground mb-2.5">
-                    Zu einem Projekt hinzufügen?
+              <GlassCard hover={false} delay={0} className="opacity-100">
+                <button
+                  onClick={() => {
+                    setShowContextPanel(false);
+                    setStep("highlight");
+                  }}
+                  className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                
+                <div className="mb-3">
+                  <h3 className="font-semibold text-foreground mb-1">
+                    {highlightedFile.name}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Dieses Objekt erscheint hier, weil:
                   </p>
-                  <div className="space-y-2">
-                    {mockProjects.map((project) => (
-                      <button
-                        key={project.id}
-                        onClick={() => handleAddToProject(project.id)}
-                        className={cn(
-                          "w-full flex items-center gap-2.5 p-1.5 rounded-md",
-                          "bg-muted/50 hover:bg-muted transition-colors",
-                          "text-left text-xs"
-                        )}
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: project.color }}
-                        />
-                        <span className="text-foreground">{project.name}</span>
-                        <Plus className="w-4 h-4 text-muted-foreground ml-auto" />
-                      </button>
-                    ))}
+                </div>
+                
+                <div className="space-y-2.5 mb-5">
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span className="text-muted-foreground">Heute heruntergeladen</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <Download className="w-4 h-4 text-warning" />
+                    <span className="text-muted-foreground">
+                      Tag: <span className="text-warning">inbox:downloads</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <Shield className="w-4 h-4 text-warning" />
+                    <span className="text-muted-foreground">In Quarantäne</span>
                   </div>
                 </div>
-              </>
-            )}
-            
-            {step === "add-project" && selectedProject && (
-              <div className="flex items-center gap-2 text-xs text-secondary">
-                <Check className="w-4 h-4" />
-                <span>Hinzugefügt zu {mockProjects.find((p) => p.id === selectedProject)?.name}</span>
-              </div>
-            )}
-          </GlassCard>
-        </div>
-      )}
+                
+                {step === "context" && (
+                  <>
+                    <div className="border-t border-border pt-3 mb-3">
+                      <p className="text-xs text-muted-foreground mb-2.5">
+                        Zu einem Projekt hinzufügen?
+                      </p>
+                      <div className="space-y-2">
+                        {mockProjects.map((project) => (
+                          <button
+                            key={project.id}
+                            onClick={() => handleAddToProject(project.id)}
+                            className={cn(
+                              "w-full flex items-center gap-2.5 p-1.5 rounded-md",
+                              "bg-muted/50 hover:bg-muted transition-colors",
+                              "text-left text-xs"
+                            )}
+                          >
+                            <div 
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: project.color }}
+                            />
+                            <span className="text-foreground">{project.name}</span>
+                            <Plus className="w-4 h-4 text-muted-foreground ml-auto" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                
+                {step === "add-project" && selectedProject && (
+                  <div className="flex items-center gap-2 text-xs text-secondary">
+                    <Check className="w-4 h-4" />
+                    <span>Hinzugefügt zu {mockProjects.find((p) => p.id === selectedProject)?.name}</span>
+                  </div>
+                )}
+              </GlassCard>
+            </div>
+          );
+        })()}
+      </div>
       
       {/* Completion message */}
       {step === "complete" && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 text-center animate-fade-up">
-          <div className="glass-strong rounded-xl p-6 max-w-sm">
-            <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="text-xl font-bold tracking-tight mb-2">
-              Das ist alles.
-            </h3>
-            <p className="text-sm text-muted-foreground mb-5">
-              Du weißt bereits genug, um mit NeuralFS zu arbeiten.
-            </p>
-            <AnimatedButton onClick={onComplete} size="md">
-              Los geht's
-            </AnimatedButton>
+        <div className="fixed inset-x-0 bottom-8 z-30 flex justify-center">
+          <div className="text-center animate-fade-up">
+            <div className="glass-strong rounded-xl p-6 max-w-sm">
+              <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
+              <h3 className="text-xl font-bold tracking-tight mb-2">
+                Das ist alles.
+              </h3>
+              <p className="text-sm text-muted-foreground mb-5">
+                Du weißt bereits genug, um mit NeuralFS zu arbeiten.
+              </p>
+              <AnimatedButton onClick={onComplete} size="md">
+                Los geht's
+              </AnimatedButton>
+            </div>
           </div>
         </div>
       )}
