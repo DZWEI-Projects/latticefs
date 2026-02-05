@@ -9,6 +9,10 @@ interface NodeGraphProps {
   showTutorial?: boolean;
 }
 
+// Node container dimensions - used for both the container and SVG positioning
+const NODE_CONTAINER_SIZE = 440;
+const NODE_CENTER = NODE_CONTAINER_SIZE / 2; // 220
+
 const viewIcons: Record<string, typeof Clock> = {
   Clock: Clock,
   Folder: Folder,
@@ -133,84 +137,83 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background-deep" />
       
-      {/* SVG for connections */}
-      <svg 
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        style={{ zIndex: 1 }}
-      >
-        <defs>
-          <linearGradient id="connection-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.4" />
-          </linearGradient>
-        </defs>
-        
-        <g transform={`translate(${containerRef.current?.clientWidth ? containerRef.current.clientWidth / 2 : 500}, ${containerRef.current?.clientHeight ? containerRef.current.clientHeight / 2 : 400})`}>
-          {/* Connections from hub to views */}
-          {animationPhase >= 3 && mockViews.map((view, index) => {
-            const pos = getViewPosition(index, mockViews.length);
-            return (
-              <line
-                key={`hub-${view.id}`}
-                x1="0"
-                y1="0"
-                x2={pos.x}
-                y2={pos.y}
-                stroke="url(#connection-gradient)"
-                strokeWidth="1"
-                className={cn(
-                  "transition-opacity duration-500",
-                  hoveredView === view.id ? "opacity-100" : "opacity-40"
-                )}
-                strokeDasharray="1000"
-                strokeDashoffset="0"
-                style={{
-                  animation: "draw-line ease-out forwards",
-                  animationDuration: "2s",
-                  animationDelay: `${index * 100}ms`,
-                }}
-              />
-            );
-          })}
-          
-          {/* Connections between files and their views */}
-          {animationPhase >= 4 && hoveredFile && (
-            <>
-              {(() => {
-                const file = mockFiles.find((f) => f.id === hoveredFile);
-                if (!file) return null;
-                const filePos = getFilePosition(file, mockFiles.indexOf(file));
-                
-                return file.views.map((viewId) => {
-                  const viewIndex = mockViews.findIndex((v) => v.id === viewId);
-                  if (viewIndex === -1) return null;
-                  const viewPos = getViewPosition(viewIndex, mockViews.length);
-                  
-                  return (
-                    <line
-                      key={`file-${file.id}-${viewId}`}
-                      x1={filePos.x}
-                      y1={filePos.y}
-                      x2={viewPos.x}
-                      y2={viewPos.y}
-                      stroke="hsl(var(--primary))"
-                      strokeWidth="1.5"
-                      strokeOpacity="0.8"
-                      className="animate-draw-line"
-                    />
-                  );
-                });
-              })()}
-            </>
-          )}
-        </g>
-      </svg>
-      
       {/* Nodes container */}
       <div 
         className="relative z-10"
-        style={{ width: 440, height: 440 }}
+        style={{ width: NODE_CONTAINER_SIZE, height: NODE_CONTAINER_SIZE }}
       >
+        {/* SVG for connections - positioned inside the node container for correct alignment */}
+        <svg 
+          className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+          style={{ zIndex: 0 }}
+        >
+          <defs>
+            <linearGradient id="connection-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.4" />
+            </linearGradient>
+          </defs>
+          
+          <g transform={`translate(${NODE_CENTER}, ${NODE_CENTER})`}>
+            {/* Connections from hub to views */}
+            {animationPhase >= 3 && mockViews.map((view, index) => {
+              const pos = getViewPosition(index, mockViews.length);
+              return (
+                <line
+                  key={`hub-${view.id}`}
+                  x1="0"
+                  y1="0"
+                  x2={pos.x}
+                  y2={pos.y}
+                  stroke="url(#connection-gradient)"
+                  strokeWidth="1"
+                  className={cn(
+                    "transition-opacity duration-500",
+                    hoveredView === view.id ? "opacity-100" : "opacity-40"
+                  )}
+                  strokeDasharray="1000"
+                  strokeDashoffset="0"
+                  style={{
+                    animation: "draw-line ease-out forwards",
+                    animationDuration: "2s",
+                    animationDelay: `${index * 100}ms`,
+                  }}
+                />
+              );
+            })}
+            
+            {/* Connections between files and their views */}
+            {animationPhase >= 4 && hoveredFile && (
+              <>
+                {(() => {
+                  const file = mockFiles.find((f) => f.id === hoveredFile);
+                  if (!file) return null;
+                  const filePos = getFilePosition(file, mockFiles.indexOf(file));
+                  
+                  return file.views.map((viewId) => {
+                    const viewIndex = mockViews.findIndex((v) => v.id === viewId);
+                    if (viewIndex === -1) return null;
+                    const viewPos = getViewPosition(viewIndex, mockViews.length);
+                    
+                    return (
+                      <line
+                        key={`file-${file.id}-${viewId}`}
+                        x1={filePos.x}
+                        y1={filePos.y}
+                        x2={viewPos.x}
+                        y2={viewPos.y}
+                        stroke="hsl(var(--primary))"
+                        strokeWidth="1.5"
+                        strokeOpacity="0.8"
+                        className="animate-draw-line"
+                      />
+                    );
+                  });
+                })()}
+              </>
+            )}
+          </g>
+        </svg>
         {/* Central hub */}
         <div 
           className={cn(

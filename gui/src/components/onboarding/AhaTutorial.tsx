@@ -26,6 +26,10 @@ const colorClasses: Record<string, { bg: string; border: string; text: string }>
 
 type TutorialStep = "highlight" | "context" | "add-project" | "complete";
 
+// Node container dimensions - used for both the container and SVG positioning
+const NODE_CONTAINER_SIZE = 360;
+const NODE_CENTER = NODE_CONTAINER_SIZE / 2; // 180
+
 export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
   const [step, setStep] = useState<TutorialStep>("highlight");
   const [showContextPanel, setShowContextPanel] = useState(false);
@@ -98,54 +102,56 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
         </div>
       )}
       
-      {/* SVG for connections */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
-        <defs>
-          <linearGradient id="tutorial-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.6" />
-          </linearGradient>
-        </defs>
-        
-        <g transform={`translate(${containerRef.current?.clientWidth ? containerRef.current.clientWidth / 2 - 130 : 330}, ${containerRef.current?.clientHeight ? containerRef.current.clientHeight / 2 : 380})`}>
-          {/* Existing connections */}
-          {mockViews.map((view, index) => {
-            const pos = getViewPosition(index, mockViews.length);
-            return (
-              <line
-                key={`hub-${view.id}`}
-                x1="0"
-                y1="0"
-                x2={pos.x}
-                y2={pos.y}
-                stroke="url(#tutorial-gradient)"
-                strokeWidth="1"
-                opacity="0.3"
-              />
-            );
-          })}
-          
-          {/* New connection animation */}
-          {showConnectionAnimation && selectedProject && (
-            <line
-              x1={getViewPosition(4, mockViews.length).x - 30}
-              y1={getViewPosition(4, mockViews.length).y}
-              x2={getViewPosition(1, mockViews.length).x}
-              y2={getViewPosition(1, mockViews.length).y}
-              stroke="hsl(var(--secondary))"
-              strokeWidth="2"
-              strokeDasharray="1000"
-              className="animate-draw-line"
-            />
-          )}
-        </g>
-      </svg>
-      
       {/* Node graph (simplified) */}
       <div 
         className="relative z-10"
-        style={{ width: 360, height: 360, marginRight: showContextPanel ? "260px" : "0" }}
+        style={{ width: NODE_CONTAINER_SIZE, height: NODE_CONTAINER_SIZE, marginRight: showContextPanel ? "260px" : "0" }}
       >
+        {/* SVG for connections - positioned inside the node container for correct alignment */}
+        <svg 
+          className="absolute inset-0 w-full h-full pointer-events-none overflow-visible" 
+          style={{ zIndex: 0 }}
+        >
+          <defs>
+            <linearGradient id="tutorial-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.6" />
+            </linearGradient>
+          </defs>
+          
+          <g transform={`translate(${NODE_CENTER}, ${NODE_CENTER})`}>
+            {/* Existing connections */}
+            {mockViews.map((view, index) => {
+              const pos = getViewPosition(index, mockViews.length);
+              return (
+                <line
+                  key={`hub-${view.id}`}
+                  x1="0"
+                  y1="0"
+                  x2={pos.x}
+                  y2={pos.y}
+                  stroke="url(#tutorial-gradient)"
+                  strokeWidth="1"
+                  opacity="0.3"
+                />
+              );
+            })}
+            
+            {/* New connection animation */}
+            {showConnectionAnimation && selectedProject && (
+              <line
+                x1={getViewPosition(4, mockViews.length).x - 30}
+                y1={getViewPosition(4, mockViews.length).y}
+                x2={getViewPosition(1, mockViews.length).x}
+                y2={getViewPosition(1, mockViews.length).y}
+                stroke="hsl(var(--secondary))"
+                strokeWidth="2"
+                strokeDasharray="1000"
+                className="animate-draw-line"
+              />
+            )}
+          </g>
+        </svg>
         {/* Central hub */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center">
           <div className="w-7 h-7 rounded-full bg-primary/30 flex items-center justify-center">
