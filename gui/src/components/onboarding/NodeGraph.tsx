@@ -45,6 +45,12 @@ const colorClasses: Record<string, { bg: string; border: string; text: string }>
   },
 };
 
+const TOOLTIP_ADVANCE_KEY = {
+  code: "Space",
+  label: "Leertaste",
+  hint: "Tastenkürzel",
+};
+
 interface TooltipData {
   view: ViewNode;
   position: { x: number; y: number };
@@ -123,6 +129,23 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
   const advanceTooltip = useCallback(() => {
     setTooltipIndex((prev) => prev + 1);
   }, []);
+
+  useEffect(() => {
+    if (!showTutorial || !activeTooltip) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== TOOLTIP_ADVANCE_KEY.code || event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+      event.preventDefault();
+      advanceTooltip();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [advanceTooltip, activeTooltip, showTutorial]);
 
   // Calculate node positions in a circular layout
   const getViewPosition = (index: number, total: number) => {
@@ -342,7 +365,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
             transform: `translate(calc(${activeTooltip.position.x + 70}px), calc(${activeTooltip.position.y - 16}px))`,
           }}
         >
-          <div className="glass-strong rounded-lg p-3 max-w-[220px] animate-scale-in">
+          <div className="glass-strong rounded-lg p-3 max-w-[260px] animate-scale-in">
             <div className="flex items-start gap-2.5">
               <div className={cn(
                 "p-1.5 rounded-md flex-shrink-0",
@@ -362,12 +385,25 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={advanceTooltip}
-              className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
-            >
-              Weiter →
-            </button>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <button
+                onClick={advanceTooltip}
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                Weiter →
+              </button>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <span className="uppercase tracking-wide">{TOOLTIP_ADVANCE_KEY.hint}</span>
+                <kbd
+                  className={cn(
+                    "rounded-md border border-muted-foreground/40 bg-muted/60 px-2 py-0.5",
+                    "font-mono text-[10px] text-foreground shadow-[inset_0_-1px_0_rgba(0,0,0,0.25)]"
+                  )}
+                >
+                  {TOOLTIP_ADVANCE_KEY.label}
+                </kbd>
+              </div>
+            </div>
           </div>
         </div>
       )}
