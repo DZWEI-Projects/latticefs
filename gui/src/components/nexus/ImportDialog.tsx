@@ -237,7 +237,7 @@ export const ImportDialog = ({
         <DialogHeader>
           <DialogTitle>Dateien importieren</DialogTitle>
           <DialogDescription>
-            Füge Dateien und Ordner hinzu, die in LatticeFS importiert werden.
+            Füge Dateien und Ordner hinzu, die in NeuralFS importiert werden.
             Sie werden inhaltsbasiert adressiert und sind in allen Perspektiven verfügbar.
           </DialogDescription>
         </DialogHeader>

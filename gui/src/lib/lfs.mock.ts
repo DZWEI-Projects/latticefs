@@ -24,16 +24,16 @@ let progressHandlers: ((p: ImportProgress) => void)[] = [];
 export const mockGetRepoInfo = async (): Promise<RepoInfo> => {
   await delay(150);
   return {
-    root: "~/LatticeFS",
-    configPath: "~/.config/latticefs/config.toml",
+    root: "~/NeuralFS",
+    configPath: "~/.config/NeuralFS/config.toml",
   };
 };
 
 export const mockInitRepo = async (): Promise<RepoInfo> => {
   await delay(400);
   return {
-    root: "~/LatticeFS",
-    configPath: "~/.config/latticefs/config.toml",
+    root: "~/NeuralFS",
+    configPath: "~/.config/NeuralFS/config.toml",
   };
 };
 
@@ -58,10 +58,10 @@ export const mockImportPaths = async (
 export const mockCreateSampleFiles = async (): Promise<SampleFilesResult> => {
   await delay(300);
   return {
-    root: "~/LatticeFS-Beispiele",
+    root: "~/NeuralFS-Beispiele",
     files: [
-      "~/LatticeFS-Beispiele/Dokumente/Willkommen.md",
-      "~/LatticeFS-Beispiele/Projekte/Phoenix/plan.txt",
+      "~/NeuralFS-Beispiele/Dokumente/Willkommen.md",
+      "~/NeuralFS-Beispiele/Projekte/Phoenix/plan.txt",
     ],
   };
 };

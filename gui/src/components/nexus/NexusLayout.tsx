@@ -224,7 +224,7 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
         onMouseDown={handleDragStart}
       >
         <span className="text-xs font-medium text-muted-foreground tracking-wide">
-          LatticeFS
+          NeuralFS
         </span>
       </div>
 

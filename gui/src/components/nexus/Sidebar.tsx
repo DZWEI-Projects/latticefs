@@ -170,7 +170,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
             />
             Perspektiven
           </CollapsibleTrigger>
-          <CollapsibleContent className="px-2 space-y-0.5">
+          <CollapsibleContent className="px-2 space-y-0.5 overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
             {isLoading ? (
               <div className="px-3 py-2 text-sm text-muted-foreground">
                 Lädt...
@@ -200,7 +200,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
               />
               Eigene Perspektiven
             </CollapsibleTrigger>
-            <CollapsibleContent className="px-2 space-y-0.5">
+            <CollapsibleContent className="px-2 space-y-0.5 overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
               {dynamicViews.map((view) => (
                 <ViewItem
                   key={view.id}
