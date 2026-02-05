@@ -8,6 +8,7 @@ import type {
   ImportSummary,
   ImportProgress,
   SampleFilesResult,
+  OnboardingGraphData,
 } from "./lfs";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -53,6 +54,11 @@ export const mockCreateSampleFiles = async (): Promise<SampleFilesResult> => {
       "~/LatticeFS Samples/Projects/Phoenix/plan.txt",
     ],
   };
+};
+
+export const mockGetOnboardingGraph = async (): Promise<OnboardingGraphData> => {
+  await delay(120);
+  return { files: [] };
 };
 
 export const mockOnImportProgress = async (

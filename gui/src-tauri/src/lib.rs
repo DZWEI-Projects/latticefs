@@ -6,6 +6,7 @@ pub fn run() {
       crate::commands::init_repo,
       crate::commands::import_paths,
       crate::commands::create_sample_files,
+      crate::commands::get_onboarding_graph,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

@@ -1,9 +1,15 @@
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
 use latticefs_base::config::Config;
 use latticefs_base::crypto::{Identity, KeyManager};
 use latticefs_base::error::LatticeError;
 use latticefs_base::import::{import_file, scanner, ImportOptions};
+use latticefs_base::model::{ObjectID, Tag};
+use latticefs_base::query::{parse, QueryEvaluator};
+use latticefs_base::views::{BuiltinView, BuiltinViews};
 use latticefs_base::LatticeRepo;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
 
@@ -37,6 +43,19 @@ pub struct ImportTarget {
 pub struct SampleFilesResult {
     pub root: String,
     pub files: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OnboardingFile {
+    pub id: String,
+    pub name: String,
+    pub extension: Option<String>,
+    pub views: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OnboardingGraphData {
+    pub files: Vec<OnboardingFile>,
 }
 
 fn repo_info() -> Result<RepoInfo, String> {
@@ -185,4 +204,114 @@ pub fn create_sample_files() -> Result<SampleFilesResult, String> {
         root: root.to_string_lossy().to_string(),
         files: created,
     })
+}
+
+fn decode_tag_value(tags: &[Tag], key: &str) -> Option<String> {
+    let tag = tags.iter().find(|t| t.key == key)?;
+    let decoded = URL_SAFE_NO_PAD.decode(tag.value.as_bytes()).ok()?;
+    String::from_utf8(decoded).ok()
+}
+
+fn display_name(tags: &[Tag], object_id: &ObjectID) -> String {
+    if let Some(name) = decode_tag_value(tags, "auto:filename_b64") {
+        return name;
+    }
+    if let Some(relpath) = decode_tag_value(tags, "auto:relpath_b64") {
+        if let Some(base) = Path::new(&relpath).file_name().and_then(|s| s.to_str()) {
+            return base.to_string();
+        }
+        if !relpath.is_empty() {
+            return relpath;
+        }
+    }
+    object_id.to_string()
+}
+
+fn file_extension(name: &str) -> Option<String> {
+    Path::new(name)
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase())
+}
+
+fn eval_query(repo: &LatticeRepo, query: &str) -> Result<Vec<ObjectID>, String> {
+    let parsed = parse(query).map_err(|err| err.to_string())?;
+    let evaluator = QueryEvaluator::new(&repo.metadata);
+    evaluator.execute(&parsed).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_onboarding_graph() -> Result<OnboardingGraphData, String> {
+    const MAX_PER_VIEW: usize = 80;
+    const MAX_FILES: usize = 120;
+
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let builtin = BuiltinViews::new(&repo.metadata);
+
+    let mut recent = builtin
+        .evaluate(BuiltinView::Recent)
+        .map_err(|err| err.to_string())?;
+    recent.truncate(MAX_PER_VIEW);
+
+    let mut projects = builtin
+        .evaluate(BuiltinView::Projects)
+        .map_err(|err| err.to_string())?;
+    if projects.is_empty() {
+        projects = eval_query(&repo, "tag:source:projects SORT updated DESC LIMIT 120")?;
+    }
+    projects.truncate(MAX_PER_VIEW);
+
+    let mut by_type = eval_query(&repo, "type:* SORT updated DESC LIMIT 120")?;
+    by_type.truncate(MAX_PER_VIEW);
+
+    let mut downloads = eval_query(&repo, "tag:source:downloads SORT updated DESC LIMIT 120")?;
+    downloads.truncate(MAX_PER_VIEW);
+
+    let mut quarantine = eval_query(
+        &repo,
+        "tag:auto:executable AND trust < 90 SORT updated DESC LIMIT 120",
+    )?;
+    quarantine.truncate(MAX_PER_VIEW);
+
+    let view_sets = [
+        ("neueste".to_string(), recent),
+        ("projekte".to_string(), projects),
+        ("nach-typ".to_string(), by_type),
+        ("downloads".to_string(), downloads),
+        ("quarant\u{00e4}ne".to_string(), quarantine),
+    ];
+
+    let mut files: HashMap<ObjectID, OnboardingFile> = HashMap::new();
+
+    for (view_id, ids) in view_sets {
+        for object_id in ids {
+            if !files.contains_key(&object_id) {
+                let object = match repo.metadata.load_object(&object_id) {
+                    Ok(obj) => obj,
+                    Err(_) => continue,
+                };
+                let name = display_name(&object.tags, &object_id);
+                let extension = file_extension(&name);
+                files.insert(
+                    object_id,
+                    OnboardingFile {
+                        id: object_id.to_string(),
+                        name,
+                        extension,
+                        views: Vec::new(),
+                    },
+                );
+            }
+            if let Some(entry) = files.get_mut(&object_id) {
+                if !entry.views.contains(&view_id) {
+                    entry.views.push(view_id.clone());
+                }
+            }
+        }
+    }
+
+    let mut files: Vec<OnboardingFile> = files.into_values().collect();
+    files.truncate(MAX_FILES);
+
+    Ok(OnboardingGraphData { files })
 }

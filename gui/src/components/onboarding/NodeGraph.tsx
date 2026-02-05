@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { mockViews, mockFiles, ViewNode, FileNode, getFilesInView } from "@/data/mockFileSystem";
+import { mockViews, ViewNode } from "@/data/mockFileSystem";
 import { Clock, Folder, Grid, Download, Shield, X } from "lucide-react";
 import { AnimatedButton } from "./ui/AnimatedButton";
+import { getOnboardingGraph, type OnboardingFile } from "@/lib/lfs";
 
 interface NodeGraphProps {
   onNext: () => void;
@@ -56,6 +57,8 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
   const [activeTooltip, setActiveTooltip] = useState<TooltipData | null>(null);
   const [tooltipIndex, setTooltipIndex] = useState(0);
   const [showInsight, setShowInsight] = useState(false);
+  const [files, setFiles] = useState<OnboardingFile[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Animation phases
@@ -68,6 +71,27 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       setTimeout(() => setAnimationPhase(5), 3000),  // Tooltips begin
     ];
     return () => timers.forEach(clearTimeout);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingFiles(true);
+    getOnboardingGraph()
+      .then((data) => {
+        if (!isMounted) return;
+        setFiles(data.files);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setFiles([]);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsLoadingFiles(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Show tooltips sequentially
@@ -111,7 +135,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
   };
 
   // Get file positions clustered around their primary view
-  const getFilePosition = (file: FileNode, fileIndex: number) => {
+  const getFilePosition = (file: OnboardingFile, fileIndex: number) => {
     const primaryView = file.views[0];
     const viewIndex = mockViews.findIndex((v) => v.id === primaryView);
     if (viewIndex === -1) return { x: 0, y: 0 };
@@ -127,7 +151,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
   };
 
   // Get files that appear in multiple views (for highlighting)
-  const multiViewFiles = mockFiles.filter((f) => f.views.length > 1);
+  const multiViewFiles = files.filter((f) => f.views.length > 1);
 
   return (
     <div 
@@ -186,9 +210,9 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
             {animationPhase >= 4 && hoveredFile && (
               <>
                 {(() => {
-                  const file = mockFiles.find((f) => f.id === hoveredFile);
+                  const file = files.find((f) => f.id === hoveredFile);
                   if (!file) return null;
-                  const filePos = getFilePosition(file, mockFiles.indexOf(file));
+                  const filePos = getFilePosition(file, files.indexOf(file));
                   
                   return file.views.map((viewId) => {
                     const viewIndex = mockViews.findIndex((v) => v.id === viewId);
@@ -271,7 +295,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
         })}
         
         {/* File nodes (shown only on hover or in animation phase 4+) */}
-        {animationPhase >= 4 && multiViewFiles.slice(0, 6).map((file, index) => {
+        {animationPhase >= 4 && !isLoadingFiles && multiViewFiles.slice(0, 6).map((file, index) => {
           const pos = getFilePosition(file, index);
           const isHighlighted = hoveredFile === file.id || (hoveredView && file.views.includes(hoveredView));
           

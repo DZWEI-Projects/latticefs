@@ -30,6 +30,17 @@ export interface SampleFilesResult {
   files: string[];
 }
 
+export interface OnboardingFile {
+  id: string;
+  name: string;
+  extension?: string | null;
+  views: string[];
+}
+
+export interface OnboardingGraphData {
+  files: OnboardingFile[];
+}
+
 export const isTauriApp = () =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -58,6 +69,11 @@ export const importPaths = async (
 export const createSampleFiles = async (): Promise<SampleFilesResult> => {
   if (isTauriApp()) return invoke<SampleFilesResult>("create_sample_files");
   return (await getMocks()).mockCreateSampleFiles();
+};
+
+export const getOnboardingGraph = async (): Promise<OnboardingGraphData> => {
+  if (isTauriApp()) return invoke<OnboardingGraphData>("get_onboarding_graph");
+  return (await getMocks()).mockGetOnboardingGraph();
 };
 
 export const onImportProgress = async (
