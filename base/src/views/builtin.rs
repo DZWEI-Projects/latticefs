@@ -12,6 +12,31 @@ use crate::model::ObjectID;
 use crate::query::{parse, QueryEvaluator};
 use crate::storage::MetadataStore;
 
+/// Supported locales for built-in view names and descriptions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Locale {
+    /// English locale
+    English,
+    /// German locale (Deutsch)
+    German,
+}
+
+impl Locale {
+    /// Detect the locale from the operating system, falling back to German.
+    pub fn from_system() -> Self {
+        sys_locale::get_locale()
+            .map(|locale| {
+                if locale.starts_with("en") {
+                    Locale::English
+                } else {
+                    // Default fallback to German for all non-English locales
+                    Locale::German
+                }
+            })
+            .unwrap_or(Locale::German)
+    }
+}
+
 /// Built-in view types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinView {
@@ -66,6 +91,42 @@ impl BuiltinView {
         }
     }
 
+    /// Get the localized display name for this view.
+    pub fn name_localized(&self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (BuiltinView::Recent, Locale::English) => "Recent",
+            (BuiltinView::Recent, Locale::German) => "Neueste",
+            (BuiltinView::Projects, Locale::English) => "Projects",
+            (BuiltinView::Projects, Locale::German) => "Projekte",
+            (BuiltinView::Drafts, Locale::English) => "Drafts",
+            (BuiltinView::Drafts, Locale::German) => "Entwürfe",
+            (BuiltinView::Review, Locale::English) => "Pending Review",
+            (BuiltinView::Review, Locale::German) => "Zur Prüfung",
+            (BuiltinView::Approved, Locale::English) => "Approved",
+            (BuiltinView::Approved, Locale::German) => "Genehmigt",
+            (BuiltinView::All, Locale::English) => "All Objects",
+            (BuiltinView::All, Locale::German) => "Alle Objekte",
+        }
+    }
+
+    /// Get the localized description for this view.
+    pub fn description_localized(&self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (BuiltinView::Recent, Locale::English) => "Objects updated within the last 7 days",
+            (BuiltinView::Recent, Locale::German) => "Objekte, die in den letzten 7 Tagen aktualisiert wurden",
+            (BuiltinView::Projects, Locale::English) => "Objects tagged as projects",
+            (BuiltinView::Projects, Locale::German) => "Objekte, die als Projekte gekennzeichnet sind",
+            (BuiltinView::Drafts, Locale::English) => "Objects in draft state",
+            (BuiltinView::Drafts, Locale::German) => "Objekte im Entwurfsstadium",
+            (BuiltinView::Review, Locale::English) => "Objects pending review",
+            (BuiltinView::Review, Locale::German) => "Objekte, die auf Prüfung warten",
+            (BuiltinView::Approved, Locale::English) => "Approved objects",
+            (BuiltinView::Approved, Locale::German) => "Genehmigte Objekte",
+            (BuiltinView::All, Locale::English) => "All objects in the repository",
+            (BuiltinView::All, Locale::German) => "Alle Objekte im Repository",
+        }
+    }
+
     /// List all built-in views.
     pub fn all() -> &'static [BuiltinView] {
         &[
@@ -78,15 +139,23 @@ impl BuiltinView {
         ]
     }
 
-    /// Get a built-in view by name.
+    /// Get a built-in view by name (supports English and German names).
     pub fn by_name(name: &str) -> Option<BuiltinView> {
         match name.to_lowercase().as_str() {
+            // English names
             "recent" => Some(BuiltinView::Recent),
             "projects" => Some(BuiltinView::Projects),
             "drafts" => Some(BuiltinView::Drafts),
             "review" | "pending review" => Some(BuiltinView::Review),
             "approved" => Some(BuiltinView::Approved),
             "all" | "all objects" => Some(BuiltinView::All),
+            // German names
+            "neueste" => Some(BuiltinView::Recent),
+            "projekte" => Some(BuiltinView::Projects),
+            "entwürfe" => Some(BuiltinView::Drafts),
+            "zur prüfung" => Some(BuiltinView::Review),
+            "genehmigt" => Some(BuiltinView::Approved),
+            "alle objekte" => Some(BuiltinView::All),
             _ => None,
         }
     }
@@ -224,6 +293,27 @@ mod tests {
         assert_eq!(BuiltinView::by_name("RECENT"), Some(BuiltinView::Recent));
         assert_eq!(BuiltinView::by_name("projects"), Some(BuiltinView::Projects));
         assert_eq!(BuiltinView::by_name("nonexistent"), None);
+        
+        // Test German names
+        assert_eq!(BuiltinView::by_name("neueste"), Some(BuiltinView::Recent));
+        assert_eq!(BuiltinView::by_name("projekte"), Some(BuiltinView::Projects));
+        assert_eq!(BuiltinView::by_name("entwürfe"), Some(BuiltinView::Drafts));
+    }
+
+    #[test]
+    fn test_localization() {
+        // Test English
+        assert_eq!(BuiltinView::Recent.name_localized(Locale::English), "Recent");
+        assert_eq!(BuiltinView::Projects.name_localized(Locale::English), "Projects");
+        assert!(BuiltinView::Recent.description_localized(Locale::English).contains("7 days"));
+        
+        // Test German
+        assert_eq!(BuiltinView::Recent.name_localized(Locale::German), "Neueste");
+        assert_eq!(BuiltinView::Projects.name_localized(Locale::German), "Projekte");
+        assert!(BuiltinView::Recent.description_localized(Locale::German).contains("7 Tagen"));
+        
+        // Test system locale detection doesn't panic
+        let _system_locale = Locale::from_system();
     }
 
     #[test]

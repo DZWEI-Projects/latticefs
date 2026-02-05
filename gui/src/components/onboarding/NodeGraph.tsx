@@ -51,6 +51,12 @@ const TOOLTIP_ADVANCE_KEY = {
   hint: "Tastenkürzel",
 };
 
+const NEXT_ADVANCE_KEY = {
+  codes: ["Enter", "NumpadEnter"],
+  label: "Enter",
+  hint: "Tastenkürzel",
+};
+
 interface TooltipData {
   view: ViewNode;
   position: { x: number; y: number };
@@ -146,6 +152,24 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [advanceTooltip, activeTooltip, showTutorial]);
+
+  useEffect(() => {
+    const shouldListen = (showInsight && showTutorial) || (!showTutorial && animationPhase >= 4);
+    if (!shouldListen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!NEXT_ADVANCE_KEY.codes.includes(event.code) || event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+      event.preventDefault();
+      onNext();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [animationPhase, onNext, showInsight, showTutorial]);
 
   // Calculate node positions in a circular layout
   const getViewPosition = (index: number, total: number) => {
@@ -422,18 +446,44 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
             <span className="text-primary font-medium">Diese Datei erscheint an mehreren Stellen</span> — aber sie existiert nur einmal. Das sind keine Ordner. Das sind <span className="text-secondary">Perspektiven</span>.
           </p>
           
-          <AnimatedButton onClick={onNext} size="sm">
-            Weiter
-          </AnimatedButton>
+          <div className="flex items-center justify-between gap-2">
+            <AnimatedButton onClick={onNext} size="sm">
+              Weiter
+            </AnimatedButton>
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <span className="uppercase tracking-wide">{NEXT_ADVANCE_KEY.hint}</span>
+              <kbd
+                className={cn(
+                  "rounded-md border border-muted-foreground/40 bg-muted/60 px-2 py-0.5",
+                  "font-mono text-[10px] text-foreground shadow-[inset_0_-1px_0_rgba(0,0,0,0.25)]"
+                )}
+              >
+                {NEXT_ADVANCE_KEY.label}
+              </kbd>
+            </div>
+          </div>
         </div>
       )}
       
       {/* Skip button if not showing tutorial */}
       {!showTutorial && animationPhase >= 4 && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
-          <AnimatedButton onClick={onNext} size="sm">
-            Weiter
-          </AnimatedButton>
+          <div className="flex items-center justify-between gap-2">
+            <AnimatedButton onClick={onNext} size="sm">
+              Weiter
+            </AnimatedButton>
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <span className="uppercase tracking-wide">{NEXT_ADVANCE_KEY.hint}</span>
+              <kbd
+                className={cn(
+                  "rounded-md border border-muted-foreground/40 bg-muted/60 px-2 py-0.5",
+                  "font-mono text-[10px] text-foreground shadow-[inset_0_-1px_0_rgba(0,0,0,0.25)]"
+                )}
+              >
+                {NEXT_ADVANCE_KEY.label}
+              </kbd>
+            </div>
+          </div>
         </div>
       )}
     </div>

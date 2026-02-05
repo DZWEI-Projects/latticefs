@@ -90,6 +90,8 @@ The codebase has a clear separation:
    - `storage`: ChunkStore, MetadataStore, hash computation
    - `query`: Query parser, evaluator, and semantics (find by meaning)
    - `views`: BuiltinView, DynamicView, ViewStore (query-backed views)
+     * Built-in views support localization (English/German) via `Locale::from_system()`
+     * Methods: `name_localized()`, `description_localized()`, `by_name()` accepts both languages
    - `crypto`: Ed25519 signing, AES-GCM encryption, capability system
    - `policy`: PolicyEngine, QuotaEnforcer, RateLimiter
    - `fuse`: Read-only FUSE mount (optional via feature flag)
@@ -116,6 +118,10 @@ The codebase has a clear separation:
 - **Query-backed views**: Views defined by semantic queries, not folder hierarchies
 - **Semantic linking**: Graph-based relationships between objects
 - **FUSE mounting**: Read-only filesystem view (optional, requires `--fuse` flag)
+- **Localization**: Built-in views support English and German locales
+  * Use `Locale::from_system()` to detect OS locale (defaults to German)
+  * `name_localized(locale)` and `description_localized(locale)` for translated strings
+  * `by_name()` accepts view names in both English and German
 
 ### Repository Structure
 

@@ -3,7 +3,7 @@ import { useViewObjects } from "@/hooks/useViewObjects";
 import { HardDrive, CheckCircle } from "lucide-react";
 
 interface StatusBarProps {
-  viewName?: string;
+  viewId?: string;
   selectedCount: number;
 }
 
@@ -15,8 +15,8 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-export const StatusBar = ({ viewName, selectedCount }: StatusBarProps) => {
-  const { data: objects } = useViewObjects(viewName || "all-objects");
+export const StatusBar = ({ viewId, selectedCount }: StatusBarProps) => {
+  const { data: objects } = useViewObjects(viewId || "all-objects");
 
   const objectCount = objects?.length || 0;
   const totalSize = objects?.reduce((acc, obj) => acc + obj.sizeBytes, 0) || 0;
@@ -25,13 +25,13 @@ export const StatusBar = ({ viewName, selectedCount }: StatusBarProps) => {
     <div className="h-6 flex-shrink-0 border-t border-border/50 flex items-center gap-4 px-4 text-xs text-muted-foreground bg-background/50">
       {/* Object count */}
       <span>
-        {objectCount} {objectCount === 1 ? "object" : "objects"}
+        {objectCount} {objectCount === 1 ? "Objekt" : "Objekte"}
       </span>
 
       {/* Selection count */}
       {selectedCount > 0 && (
         <span className="text-primary">
-          {selectedCount} selected
+          {selectedCount} ausgewählt
         </span>
       )}
 
@@ -47,7 +47,7 @@ export const StatusBar = ({ viewName, selectedCount }: StatusBarProps) => {
       {/* Connection status */}
       <div className="flex items-center gap-1.5">
         <CheckCircle className="w-3 h-3 text-green-500" />
-        <span>Connected</span>
+        <span>Verbunden</span>
       </div>
     </div>
   );

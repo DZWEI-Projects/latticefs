@@ -5,6 +5,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       crate::commands::get_repo_info,
       crate::commands::init_repo,
+      crate::commands::check_initialized,
       crate::commands::import_paths,
       crate::commands::create_sample_files,
       crate::commands::get_onboarding_graph,
@@ -16,6 +17,7 @@ pub fn run() {
       crate::commands::set_object_trust_level,
       crate::commands::open_object,
       crate::commands::create_view,
+      crate::commands::update_view,
       crate::commands::delete_view,
     ])
     .setup(|app| {

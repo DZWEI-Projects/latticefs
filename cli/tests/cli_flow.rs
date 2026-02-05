@@ -65,6 +65,46 @@ fn cli_flow_basic() {
         .stdout(predicate::str::contains("auto:mimetype:text/plain"))
         .stdout(predicate::str::contains("hello latticefs"));
 
+    // add an image to exercise auto:mimetype wildcards
+    let image_path = temp.path().join("photo.jpg");
+    fs::write(&image_path, b"fakejpg").unwrap();
+    let output = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", image_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let image_id = stdout
+        .split_whitespace()
+        .last()
+        .expect("image object id")
+        .to_string();
+    uuid::Uuid::parse_str(&image_id).expect("valid uuid");
+
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["meta", &image_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auto:mimetype:image/jpeg"));
+
+    // view create (auto tag wildcard)
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([
+            "view",
+            "create",
+            "ImageAuto",
+            "--query",
+            "tag:auto:mimetype:image/*",
+        ])
+        .assert()
+        .success();
+
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["stats", "view", "ImageAuto"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Objects: 1"));
+
     // view create
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["view", "create", "Images", "--query", "type:text/plain"])

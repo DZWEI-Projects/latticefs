@@ -119,7 +119,7 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
           style={{ animationDelay: "1400ms", animationFillMode: "forwards" }}
         >
           <AnimatedButton onClick={handleCreateLattice} disabled={isInitializing} size="md">
-            {isInitializing ? "Initialisiere..." : "Create My Lattice"}
+            {isInitializing ? "Initialisiere..." : "Mein Lattice erstellen"}
           </AnimatedButton>
         </div>
         {error && (

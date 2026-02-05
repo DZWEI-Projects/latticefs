@@ -96,7 +96,7 @@ export const ListView = ({
           )}
           onClick={() => handleSort("extension")}
         >
-          Type
+          Typ
           {sort.field === "extension" && <SortIcon className="w-3 h-3" />}
         </button>
         <button
@@ -106,7 +106,7 @@ export const ListView = ({
           )}
           onClick={() => handleSort("sizeBytes")}
         >
-          Size
+          Größe
           {sort.field === "sizeBytes" && <SortIcon className="w-3 h-3" />}
         </button>
         <button
@@ -116,11 +116,11 @@ export const ListView = ({
           )}
           onClick={() => handleSort("modifiedAt")}
         >
-          Modified
+          Geändert
           {sort.field === "modifiedAt" && <SortIcon className="w-3 h-3" />}
         </button>
-        <div className="w-24">Tags</div>
-        <div className="w-16 text-right">Trust</div>
+        <div className="w-24">Eigenschaften</div>
+        <div className="w-24 text-right">Sicherheitsgrad</div>
       </div>
 
       {/* Rows */}

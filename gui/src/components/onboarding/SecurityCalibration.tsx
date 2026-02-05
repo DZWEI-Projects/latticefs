@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { GlassCard } from "./ui/GlassCard";
 import { AnimatedButton } from "./ui/AnimatedButton";
 import { ToggleSwitch } from "./ui/ToggleSwitch";
 import { ParticleBackground } from "./ui/ParticleBackground";
 import { cn } from "@/lib/utils";
 import { useConfirmDialog } from "@/lib/confirm-dialog";
-import { Shield, Download, History, AlertTriangle, Check } from "lucide-react";
+import { Shield, Download, History, AlertTriangle, Check, ArrowRight } from "lucide-react";
 
 interface SecurityCalibrationProps {
   onNext: () => void;
@@ -43,6 +43,12 @@ const securityOptions: SecurityOption[] = [
   },
 ];
 
+const MAIN_ACTION_KEY = {
+  codes: ["Enter", "NumpadEnter"],
+  label: "Enter",
+  hint: "Tastenkürzel",
+};
+
 export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
   const [settings, setSettings] = useState<Record<string, boolean>>(
     Object.fromEntries(securityOptions.map((opt) => [opt.id, opt.defaultEnabled]))
@@ -55,6 +61,29 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
     return () => clearTimeout(timer);
   }, []);
 
+  const handleProceed = useCallback(() => {
+    setIsAnimatingOut(true);
+    setTimeout(onNext, 800);
+  }, [onNext]);
+
+  useEffect(() => {
+    if (isAnimatingOut) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!MAIN_ACTION_KEY.codes.includes(event.code) || event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      handleProceed();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isAnimatingOut, handleProceed]);
+
   const toggleSetting = (id: string) => {
     setSettings((prev) => ({
       ...prev,
@@ -66,11 +95,6 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
     setSettings(
       Object.fromEntries(securityOptions.map((opt) => [opt.id, opt.defaultEnabled]))
     );
-  };
-
-  const handleProceed = () => {
-    setIsAnimatingOut(true);
-    setTimeout(onNext, 800);
   };
 
   const handleApplyDefaults = () => {
@@ -197,12 +221,26 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
         <ConfigureLaterButton onConfirm={handleApplyDefaults} />
         
         {/* CTA Button */}
-        <div 
+        <div
           className="opacity-0 animate-fade-up"
           style={{ animationDelay: "950ms", animationFillMode: "forwards" }}
         >
-          <AnimatedButton onClick={handleProceed} size="md">
-            Sieht gut aus
+          <AnimatedButton onClick={handleProceed} size="md" showArrow={false} className="flex-col gap-1.5">
+            <span className="flex items-center gap-2">
+              Sieht gut aus
+              <ArrowRight className="w-4 h-4" />
+            </span>
+            <span className="flex items-center gap-2 text-[10px] text-primary-foreground/80">
+              <span className="uppercase tracking-wide">{MAIN_ACTION_KEY.hint}</span>
+              <kbd
+                className={cn(
+                  "rounded-md border border-primary-foreground/25 bg-primary-foreground/10 px-2 py-0.5",
+                  "font-mono text-[10px] text-primary-foreground shadow-[inset_0_-1px_0_rgba(0,0,0,0.25)]"
+                )}
+              >
+                {MAIN_ACTION_KEY.label}
+              </kbd>
+            </span>
           </AnimatedButton>
         </div>
       </div>

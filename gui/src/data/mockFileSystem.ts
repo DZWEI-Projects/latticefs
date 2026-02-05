@@ -71,7 +71,7 @@ export const mockFiles: FileNode[] = [
     connections: [],
     metadata: {
       downloadedFrom: "external-source.com",
-      source: "Browser Download",
+      source: "Browser-Download",
     },
   },
   {
@@ -172,7 +172,7 @@ export const mockFiles: FileNode[] = [
     connections: [],
     metadata: {
       downloadedFrom: "file-share.net",
-      source: "Email Attachment",
+      source: "E-Mail-Anhang",
     },
   },
   {

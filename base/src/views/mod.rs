@@ -9,7 +9,7 @@ pub mod builtin;
 pub mod dynamic;
 pub mod snapshot;
 
-pub use builtin::{BuiltinView, BuiltinViews};
+pub use builtin::{BuiltinView, BuiltinViews, Locale};
 pub use dynamic::{DynamicView, ViewConfig};
 pub use snapshot::ViewSnapshot;
 

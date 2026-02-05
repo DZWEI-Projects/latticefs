@@ -1,12 +1,14 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::import::{export_ref, ExportMode};
+use latticefs_base::import::{export_ref, export_view, ExportMode};
 use latticefs_base::LatticeRepo;
 use std::path::PathBuf;
 
+use super::common::find_view_by_id;
+
 #[derive(Args, Debug)]
 pub struct ExportArgs {
-    /// Object reference or view name
+    /// Object reference or view name/ID
     pub reference: String,
     /// Output path
     #[arg(long, short = 'o')]
@@ -21,6 +23,18 @@ pub async fn run(repo: LatticeRepo, args: ExportArgs) -> Result<()> {
         .mode
         .parse()
         .map_err(|e: String| anyhow::anyhow!(e))?;
+
+    if let Ok(uuid) = uuid::Uuid::parse_str(&args.reference) {
+        if let Some(view) = find_view_by_id(&repo, &uuid)? {
+            // Export using the resolved view name. The export_view function requires
+            // the view name to create appropriate directory structures and labels.
+            export_view(&repo, &view.name, &args.output, mode)
+                .await
+                .with_context(|| format!("Failed to export view {}", view.name))?;
+            println!("Exported view {} ({})", view.name, view.id);
+            return Ok(());
+        }
+    }
 
     export_ref(&repo, &args.reference, &args.output, mode)
         .await

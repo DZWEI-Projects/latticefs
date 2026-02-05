@@ -12,6 +12,7 @@ import type {
   ViewInfo,
   ObjectInfo,
   CreateViewArgs,
+  UpdateViewArgs,
   TagInfo,
 } from "./lfs";
 
@@ -23,17 +24,22 @@ let progressHandlers: ((p: ImportProgress) => void)[] = [];
 export const mockGetRepoInfo = async (): Promise<RepoInfo> => {
   await delay(150);
   return {
-    root: "~/LatticeFS",
-    configPath: "~/.config/latticefs/config.toml",
+    root: "~/NeuralFS",
+    configPath: "~/.config/NeuralFS/config.toml",
   };
 };
 
 export const mockInitRepo = async (): Promise<RepoInfo> => {
   await delay(400);
   return {
-    root: "~/LatticeFS",
-    configPath: "~/.config/latticefs/config.toml",
+    root: "~/NeuralFS",
+    configPath: "~/.config/NeuralFS/config.toml",
   };
+};
+
+export const mockCheckInitialized = async (): Promise<boolean> => {
+  await delay(100);
+  return false;
 };
 
 export const mockImportPaths = async (
@@ -52,10 +58,10 @@ export const mockImportPaths = async (
 export const mockCreateSampleFiles = async (): Promise<SampleFilesResult> => {
   await delay(300);
   return {
-    root: "~/LatticeFS Samples",
+    root: "~/NeuralFS-Beispiele",
     files: [
-      "~/LatticeFS Samples/Documents/Welcome.md",
-      "~/LatticeFS Samples/Projects/Phoenix/plan.txt",
+      "~/NeuralFS-Beispiele/Dokumente/Willkommen.md",
+      "~/NeuralFS-Beispiele/Projekte/Phoenix/plan.txt",
     ],
   };
 };
@@ -86,8 +92,8 @@ export const mockJoin = async (...paths: string[]) => paths.join("/");
 const mockViewsData: ViewInfo[] = [
   {
     id: "recent",
-    name: "Recent",
-    description: "Objects updated within the last 7 days",
+    name: "Neueste",
+    description: "Objekte, die in den letzten 7 Tagen aktualisiert wurden",
     query: "updated within 7d SORT updated DESC LIMIT 100",
     viewType: "builtin",
     icon: "Clock",
@@ -95,17 +101,17 @@ const mockViewsData: ViewInfo[] = [
   },
   {
     id: "projects",
-    name: "Projects",
-    description: "Objects tagged as projects",
-    query: "tag:project SORT updated DESC",
+    name: "Projekte",
+    description: "Objekte mit der Eigenschaft Projekt",
+    query: "tag:projekt SORT updated DESC",
     viewType: "builtin",
     icon: "Folder",
     objectCount: 4,
   },
   {
     id: "drafts",
-    name: "Drafts",
-    description: "Objects in draft state",
+    name: "Entwürfe",
+    description: "Objekte im Entwurfsstatus",
     query: "state:draft SORT updated DESC",
     viewType: "builtin",
     icon: "FileEdit",
@@ -113,8 +119,8 @@ const mockViewsData: ViewInfo[] = [
   },
   {
     id: "pending-review",
-    name: "Pending Review",
-    description: "Objects pending review",
+    name: "Ausstehende Prüfung",
+    description: "Objekte, die auf Prüfung warten",
     query: "state:review SORT updated DESC",
     viewType: "builtin",
     icon: "Eye",
@@ -122,8 +128,8 @@ const mockViewsData: ViewInfo[] = [
   },
   {
     id: "approved",
-    name: "Approved",
-    description: "Approved objects",
+    name: "Freigegeben",
+    description: "Freigegebene Objekte",
     query: "state:approved SORT updated DESC",
     viewType: "builtin",
     icon: "CheckCircle",
@@ -131,8 +137,8 @@ const mockViewsData: ViewInfo[] = [
   },
   {
     id: "all-objects",
-    name: "All Objects",
-    description: "All objects in the repository",
+    name: "Alle Objekte",
+    description: "Alle Objekte im Repository",
     query: "trust >= 0",
     viewType: "builtin",
     icon: "Grid",
@@ -150,8 +156,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 5,
     modifiedAt: Date.now() - 86400000 * 2,
     tags: [
-      { key: "project", value: "phoenix" },
-      { key: "type", value: "document" },
+      { key: "projekt", value: "phoenix" },
+      { key: "typ", value: "dokument" },
     ],
     views: ["recent", "projects"],
     trustLevel: 100,
@@ -165,8 +171,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 3,
     modifiedAt: Date.now() - 86400000 * 3,
     tags: [
-      { key: "type", value: "invoice" },
-      { key: "year", value: "2024" },
+      { key: "typ", value: "rechnung" },
+      { key: "jahr", value: "2024" },
     ],
     views: ["recent"],
     trustLevel: 100,
@@ -179,7 +185,7 @@ const mockObjectsData: ObjectInfo[] = [
     sizeBytes: 52400000,
     createdAt: Date.now() - 86400000 * 1,
     modifiedAt: Date.now() - 86400000 * 1,
-    tags: [{ key: "source", value: "downloads" }],
+    tags: [{ key: "quelle", value: "downloads" }],
     views: ["recent"],
     trustLevel: 45,
   },
@@ -192,8 +198,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 180,
     modifiedAt: Date.now() - 86400000 * 180,
     tags: [
-      { key: "type", value: "photo" },
-      { key: "location", value: "mallorca" },
+      { key: "typ", value: "foto" },
+      { key: "ort", value: "mallorca" },
     ],
     views: [],
     trustLevel: 100,
@@ -207,8 +213,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 4,
     modifiedAt: Date.now() - 86400000 * 1,
     tags: [
-      { key: "project", value: "raccoon" },
-      { key: "type", value: "notes" },
+      { key: "projekt", value: "raccoon" },
+      { key: "typ", value: "notizen" },
     ],
     views: ["recent", "projects", "drafts"],
     trustLevel: 100,
@@ -222,8 +228,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 20,
     modifiedAt: Date.now() - 86400000 * 2,
     tags: [
-      { key: "type", value: "spreadsheet" },
-      { key: "year", value: "2024" },
+      { key: "typ", value: "tabelle" },
+      { key: "jahr", value: "2024" },
     ],
     views: ["recent"],
     trustLevel: 100,
@@ -237,8 +243,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 6,
     modifiedAt: Date.now() - 86400000 * 1,
     tags: [
-      { key: "project", value: "raccoon" },
-      { key: "type", value: "presentation" },
+      { key: "projekt", value: "raccoon" },
+      { key: "typ", value: "präsentation" },
     ],
     views: ["recent", "projects"],
     trustLevel: 100,
@@ -252,8 +258,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 2,
     modifiedAt: Date.now() - 86400000 * 1,
     tags: [
-      { key: "project", value: "raccoon" },
-      { key: "type", value: "code" },
+      { key: "projekt", value: "raccoon" },
+      { key: "typ", value: "code" },
     ],
     views: ["recent", "projects", "drafts"],
     trustLevel: 100,
@@ -266,7 +272,7 @@ const mockObjectsData: ObjectInfo[] = [
     sizeBytes: 245000,
     createdAt: Date.now() - 86400000 * 60,
     modifiedAt: Date.now() - 86400000 * 7,
-    tags: [{ key: "type", value: "document" }],
+    tags: [{ key: "typ", value: "dokument" }],
     views: [],
     trustLevel: 100,
   },
@@ -278,7 +284,7 @@ const mockObjectsData: ObjectInfo[] = [
     sizeBytes: 156000000,
     createdAt: Date.now() - 86400000 * 1,
     modifiedAt: Date.now() - 86400000 * 1,
-    tags: [{ key: "source", value: "downloads" }],
+    tags: [{ key: "quelle", value: "downloads" }],
     views: ["recent"],
     trustLevel: 30,
   },
@@ -291,8 +297,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 3,
     modifiedAt: Date.now() - 86400000 * 1,
     tags: [
-      { key: "project", value: "phoenix" },
-      { key: "type", value: "design" },
+      { key: "projekt", value: "phoenix" },
+      { key: "typ", value: "design" },
     ],
     views: ["recent", "projects", "pending-review"],
     trustLevel: 100,
@@ -306,8 +312,8 @@ const mockObjectsData: ObjectInfo[] = [
     createdAt: Date.now() - 86400000 * 10,
     modifiedAt: Date.now() - 86400000 * 2,
     tags: [
-      { key: "project", value: "phoenix" },
-      { key: "type", value: "documentation" },
+      { key: "projekt", value: "phoenix" },
+      { key: "typ", value: "dokumentation" },
     ],
     views: ["recent", "projects", "approved"],
     trustLevel: 100,
@@ -319,12 +325,12 @@ export const mockListViews = async (): Promise<ViewInfo[]> => {
   return mockViewsData;
 };
 
-export const mockGetViewObjects = async (viewName: string): Promise<ObjectInfo[]> => {
+export const mockGetViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
   await delay(150);
-  if (viewName === "all-objects" || viewName === "all") {
+  if (viewId === "all-objects" || viewId === "all") {
     return mockObjectsData;
   }
-  return mockObjectsData.filter((obj) => obj.views.includes(viewName));
+  return mockObjectsData.filter((obj) => obj.views.includes(viewId));
 };
 
 export const mockEvaluateQuery = async (_query: string): Promise<ObjectInfo[]> => {
@@ -399,6 +405,22 @@ export const mockCreateView = async (args: CreateViewArgs): Promise<ViewInfo> =>
   };
   mockViewsData.push(newView);
   return newView;
+};
+
+export const mockUpdateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
+  await delay(180);
+  const index = mockViewsData.findIndex((v) => v.id === args.id);
+  if (index === -1) {
+    throw new Error("Perspektive nicht gefunden");
+  }
+  const updated: ViewInfo = {
+    ...mockViewsData[index],
+    name: args.name,
+    description: args.description || "",
+    query: args.query,
+  };
+  mockViewsData[index] = updated;
+  return updated;
 };
 
 export const mockDeleteView = async (name: string): Promise<void> => {

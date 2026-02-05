@@ -3,6 +3,14 @@ import { cn } from "@/lib/utils";
 import { ObjectNode } from "./ObjectNode";
 import type { ObjectInfo, TagInfo } from "@/lib/lfs";
 import { ObjectContextMenu } from "./ObjectContextMenu";
+import { GraphLegend } from "./GraphLegend";
+import {
+  getHeatColor,
+  getConnectionThickness,
+  getConnectionOpacity,
+  getGlowFilterId,
+  shouldApplyGlow,
+} from "@/lib/graphVisualization";
 
 interface GraphViewProps {
   objects: ObjectInfo[];
@@ -85,22 +93,23 @@ export const GraphView = ({
     [onObjectSelect, onObjectFocus]
   );
 
-  // Get objects that share views with the hovered object
+  // Get objects that share views with the hovered object, along with shared view count
   const connectedObjects = useMemo(() => {
-    if (!hoveredObject) return new Set<string>();
+    if (!hoveredObject) return new Map<string, number>();
     const hovered = objects.find((o) => o.id === hoveredObject);
-    if (!hovered) return new Set<string>();
+    if (!hovered) return new Map<string, number>();
     
-    const connected = new Set<string>();
+    const connected = new Map<string, number>();
     objects.forEach((obj) => {
       if (obj.id === hoveredObject) return;
       const sharedViews = obj.views.filter((v) => hovered.views.includes(v));
       if (sharedViews.length > 0) {
-        connected.add(obj.id);
+        connected.set(obj.id, sharedViews.length);
       }
     });
     return connected;
   }, [hoveredObject, objects]);
+
 
   return (
     <div
@@ -121,6 +130,22 @@ export const GraphView = ({
               <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
               <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.3" />
             </linearGradient>
+            
+            {/* Glow filters for heat effect - different intensities based on shared view count */}
+            {/* Generate 6 filters for intensities from 0.5 to 3.0 (inclusive) in 0.5 increments */}
+            {Array.from({ length: 6 }, (_, i) => {
+              const intensity = 0.5 + i * 0.5; // 0.5, 1.0, 1.5, 2.0, 2.5, 3.0
+              const filterId = `glow-${Math.round(intensity * 10)}`; // glow-5, glow-10, etc.
+              return (
+                <filter key={filterId} id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation={intensity} result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              );
+            })}
           </defs>
           
           <g transform={`translate(${GRAPH_CENTER}, ${GRAPH_CENTER})`}>
@@ -142,8 +167,8 @@ export const GraphView = ({
                   x2={pos.x}
                   y2={pos.y}
                   stroke="url(#connection-gradient)"
-                  strokeWidth={isHighlighted ? 1.5 : 0.5}
-                  opacity={isHighlighted ? 0.8 : 0.2}
+                  strokeWidth={isHighlighted ? 1.75 : 0.75}
+                  opacity={isHighlighted ? 0.99 : 0.8}
                   className="transition-all duration-300"
                 />
               );
@@ -152,10 +177,17 @@ export const GraphView = ({
             {/* Connections between related objects */}
             {hoveredObject && (
               <>
-                {Array.from(connectedObjects).map((connectedId) => {
+                {Array.from(connectedObjects.entries()).map(([connectedId, sharedViewCount]) => {
                   const hoveredPos = nodePositions.get(hoveredObject);
                   const connectedPos = nodePositions.get(connectedId);
                   if (!hoveredPos || !connectedPos) return null;
+                  
+                  // Calculate visual properties based on shared view count
+                  const thickness = getConnectionThickness(sharedViewCount);
+                  const opacity = getConnectionOpacity(sharedViewCount);
+                  const heatColor = getHeatColor(sharedViewCount);
+                  const glowFilterId = getGlowFilterId(sharedViewCount);
+                  const hasGlow = shouldApplyGlow(sharedViewCount);
                   
                   return (
                     <line
@@ -164,10 +196,12 @@ export const GraphView = ({
                       y1={hoveredPos.y}
                       x2={connectedPos.x}
                       y2={connectedPos.y}
-                      stroke="hsl(var(--primary))"
-                      strokeWidth="1.5"
-                      strokeOpacity="0.6"
+                      stroke={heatColor}
+                      strokeWidth={thickness}
+                      strokeOpacity={opacity}
                       strokeDasharray="4 2"
+                      filter={hasGlow ? `url(#${glowFilterId})` : undefined}
+                      className="transition-all duration-300"
                     />
                   );
                 })}
@@ -223,6 +257,9 @@ export const GraphView = ({
             </ObjectContextMenu>
           );
         })}
+
+        {/* Legend */}
+        <GraphLegend />
       </div>
     </div>
   );

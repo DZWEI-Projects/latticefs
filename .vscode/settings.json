@@ -1,0 +1,13 @@
+{
+    "rust-analyzer.linkedProjects": ["Cargo.toml"],
+    "rust-analyzer.server.extraEnv": {"RUSTUP_TOOLCHAIN": "stable"},
+    "editor.formatOnSave": true,
+    "[rust]": {"editor.defaultFormatter": "rust-lang.rust-analyzer"},
+    "markdownlint.enabled": false,
+    "markdownlint.config": {
+      "MD004": false,
+      "MD022": false,
+      "MD032": false,
+    }
+  }
+  

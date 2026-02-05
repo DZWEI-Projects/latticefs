@@ -152,11 +152,11 @@ impl<'a> Parser<'a> {
         self.expect(Token::Colon)?;
 
         let mut path = Vec::new();
-        path.push(self.parse_identifier()?);
+        path.push(self.parse_tag_segment()?);
 
         while self.check(&Token::Colon) {
             self.advance()?;
-            path.push(self.parse_identifier()?);
+            path.push(self.parse_tag_segment()?);
         }
 
         Ok(Predicate::Tag { path })
@@ -434,11 +434,11 @@ impl<'a> Parser<'a> {
                 self.expect(Token::Colon)?;
 
                 let mut path = Vec::new();
-                path.push(self.parse_identifier()?);
+                path.push(self.parse_tag_segment()?);
 
                 while self.check(&Token::Colon) {
                     self.advance()?;
-                    path.push(self.parse_identifier()?);
+                    path.push(self.parse_tag_segment()?);
                 }
 
                 Ok(ObjectRef::Tag(path))
@@ -564,6 +564,35 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parse a tag path segment, allowing quoted strings, wildcards, and slash-containing values.
+    fn parse_tag_segment(&mut self) -> Result<String> {
+        let mut segment = self.parse_tag_atom()?;
+
+        while self.check(&Token::Slash) {
+            self.advance()?;
+            let next = self.parse_tag_atom()?;
+            segment.push('/');
+            segment.push_str(&next);
+        }
+
+        Ok(segment)
+    }
+
+    fn parse_tag_atom(&mut self) -> Result<String> {
+        match &self.current {
+            Token::String(s) => {
+                let s = s.clone();
+                self.advance()?;
+                Ok(s)
+            }
+            Token::Star => {
+                self.advance()?;
+                Ok("*".to_string())
+            }
+            _ => self.parse_identifier(),
+        }
+    }
+
     /// Parse a timestamp value and return Unix microseconds.
     fn parse_timestamp_value(&mut self) -> Result<i64> {
         let raw = match self.current() {
@@ -676,6 +705,42 @@ mod tests {
         match query.expr {
             Expr::Predicate(Predicate::Tag { path }) => {
                 assert_eq!(path, vec!["project", "phoenix"]);
+            }
+            _ => panic!("Expected tag predicate"),
+        }
+    }
+
+    #[test]
+    fn test_tag_with_slash_value() {
+        let query = parse("tag:auto:mimetype:image/jpeg").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Tag { path }) => {
+                assert_eq!(path, vec!["auto", "mimetype", "image/jpeg"]);
+            }
+            _ => panic!("Expected tag predicate"),
+        }
+    }
+
+    #[test]
+    fn test_tag_with_wildcard_value() {
+        let query = parse("tag:auto:mimetype:image/*").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Tag { path }) => {
+                assert_eq!(path, vec!["auto", "mimetype", "image/*"]);
+            }
+            _ => panic!("Expected tag predicate"),
+        }
+    }
+
+    #[test]
+    fn test_tag_with_wildcard_major_minor() {
+        let query = parse("tag:auto:mimetype:*/*").unwrap();
+
+        match query.expr {
+            Expr::Predicate(Predicate::Tag { path }) => {
+                assert_eq!(path, vec!["auto", "mimetype", "*/*"]);
             }
             _ => panic!("Expected tag predicate"),
         }

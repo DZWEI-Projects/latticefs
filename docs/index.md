@@ -4,6 +4,7 @@
 - [Build process and Cargo profiles](build.md)
 - [CLI command reference](cli.md)
 - [CLI recipes (Do This → Run That)](cli-recipes.md)
+- [Localization / i18n](i18n-localization.md)
 - [Versioning guide](versioning.md)
 - [Listing objects](object-listing.md)
 - [Views](views.md)

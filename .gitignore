@@ -32,8 +32,6 @@ go.work
 go.work.sum
 
 # IDE and Editor files
-# VSCode
-.vscode/
 *.code-workspace
 
 # IntelliJ IDEA / GoLand

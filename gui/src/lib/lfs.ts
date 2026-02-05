@@ -90,6 +90,11 @@ export const initRepo = async (): Promise<RepoInfo> => {
   return (await getMocks()).mockInitRepo();
 };
 
+export const checkInitialized = async (): Promise<boolean> => {
+  if (isTauriApp()) return invoke<boolean>("check_initialized");
+  return (await getMocks()).mockCheckInitialized();
+};
+
 export const importPaths = async (
   targets: ImportTarget[],
 ): Promise<ImportSummary> => {
@@ -172,9 +177,8 @@ export const listViews = async (): Promise<ViewInfo[]> => {
   return (await getMocks()).mockListViews();
 };
 
-export const getViewObjects = async (viewName: string): Promise<ObjectInfo[]> => {
+export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
   if (isTauriApp()) {
-    const viewId = viewName;
     const objects = await invoke<
       Array<{
         id: string;
@@ -203,7 +207,7 @@ export const getViewObjects = async (viewName: string): Promise<ObjectInfo[]> =>
       trustLevel: o.trust_level,
     }));
   }
-  return (await getMocks()).mockGetViewObjects(viewName);
+  return (await getMocks()).mockGetViewObjects(viewId);
 };
 
 export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {
@@ -290,6 +294,13 @@ export interface CreateViewArgs {
   description?: string;
 }
 
+export interface UpdateViewArgs {
+  id: string;
+  name: string;
+  query: string;
+  description?: string;
+}
+
 export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
   if (isTauriApp()) {
     const view = await invoke<{
@@ -314,6 +325,30 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
   return (await getMocks()).mockCreateView(args);
 };
 
+export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
+  if (isTauriApp()) {
+    const view = await invoke<{
+      id: string;
+      name: string;
+      description: string;
+      query: string;
+      view_type: string;
+      icon: string | null;
+      object_count: number;
+    }>("update_view", { args });
+    return {
+      id: view.id,
+      name: view.name,
+      description: view.description,
+      query: view.query,
+      viewType: view.view_type as "builtin" | "dynamic",
+      icon: view.icon,
+      objectCount: view.object_count,
+    };
+  }
+  return (await getMocks()).mockUpdateView(args);
+};
+
 export const deleteView = async (name: string): Promise<void> => {
   if (isTauriApp()) {
     await invoke("delete_view", { name });
@@ -330,7 +365,7 @@ export const pickFiles = async (): Promise<string[] | null> => {
     const selected = await open({
       multiple: true,
       directory: false,
-      title: "Select files to import",
+      title: "Dateien zum Import auswählen",
     });
     if (!selected) return null;
     return Array.isArray(selected) ? selected : [selected];
@@ -344,7 +379,7 @@ export const pickFolders = async (): Promise<string[] | null> => {
     const selected = await open({
       multiple: true,
       directory: true,
-      title: "Select folders to import",
+      title: "Ordner zum Import auswählen",
     });
     if (!selected) return null;
     return Array.isArray(selected) ? selected : [selected];

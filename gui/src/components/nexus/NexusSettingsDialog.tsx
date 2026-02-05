@@ -19,12 +19,12 @@ export const NexusSettingsDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[360px]">
         <DialogHeader>
-          <DialogTitle>Nexus settings</DialogTitle>
+          <DialogTitle>Nexus-Einstellungen</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="details-on-select" className="text-sm">
-              Open detail panel on select
+              Detailbereich bei Auswahl öffnen
             </Label>
             <Switch
               id="details-on-select"

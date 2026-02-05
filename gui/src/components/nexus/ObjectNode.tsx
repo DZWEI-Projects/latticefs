@@ -147,7 +147,7 @@ export const ObjectNode = ({
           )}
           {object.views.length > 0 && (
             <p className="text-[10px] text-muted-foreground pt-1">
-              In {object.views.length} {object.views.length === 1 ? "view" : "views"}
+              In {object.views.length} {object.views.length === 1 ? "Perspektive" : "Perspektiven"}
             </p>
           )}
         </div>

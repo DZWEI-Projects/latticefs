@@ -18,7 +18,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/nexus" element={<Nexus />} />
-          <Route path="/nexus/:viewName" element={<Nexus />} />
+          <Route path="/nexus/:viewId" element={<Nexus />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

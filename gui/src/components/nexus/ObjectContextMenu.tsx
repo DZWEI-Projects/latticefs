@@ -24,12 +24,12 @@ interface ObjectContextMenuProps {
 }
 
 const trustOptions = [
-  { label: "Verified", value: 100 },
-  { label: "High", value: 85 },
-  { label: "Medium", value: 65 },
-  { label: "Low", value: 40 },
-  { label: "Untrusted", value: 15 },
-  { label: "Unset", value: null },
+  { label: "Bestätigt", value: 100 },
+  { label: "Hoch", value: 85 },
+  { label: "Mittel", value: 65 },
+  { label: "Niedrig", value: 40 },
+  { label: "Kritisch", value: 15 },
+  { label: "Nicht gesetzt", value: null },
 ];
 
 export const ObjectContextMenu = ({
@@ -51,25 +51,25 @@ export const ObjectContextMenu = ({
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => onOpen(object)}>
           <FolderOpen className="w-4 h-4 mr-2" />
-          Open
+          Öffnen
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => onShowDetails(object)}>
           <Shield className="w-4 h-4 mr-2" />
-          Show details
+          Details anzeigen
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => onRequestAddTag(object)}>
           <BadgePlus className="w-4 h-4 mr-2" />
-          Add tag
+          Eigenschaft hinzufügen
         </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <Tag className="w-4 h-4 mr-2" />
-            Remove tag
+            Eigenschaft entfernen
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-48">
             {object.tags.length === 0 ? (
-              <ContextMenuItem disabled>No tags assigned</ContextMenuItem>
+              <ContextMenuItem disabled>Keine Eigenschaften zugewiesen</ContextMenuItem>
             ) : (
               object.tags.map((tag) => (
                 <ContextMenuItem
@@ -88,7 +88,7 @@ export const ObjectContextMenu = ({
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <Shield className="w-4 h-4 mr-2" />
-            Set trust
+            Sicherheitsgrad setzen
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-44">
             {trustOptions.map((option) => (

@@ -64,6 +64,10 @@ impl Tag {
         // Get full tag path
         let full_path = self.full_path();
 
+        if pattern.contains('*') {
+            return wildcard_match(pattern, &full_path);
+        }
+
         // Check if pattern matches the full path (hierarchical prefix match)
         if full_path.starts_with(pattern) {
             // Make sure it's a proper hierarchical boundary
@@ -102,6 +106,55 @@ impl Tag {
     pub fn is_user_defined(&self) -> bool {
         self.key.starts_with("user:")
     }
+}
+
+fn wildcard_match(pattern: &str, text: &str) -> bool {
+    // Fast path: a single '*' matches any text.
+    if pattern == "*" {
+        return true;
+    }
+
+    // Standard wildcard matching with '*' meaning "match zero or more characters".
+    // This algorithm runs in linear time and correctly handles:
+    // - consecutive '*' (e.g., "**", "a**b", "**b")
+    // - '*' at the start or end of the pattern
+    // - '*' matching zero characters.
+    let pattern_bytes = pattern.as_bytes();
+    let text_bytes = text.as_bytes();
+
+    let mut p = 0usize; // index in pattern
+    let mut t = 0usize; // index in text
+    let mut star_idx: Option<usize> = None;
+    let mut match_idx: usize = 0;
+
+    while t < text_bytes.len() {
+        if p < pattern_bytes.len() && pattern_bytes[p] == b'*' {
+            // Record position of '*' and the position in text where it starts matching.
+            star_idx = Some(p);
+            match_idx = t;
+            p += 1;
+        } else if p < pattern_bytes.len() && pattern_bytes[p] == text_bytes[t] {
+            // Current characters match; advance both.
+            p += 1;
+            t += 1;
+        } else if let Some(star_pos) = star_idx {
+            // Mismatch: backtrack to last '*' and let it match one more character.
+            p = star_pos + 1;
+            match_idx += 1;
+            t = match_idx;
+        } else {
+            // No '*' to fall back to and characters don't match.
+            return false;
+        }
+    }
+
+    // Consume any remaining '*' in the pattern; they can match an empty suffix.
+    while p < pattern_bytes.len() && pattern_bytes[p] == b'*' {
+        p += 1;
+    }
+
+    // Match is successful if we've consumed the entire pattern.
+    p == pattern_bytes.len()
 }
 
 /// Get current timestamp in microseconds
@@ -175,6 +228,58 @@ mod tests {
         // Should not match different patterns
         assert!(!tag.matches("tag"));
         assert!(!tag.matches("project:apollo"));
+    }
+
+    #[test]
+    fn test_tag_matches_wildcard() {
+        let tag = Tag::new(
+            "auto:mimetype".to_string(),
+            "image/jpeg".to_string(),
+            test_actor(),
+        );
+
+        // Successful matching cases
+        assert!(tag.matches("auto:mimetype:image/*"));
+        assert!(tag.matches("auto:mimetype:*/*"));
+        assert!(tag.matches("auto:mimetype:*"));
+
+        // Should NOT match different patterns
+        assert!(!tag.matches("auto:mimetype:video/*"));
+        assert!(!tag.matches("auto:mimetype:image/png"));
+        assert!(!tag.matches("auto:mimetype:text/*"));
+
+        // Edge cases: consecutive wildcards
+        let tag2 = Tag::new(
+            "test:key".to_string(),
+            "abc".to_string(),
+            test_actor(),
+        );
+        assert!(tag2.matches("test:key:**"));
+        assert!(tag2.matches("test:key:a**c"));
+        assert!(tag2.matches("test:key:**abc"));
+
+        // Wildcards at the beginning
+        assert!(tag2.matches("test:key:*abc"));
+        assert!(tag2.matches("test:key:*c"));
+
+        // Wildcard matching zero characters
+        let tag3 = Tag::new(
+            "test:empty".to_string(),
+            "test".to_string(),
+            test_actor(),
+        );
+        assert!(tag3.matches("test:empty:test*"));
+        assert!(tag3.matches("test:empty:*test"));
+
+        // Hierarchical matching with wildcards
+        let tag4 = Tag::new(
+            "auto:category".to_string(),
+            "documents".to_string(),
+            test_actor(),
+        );
+        assert!(tag4.matches("auto:*"));
+        assert!(tag4.matches("*:category:documents"));
+        assert!(tag4.matches("*:*:documents"));
     }
 
     #[test]

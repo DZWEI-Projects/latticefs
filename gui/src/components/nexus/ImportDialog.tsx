@@ -132,16 +132,16 @@ export const ImportDialog = ({
       return (
         <div className="py-8 space-y-4">
           <div className="flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
           <p className="text-center text-sm text-muted-foreground">
-            Importing files...
+            Dateien werden importiert...
           </p>
           {progress && (
             <div className="space-y-2">
               <Progress value={(progress.current / progress.total) * 100} />
               <p className="text-center text-xs text-muted-foreground">
-                {progress.current} of {progress.total} files
+                {progress.current} von {progress.total} Dateien
               </p>
             </div>
           )}
@@ -156,8 +156,7 @@ export const ImportDialog = ({
             <CheckCircle2 className="w-12 h-12 text-green-500" />
           </div>
           <p className="text-center text-sm">
-            Successfully imported {importedCount} object
-            {importedCount !== 1 ? "s" : ""}
+            {importedCount} Objekt{importedCount !== 1 ? "e" : ""} erfolgreich importiert
           </p>
         </div>
       );
@@ -184,7 +183,7 @@ export const ImportDialog = ({
             className="flex-1"
           >
             <File className="w-4 h-4 mr-2" />
-            Add Files
+            Dateien hinzufügen
           </Button>
           <Button
             variant="outline"
@@ -193,7 +192,7 @@ export const ImportDialog = ({
             className="flex-1"
           >
             <Folder className="w-4 h-4 mr-2" />
-            Add Folders
+            Ordner hinzufügen
           </Button>
         </div>
 
@@ -222,9 +221,9 @@ export const ImportDialog = ({
 
         {selectedPaths.length === 0 && (
           <div className="border border-dashed rounded-lg py-8 text-center text-muted-foreground">
-            <p className="text-sm">No files or folders selected</p>
+            <p className="text-sm">Keine Dateien oder Ordner ausgewählt</p>
             <p className="text-xs mt-1">
-              Click the buttons above to add items to import
+              Wähle oben Elemente aus, die importiert werden sollen
             </p>
           </div>
         )}
@@ -236,10 +235,10 @@ export const ImportDialog = ({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Import Files</DialogTitle>
+          <DialogTitle>Dateien importieren</DialogTitle>
           <DialogDescription>
-            Add files and folders to import into LatticeFS. They will be
-            content-addressed and available across all your views.
+            Füge Dateien und Ordner hinzu, die in NeuralFS importiert werden.
+            Sie werden inhaltsbasiert adressiert und sind in allen Perspektiven verfügbar.
           </DialogDescription>
         </DialogHeader>
 
@@ -249,18 +248,18 @@ export const ImportDialog = ({
           {state === "idle" && (
             <>
               <Button variant="outline" onClick={handleClose}>
-                Cancel
+                Abbrechen
               </Button>
               <Button
                 onClick={handleImport}
                 disabled={selectedPaths.length === 0}
               >
-                Import {selectedPaths.length > 0 && `(${selectedPaths.length})`}
+                Importieren {selectedPaths.length > 0 && `(${selectedPaths.length})`}
               </Button>
             </>
           )}
           {(state === "success" || state === "error") && (
-            <Button onClick={handleClose}>Done</Button>
+            <Button onClick={handleClose}>Fertig</Button>
           )}
         </DialogFooter>
       </DialogContent>

@@ -4,10 +4,15 @@ use clap::{Args, Subcommand};
 use latticefs_base::crypto::Capability;
 use latticefs_base::model::Tag;
 use latticefs_base::storage::hash_to_hex;
-use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView};
+use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView, Locale};
 use latticefs_base::{LatticeRepo, Permission};
 
-use super::common::{parse_ref_with_version, resolve_object_id};
+use super::common::{
+    parse_ref_with_version,
+    resolve_object_id,
+    resolve_view_reference,
+    ResolvedView,
+};
 
 #[derive(Subcommand, Debug)]
 pub enum StatsCommand {
@@ -53,13 +58,13 @@ pub struct StatsObjectArgs {
 
 #[derive(Args, Debug)]
 pub struct StatsViewArgs {
-    /// View name (builtin or dynamic)
+    /// View name or ID (builtin or dynamic)
     pub name: String,
 }
 
 #[derive(Args, Debug)]
 pub struct StatsViewObjectsArgs {
-    /// View name (builtin or dynamic)
+    /// View name or ID (builtin or dynamic)
     pub name: String,
     /// Include auto/system tags
     #[arg(long)]
@@ -165,50 +170,55 @@ async fn object_stats(repo: LatticeRepo, args: StatsObjectArgs) -> Result<()> {
 }
 
 async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
-    if let Some(builtin) = BuiltinView::by_name(&args.name) {
-        let builtins = BuiltinViews::new(&repo.metadata);
-        let object_ids = builtins.evaluate(builtin)?;
-        let readable_count = count_readable(&repo, &object_ids);
-        println!("View: {}", builtin.name());
-        println!("Type: builtin");
-        println!("Query: {}", builtin.query());
-        println!("Description: {}", builtin.description());
-        println!("Objects: {}", readable_count);
-        return Ok(());
-    }
+    let locale = Locale::from_system();
+    match resolve_view_reference(&repo, &args.name)? {
+        ResolvedView::Builtin(builtin) => {
+            let builtins = BuiltinViews::new(&repo.metadata);
+            let object_ids = builtins.evaluate(builtin)?;
+            let readable_count = count_readable(&repo, &object_ids);
+            println!("View: {}", builtin.name_localized(locale));
+            println!("Type: builtin");
+            println!("Query: {}", builtin.query());
+            println!("Description: {}", builtin.description_localized(locale));
+            println!("Objects: {}", readable_count);
+        }
+        ResolvedView::Dynamic(view) => {
+            let mut dynamic =
+                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            let object_ids = dynamic.evaluate()?;
+            let readable_count = count_readable(&repo, &object_ids);
 
-    let view = repo.metadata.load_view(&args.name)?;
-    let mut dynamic =
-        DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
-    let object_ids = dynamic.evaluate()?;
-    let readable_count = count_readable(&repo, &object_ids);
-
-    println!("View: {}", view.name);
-    println!("Type: dynamic");
-    println!("Query: {}", view.query);
-    if let Some(description) = &view.description {
-        println!("Description: {}", description);
+            println!("View: {}", view.name);
+            println!("Id: {}", view.id);
+            println!("Type: dynamic");
+            println!("Query: {}", view.query);
+            if let Some(description) = &view.description {
+                println!("Description: {}", description);
+            }
+            println!("Created at: {}", view.created_at);
+            println!("Modified at: {}", view.modified_at);
+            println!("Created by: {}", hex::encode(view.created_by));
+            println!("Config max results: {:?}", view.config.max_results);
+            println!("Config cache ttl secs: {}", view.config.cache_ttl_secs);
+            println!("Config include archived: {}", view.config.include_archived);
+            println!("Config min trust: {:?}", view.config.min_trust_level);
+            println!("Objects: {}", readable_count);
+        }
     }
-    println!("Created at: {}", view.created_at);
-    println!("Modified at: {}", view.modified_at);
-    println!("Created by: {}", hex::encode(view.created_by));
-    println!("Config max results: {:?}", view.config.max_results);
-    println!("Config cache ttl secs: {}", view.config.cache_ttl_secs);
-    println!("Config include archived: {}", view.config.include_archived);
-    println!("Config min trust: {:?}", view.config.min_trust_level);
-    println!("Objects: {}", readable_count);
     Ok(())
 }
 
 async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<()> {
-    let object_ids = if let Some(builtin) = BuiltinView::by_name(&args.name) {
-        let builtins = BuiltinViews::new(&repo.metadata);
-        builtins.evaluate(builtin)?
-    } else {
-        let view = repo.metadata.load_view(&args.name)?;
-        let mut dynamic =
-            DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
-        dynamic.evaluate()?
+    let object_ids = match resolve_view_reference(&repo, &args.name)? {
+        ResolvedView::Builtin(builtin) => {
+            let builtins = BuiltinViews::new(&repo.metadata);
+            builtins.evaluate(builtin)?
+        }
+        ResolvedView::Dynamic(view) => {
+            let mut dynamic =
+                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            dynamic.evaluate()?
+        }
     };
 
     if object_ids.is_empty() {
@@ -247,12 +257,13 @@ async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<(
 }
 
 async fn views_summary(repo: LatticeRepo) -> Result<()> {
+    let locale = Locale::from_system();
     let builtins = BuiltinViews::new(&repo.metadata);
     println!("Built-in views:");
     for builtin in BuiltinView::all() {
         let object_ids = builtins.evaluate(*builtin)?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {}: {} objects", builtin.name(), readable_count);
+        println!("- {}: {} objects", builtin.name_localized(locale), readable_count);
     }
 
     let views = repo.metadata.list_views()?;
@@ -262,7 +273,7 @@ async fn views_summary(repo: LatticeRepo) -> Result<()> {
             DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
         let object_ids = dynamic.evaluate()?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {}: {} objects", view.name, readable_count);
+        println!("- {} (id: {}): {} objects", view.name, view.id, readable_count);
     }
 
     let snapshots = repo.metadata.list_snapshots()?;

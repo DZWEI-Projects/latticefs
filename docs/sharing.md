@@ -14,7 +14,7 @@ Sharing is capability-based. The system issues UCAN tokens scoped to an object (
 lfs share <object-id> --to <did:key:...> --cap read --expires 7d
 
 # Share a view snapshot
-lfs share snapshot <view-name> --to <did:key:...> --cap read --expires 7d
+lfs share snapshot <view-name|view-id> --to <did:key:...> --cap read --expires 7d
 
 # List stored capabilities
 lfs shares list

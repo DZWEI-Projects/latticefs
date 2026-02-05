@@ -96,7 +96,7 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
         ...base,
         {
           id: "samples",
-          name: "LatticeFS Samples",
+          name: "NeuralFS-Beispiele",
           icon: FolderPlus,
           defaultSelected: true,
           resolvePath: async () => sampleRoot,

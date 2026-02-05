@@ -2,6 +2,26 @@
 
 This document lists every CLI command, subcommand, and its arguments, with examples and example output.
 
+## Localization
+
+LatticeFS automatically detects your operating system locale and displays built-in view names and descriptions in your language. Currently supported:
+
+- **English** (en_*)
+- **German** (all other locales, default fallback)
+
+Built-in view names can be referenced in either language:
+
+| English | German |
+|---------|--------|
+| recent | neueste |
+| projects | projekte |
+| drafts | entwürfe |
+| review / pending review | zur prüfung |
+| approved | genehmigt |
+| all / all objects | alle objekte |
+
+Examples throughout this document show English output, but German systems will see localized names automatically.
+
 ## Global flags
 - `-v`, `-vv` — increase verbosity
 - `--repo <path>` — override repository root
@@ -141,32 +161,47 @@ Example:
 lfs stats object <object-id> --all-versions
 ```
 
-### `lfs stats view <name>`
-Show statistics for a built-in or dynamic view.
+### `lfs stats view <name|id>`
+Show statistics for a built-in or dynamic view. Built-in view names can be provided in English or German.
 
-Example:
+Examples:
 ```bash
 lfs stats view recent
+lfs stats view neueste  # German equivalent
 ```
 
-### `lfs stats view-objects <name> [--all-tags] [--raw-tags]`
+### `lfs stats view-objects <name|id> [--all-tags] [--raw-tags]`
 List objects for a view with minimal tag output.
 
 Notes:
 - By default, auto/system tags are hidden. Use `--all-tags` to include them.
 - Tags ending in `_b64` are base64url-decoded for display. Use `--raw-tags` to show both encoded and decoded values.
+- Built-in view names are accepted in both English and German.
 
 Example:
 ```bash
 lfs stats view-objects recent --all-tags
+# or in German:
+lfs stats view-objects neueste --all-tags
 ```
 
 ### `lfs stats views`
-Summarize all built-in and dynamic views.
+Summarize all built-in and dynamic views. Built-in views are displayed in the system locale (English or German).
 
 Example:
 ```bash
 lfs stats views
+```
+
+Example output (German locale):
+```text
+Built-in views:
+- Neueste: 5 objects
+- Projekte: 3 objects
+- Entwürfe: 2 objects
+- Zur Prüfung: 1 objects
+- Genehmigt: 10 objects
+- Alle Objekte: 15 objects
 ```
 
 ### `lfs stats policy <name>`
@@ -498,6 +533,8 @@ Checked out <object-id> to <version-id>
 
 ## Views
 
+**Localization Note**: Built-in view names and descriptions are automatically localized based on your operating system locale. The system supports English and German, with German as the default fallback for non-English locales. View names can be referenced in either language (e.g., "recent" or "neueste").
+
 ### `lfs view create <name> --query '<lql>'`
 Create a dynamic view.
 
@@ -508,7 +545,7 @@ lfs view create "Projects" --query "tag:project"
 
 Example output:
 ```text
-Created view Projects
+Created view Projects (<view-id>)
 ```
 
 ### `lfs view list`
@@ -519,7 +556,7 @@ Example:
 lfs view list
 ```
 
-Example output:
+Example output (English locale):
 ```text
 Built-in views:
 - Recent: Objects updated within the last 7 days
@@ -530,10 +567,28 @@ Built-in views:
 - All Objects: All objects in the repository
 
 Dynamic views:
-- Projects: tag:project
+- Projects (id: <view-id>): tag:project
 ```
 
-### `lfs view delete <name>`
+Example output (German locale):
+```text
+Built-in views:
+- Neueste: Objekte, die in den letzten 7 Tagen aktualisiert wurden
+- Projekte: Objekte, die als Projekte gekennzeichnet sind
+- Entwürfe: Objekte im Entwurfsstadium
+- Zur Prüfung: Objekte, die auf Prüfung warten
+- Genehmigt: Genehmigte Objekte
+- Alle Objekte: Alle Objekte im Repository
+
+Dynamic views:
+- Projects (id: <view-id>): tag:project
+```
+
+Notes:
+- Dynamic view IDs are UUIDs and can be used anywhere a view name is accepted.
+- Built-in view names can be referenced in either English or German (e.g., `lfs stats view recent` or `lfs stats view neueste`).
+
+### `lfs view delete <name|id>`
 Delete a dynamic view.
 
 Example:
@@ -543,11 +598,13 @@ lfs view delete "Projects"
 
 Example output:
 ```text
-Deleted view Projects
+Deleted view Projects (<view-id>)
 ```
 
-### `lfs view explain <ref> [--query '<lql>'] [--view <name>]`
+### `lfs view explain <ref> [--query '<lql>'] [--view <name|id>]`
 Explain why an object matches a query or view.
+
+Note: Built-in view names are accepted in both English and German.
 
 Example (explicit query):
 ```bash
@@ -560,9 +617,15 @@ Object <object-id>: MATCHED
 ✓ tag:project:phoenix (actual: tag:project:phoenix)
 ```
 
-Example (named view):
+Example (named view, English):
 ```bash
 lfs view explain <object-id> --view "Projects"
+lfs view explain <object-id> --view <view-id>
+```
+
+Example (named view, German):
+```bash
+lfs view explain <object-id> --view "Projekte"
 ```
 
 Example output:
@@ -593,7 +656,7 @@ CID: <capability-cid>
 UCAN: <ucan-token>
 ```
 
-### `lfs share snapshot <view-name> --to <pubkey> [--cap <perm>] [--expires <dur>]`
+### `lfs share snapshot <view-name|view-id> --to <pubkey> [--cap <perm>] [--expires <dur>]`
 Create and share a view snapshot.
 
 Example:
@@ -730,12 +793,16 @@ No quarantined objects
 
 ## Export
 
-### `lfs export <ref|view> --output <path> [--mode <tree|archive>]`
+### `lfs export <ref|view-name|view-id> --output <path> [--mode <tree|archive>]`
 Export a single object or a view.
 
 Arguments:
 - `--mode tree` — export to directory tree (default)
 - `--mode archive` — export to tar archive
+
+Notes:
+- If you pass a view ID (UUID), the CLI will export that view and print its name and ID.
+- Built-in view names are accepted in both English and German.
 
 Example (single object):
 ```bash
@@ -747,9 +814,15 @@ Example output:
 Exported <object-id>
 ```
 
-Example (view to directory):
+Example (view to directory, English):
 ```bash
 lfs export "Projects" --output ~/Exports/projects --mode tree
+lfs export <view-id> --output ~/Exports/projects --mode tree
+```
+
+Example (view to directory, German):
+```bash
+lfs export "Projekte" --output ~/Exports/projekte --mode tree
 ```
 
 Example output:
