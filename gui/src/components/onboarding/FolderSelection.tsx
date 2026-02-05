@@ -1,36 +1,57 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { GlassCard } from "./ui/GlassCard";
 import { AnimatedButton } from "./ui/AnimatedButton";
 import { ToggleSwitch } from "./ui/ToggleSwitch";
 import { ParticleBackground } from "./ui/ParticleBackground";
 import { cn } from "@/lib/utils";
 import { FileText, Download, Image, Code, FolderPlus, Loader2 } from "lucide-react";
+import type { FolderOption } from "@/lib/latticeApi";
 
 interface FolderSelectionProps {
   onNext: () => void;
+  folderOptions: FolderOption[];
+  folderError: string | null;
+  onImport: (folderIds: string[]) => Promise<ImportResponse>;
+  onSeedDemo: () => Promise<{ demoRoot: string; folders: FolderOption[] }>;
 }
 
-interface FolderOption {
-  id: string;
-  name: string;
-  icon: typeof FileText;
-  defaultSelected: boolean;
-}
+const iconMap: Record<string, typeof FileText> = {
+  documents: FileText,
+  downloads: Download,
+  bilder: Image,
+  projekte: Code,
+  demo: FolderPlus,
+};
 
-const folderOptions: FolderOption[] = [
-  { id: "dokumente", name: "Dokumente", icon: FileText, defaultSelected: true },
-  { id: "downloads", name: "Downloads", icon: Download, defaultSelected: true },
-  { id: "bilder", name: "Bilder", icon: Image, defaultSelected: false },
-  { id: "projekte", name: "Projekte", icon: Code, defaultSelected: false },
-];
-
-export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
+export const FolderSelection = ({
+  onNext,
+  folderOptions,
+  folderError,
+  onImport,
+  onSeedDemo,
+}: FolderSelectionProps) => {
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(
-    new Set(folderOptions.filter((f) => f.defaultSelected).map((f) => f.id))
+    new Set()
   );
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [currentScanFolder, setCurrentScanFolder] = useState("");
+  const [seedMessage, setSeedMessage] = useState<string | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const orderedFolders = useMemo(
+    () => folderOptions.filter((folder) => folder.exists),
+    [folderOptions]
+  );
+
+  useEffect(() => {
+    if (folderOptions.length === 0 || selectedFolders.size > 0) return;
+    setSelectedFolders(
+      new Set(folderOptions.filter((f) => f.defaultSelected && f.exists).map((f) => f.id))
+    );
+  }, [folderOptions, selectedFolders.size]);
 
   const toggleFolder = (id: string) => {
     setSelectedFolders((prev) => {
@@ -44,10 +65,25 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
     });
   };
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (selectedFolders.size === 0) return;
+    setImportError(null);
     setIsScanning(true);
     setScanProgress(0);
+    const folderIds = Array.from(selectedFolders);
+
+    try {
+      await onImport(folderIds);
+      setScanProgress(100);
+      setTimeout(onNext, 500);
+    } catch (err) {
+      setIsScanning(false);
+      if (err instanceof Error) {
+        setImportError(err.message);
+      } else {
+        setImportError("Import fehlgeschlagen.");
+      }
+    }
   };
 
   // Simulate scanning animation
@@ -64,7 +100,6 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
       if (progress >= 100) {
         progress = 100;
         clearInterval(interval);
-        setTimeout(onNext, 500);
       }
       
       setScanProgress(Math.min(progress, 100));
@@ -83,7 +118,29 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
     if (firstFolder) setCurrentScanFolder(firstFolder.name);
 
     return () => clearInterval(interval);
-  }, [isScanning, selectedFolders, onNext]);
+  }, [isScanning, selectedFolders, folderOptions]);
+
+  const handleSeedDemo = async () => {
+    setSeedMessage(null);
+    setSeedError(null);
+    setIsSeeding(true);
+    try {
+      const seeded = await onSeedDemo();
+      setSeedMessage(`Demo-Dateien erstellt: ${seeded.demoRoot}`);
+      const demoFolder = seeded.folders.find((folder) => folder.isDemo);
+      if (demoFolder) {
+        setSelectedFolders((prev) => new Set([...prev, demoFolder.id]));
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        setSeedError(err.message);
+      } else {
+        setSeedError("Demo-Dateien konnten nicht erstellt werden.");
+      }
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   if (isScanning) {
     return (
@@ -145,7 +202,9 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
         
         {/* Folder grid */}
         <div className="grid grid-cols-2 gap-4 w-full mb-6">
-          {folderOptions.map((folder, index) => (
+          {orderedFolders.map((folder, index) => {
+            const Icon = iconMap[folder.id] ?? FolderPlus;
+            return (
             <GlassCard
               key={folder.id}
               delay={200 + index * 100}
@@ -164,12 +223,15 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
                     "p-2 rounded-lg transition-colors duration-300",
                     selectedFolders.has(folder.id) ? "bg-primary/20" : "bg-muted"
                   )}>
-                    <folder.icon className={cn(
+                    <Icon className={cn(
                       "w-5 h-5 transition-colors duration-300",
                       selectedFolders.has(folder.id) ? "text-primary" : "text-muted-foreground"
                     )} />
                   </div>
-                  <span className="font-medium">{folder.name}</span>
+                  <div>
+                    <span className="font-medium">{folder.name}</span>
+                    <p className="text-xs text-muted-foreground/70">{folder.path}</p>
+                  </div>
                 </div>
                 <ToggleSwitch
                   checked={selectedFolders.has(folder.id)}
@@ -177,7 +239,8 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
                 />
               </div>
             </GlassCard>
-          ))}
+            );
+          })}
           
           {/* Add more folders option */}
           <GlassCard
@@ -209,10 +272,35 @@ export const FolderSelection = ({ onNext }: FolderSelectionProps) => {
         >
           <AnimatedButton 
             onClick={handleScan}
-            disabled={selectedFolders.size === 0}
+            disabled={selectedFolders.size === 0 || isScanning}
           >
             Ausgewählte Ordner scannen
           </AnimatedButton>
+          {importError && (
+            <p className="mt-3 text-sm text-warning text-center">
+              {importError}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <AnimatedButton
+            onClick={handleSeedDemo}
+            disabled={isSeeding}
+            size="sm"
+            className="bg-secondary/30 hover:bg-secondary/50"
+          >
+            {isSeeding ? "Erstelle Demo-Dateien..." : "Demo-Dateien erstellen"}
+          </AnimatedButton>
+          {seedMessage && (
+            <p className="text-xs text-muted-foreground">{seedMessage}</p>
+          )}
+          {seedError && (
+            <p className="text-xs text-warning">{seedError}</p>
+          )}
+          {folderError && (
+            <p className="text-xs text-warning">{folderError}</p>
+          )}
         </div>
       </div>
     </div>

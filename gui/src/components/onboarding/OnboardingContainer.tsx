@@ -1,10 +1,18 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { FolderSelection } from "./FolderSelection";
 import { NodeGraph } from "./NodeGraph";
 import { SecurityCalibration } from "./SecurityCalibration";
 import { AhaTutorial } from "./AhaTutorial";
+import {
+  fetchFolderOptions,
+  importFolders,
+  initRepo,
+  seedDemoFiles,
+  type FolderOption,
+} from "@/lib/latticeApi";
+import { useOnboardingData } from "@/hooks/use-onboarding-data";
 
 export type OnboardingStage = 1 | 2 | 3 | 4 | 5 | "complete";
 
@@ -15,6 +23,9 @@ interface OnboardingContainerProps {
 export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) => {
   const [stage, setStage] = useState<OnboardingStage>(1);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [folderOptions, setFolderOptions] = useState<FolderOption[]>([]);
+  const [folderError, setFolderError] = useState<string | null>(null);
+  const { data, refresh, assignToProject, settings, updateSecuritySettings } = useOnboardingData();
 
   const transitionToStage = useCallback((nextStage: OnboardingStage) => {
     setIsTransitioning(true);
@@ -31,18 +42,76 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
     onComplete?.();
   }, [onComplete, transitionToStage]);
 
+  useEffect(() => {
+    const loadFolders = async () => {
+      try {
+        const options = await fetchFolderOptions();
+        setFolderOptions(options);
+      } catch (err) {
+        if (err instanceof Error) {
+          setFolderError(err.message);
+        } else {
+          setFolderError("Ordner konnten nicht geladen werden.");
+        }
+      }
+    };
+    void loadFolders();
+  }, []);
+
   const renderStage = () => {
     switch (stage) {
       case 1:
-        return <WelcomeScreen onNext={() => transitionToStage(2)} />;
+        return (
+          <WelcomeScreen
+            onNext={() => transitionToStage(2)}
+            onInitialize={initRepo}
+          />
+        );
       case 2:
-        return <FolderSelection onNext={() => transitionToStage(3)} />;
+        return (
+          <FolderSelection
+            onNext={() => {
+              transitionToStage(3);
+              void refresh();
+            }}
+            folderOptions={folderOptions}
+            folderError={folderError}
+            onImport={importFolders}
+            onSeedDemo={async () => {
+              const seeded = await seedDemoFiles();
+              setFolderOptions(seeded.folders);
+              return seeded;
+            }}
+          />
+        );
       case 3:
-        return <NodeGraph onNext={() => transitionToStage(4)} showTutorial />;
+        return (
+          <NodeGraph
+            onNext={() => transitionToStage(4)}
+            showTutorial
+            files={data?.files ?? []}
+            views={data?.views ?? []}
+          />
+        );
       case 4:
-        return <SecurityCalibration onNext={() => transitionToStage(5)} />;
+        return (
+          <SecurityCalibration
+            onNext={() => transitionToStage(5)}
+            settings={settings}
+            onUpdateSettings={updateSecuritySettings}
+          />
+        );
       case 5:
-        return <AhaTutorial onComplete={handleComplete} />;
+        return (
+          <AhaTutorial
+            onComplete={handleComplete}
+            files={data?.files ?? []}
+            views={data?.views ?? []}
+            projects={data?.projects ?? []}
+            highlightedFileId={data?.highlightedFileId ?? null}
+            onAssignProject={assignToProject}
+          />
+        );
       case "complete":
         return (
           <div className="flex items-center justify-center min-h-screen">

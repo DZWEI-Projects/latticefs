@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { mockFiles, mockViews, mockProjects, getFileById, ViewNode } from "@/data/mockFileSystem";
+import { getFileById, type FileNode, type ProjectNode, type ViewNode } from "@/data/onboardingData";
 import { Clock, Folder, Grid, Download, Shield, HelpCircle, Plus, X, Check, Sparkles } from "lucide-react";
 import { AnimatedButton } from "./ui/AnimatedButton";
 import { GlassCard } from "./ui/GlassCard";
 
 interface AhaTutorialProps {
   onComplete: () => void;
+  views: ViewNode[];
+  files: FileNode[];
+  projects: ProjectNode[];
+  highlightedFileId: string | null;
+  onAssignProject: (objectId: string, projectId: string) => Promise<void>;
 }
 
 const viewIcons: Record<string, typeof Clock> = {
@@ -26,16 +31,25 @@ const colorClasses: Record<string, { bg: string; border: string; text: string }>
 
 type TutorialStep = "highlight" | "context" | "add-project" | "complete";
 
-export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
+export const AhaTutorial = ({
+  onComplete,
+  views,
+  files,
+  projects,
+  highlightedFileId,
+  onAssignProject,
+}: AhaTutorialProps) => {
   const [step, setStep] = useState<TutorialStep>("highlight");
   const [showContextPanel, setShowContextPanel] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [showConnectionAnimation, setShowConnectionAnimation] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // The highlighted file for the tutorial
-  const highlightedFile = mockFiles.find((f) => f.id === "file-3"); // setup_installer.exe
+  const highlightedFile =
+    (highlightedFileId ? getFileById(files, highlightedFileId) : null) ?? files[0];
   
   useEffect(() => {
     if (step === "complete") {
@@ -50,17 +64,31 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
     setStep("context");
   };
 
-  const handleAddToProject = (projectId: string) => {
+  const handleAddToProject = async (projectId: string) => {
+    if (!highlightedFile) return;
+    setActionError(null);
     setSelectedProject(projectId);
     setShowConnectionAnimation(true);
-    
-    setTimeout(() => {
+    try {
+      await onAssignProject(highlightedFile.id, projectId);
+      setTimeout(() => {
+        setShowConnectionAnimation(false);
+        setStep("complete");
+      }, 1500);
+    } catch (err) {
       setShowConnectionAnimation(false);
-      setStep("complete");
-    }, 1500);
+      if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError("Projekt konnte nicht hinzugefügt werden.");
+      }
+    }
   };
 
   const getViewPosition = (index: number, total: number) => {
+    if (total === 0) {
+      return { x: 0, y: 0 };
+    }
     const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
     const radius = 160;
     return {
@@ -109,8 +137,8 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
         
         <g transform={`translate(${containerRef.current?.clientWidth ? containerRef.current.clientWidth / 2 - 150 : 350}, ${containerRef.current?.clientHeight ? containerRef.current.clientHeight / 2 : 400})`}>
           {/* Existing connections */}
-          {mockViews.map((view, index) => {
-            const pos = getViewPosition(index, mockViews.length);
+          {views.map((view, index) => {
+            const pos = getViewPosition(index, views.length);
             return (
               <line
                 key={`hub-${view.id}`}
@@ -128,10 +156,10 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
           {/* New connection animation */}
           {showConnectionAnimation && selectedProject && (
             <line
-              x1={getViewPosition(4, mockViews.length).x - 30}
-              y1={getViewPosition(4, mockViews.length).y}
-              x2={getViewPosition(1, mockViews.length).x}
-              y2={getViewPosition(1, mockViews.length).y}
+              x1={getViewPosition(Math.max(views.length - 1, 0), views.length).x - 30}
+              y1={getViewPosition(Math.max(views.length - 1, 0), views.length).y}
+              x2={getViewPosition(1, views.length).x}
+              y2={getViewPosition(1, views.length).y}
               stroke="hsl(var(--secondary))"
               strokeWidth="2"
               strokeDasharray="1000"
@@ -154,8 +182,8 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
         </div>
         
         {/* View nodes */}
-        {mockViews.map((view, index) => {
-          const pos = getViewPosition(index, mockViews.length);
+        {views.map((view, index) => {
+          const pos = getViewPosition(index, views.length);
           const Icon = viewIcons[view.icon] || Folder;
           const colors = colorClasses[view.color];
           const isProjectView = view.id === "projekte";
@@ -191,7 +219,7 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
               step === "highlight" && "animate-node-pulse"
             )}
             style={{
-              transform: `translate(calc(-50% + ${getViewPosition(4, mockViews.length).x - 30}px), calc(-50% + ${getViewPosition(4, mockViews.length).y}px))`,
+              transform: `translate(calc(-50% + ${getViewPosition(Math.max(views.length - 1, 0), views.length).x - 30}px), calc(-50% + ${getViewPosition(Math.max(views.length - 1, 0), views.length).y}px))`,
             }}
             onClick={handleWhyClick}
           >
@@ -247,20 +275,34 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
             </div>
             
             <div className="space-y-3 mb-6">
-              <div className="flex items-center gap-3 text-sm">
-                <Clock className="w-4 h-4 text-primary" />
-                <span className="text-muted-foreground">Heute heruntergeladen</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Download className="w-4 h-4 text-warning" />
-                <span className="text-muted-foreground">
-                  Tag: <span className="text-warning">inbox:downloads</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Shield className="w-4 h-4 text-warning" />
-                <span className="text-muted-foreground">In Quarantäne</span>
-              </div>
+              {highlightedFile.tags.some((tag) => tag.startsWith("inbox:")) && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Download className="w-4 h-4 text-warning" />
+                  <span className="text-muted-foreground">
+                    Tag:{" "}
+                    <span className="text-warning">
+                      {highlightedFile.tags.find((tag) => tag.startsWith("inbox:"))}
+                    </span>
+                  </span>
+                </div>
+              )}
+              {highlightedFile.tags.some((tag) => tag === "risk:quarantine") && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Shield className="w-4 h-4 text-warning" />
+                  <span className="text-muted-foreground">In Quarantäne</span>
+                </div>
+              )}
+              {highlightedFile.tags.some((tag) => tag.startsWith("project:")) && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Clock className="w-4 h-4 text-primary" />
+                  <span className="text-muted-foreground">
+                    Projekt:{" "}
+                    <span className="text-primary">
+                      {highlightedFile.tags.find((tag) => tag.startsWith("project:"))?.replace("project:", "")}
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
             
             {step === "context" && (
@@ -270,7 +312,12 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
                     Zu einem Projekt hinzufügen?
                   </p>
                   <div className="space-y-2">
-                    {mockProjects.map((project) => (
+                    {projects.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Noch keine Projekte gefunden. Importiere Projektdateien, um Vorschläge zu sehen.
+                      </p>
+                    )}
+                    {projects.map((project) => (
                       <button
                         key={project.id}
                         onClick={() => handleAddToProject(project.id)}
@@ -289,6 +336,9 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
                       </button>
                     ))}
                   </div>
+                  {actionError && (
+                    <p className="mt-3 text-xs text-warning">{actionError}</p>
+                  )}
                 </div>
               </>
             )}
@@ -296,7 +346,7 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
             {step === "add-project" && selectedProject && (
               <div className="flex items-center gap-2 text-sm text-secondary">
                 <Check className="w-4 h-4" />
-                <span>Hinzugefügt zu {mockProjects.find((p) => p.id === selectedProject)?.name}</span>
+                <span>Hinzugefügt zu {projects.find((p) => p.id === selectedProject)?.name}</span>
               </div>
             )}
           </GlassCard>

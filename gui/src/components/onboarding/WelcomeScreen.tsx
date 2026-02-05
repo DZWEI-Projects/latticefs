@@ -8,6 +8,7 @@ import { useState } from "react";
 
 interface WelcomeScreenProps {
   onNext: () => void;
+  onInitialize: () => Promise<{ repoPath: string; version: string }>;
 }
 
 const philosophyCards = [
@@ -28,13 +29,28 @@ const philosophyCards = [
   },
 ];
 
-export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
+export const WelcomeScreen = ({ onNext, onInitialize }: WelcomeScreenProps) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreateLattice = () => {
-    setIsTransitioning(true);
-    // Allow animation to play before transitioning
-    setTimeout(onNext, 800);
+  const handleCreateLattice = async () => {
+    setError(null);
+    setIsInitializing(true);
+    try {
+      await onInitialize();
+      setIsTransitioning(true);
+      // Allow animation to play before transitioning
+      setTimeout(onNext, 800);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Lattice konnte nicht initialisiert werden.");
+      }
+    } finally {
+      setIsInitializing(false);
+    }
   };
 
   return (
@@ -106,9 +122,14 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
           className="opacity-0 animate-fade-up"
           style={{ animationDelay: "1400ms", animationFillMode: "forwards" }}
         >
-          <AnimatedButton onClick={handleCreateLattice}>
-            Create My Lattice
+          <AnimatedButton onClick={handleCreateLattice} disabled={isInitializing}>
+            {isInitializing ? "Initialisiere..." : "Create My Lattice"}
           </AnimatedButton>
+          {error && (
+            <p className="mt-3 text-sm text-warning text-center">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>

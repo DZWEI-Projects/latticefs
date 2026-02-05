@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { mockViews, mockFiles, ViewNode, FileNode, getFilesInView } from "@/data/mockFileSystem";
+import type { ViewNode, FileNode } from "@/data/onboardingData";
 import { Clock, Folder, Grid, Download, Shield, X } from "lucide-react";
 import { AnimatedButton } from "./ui/AnimatedButton";
 
 interface NodeGraphProps {
   onNext: () => void;
   showTutorial?: boolean;
+  views: ViewNode[];
+  files: FileNode[];
 }
 
 const viewIcons: Record<string, typeof Clock> = {
@@ -45,7 +47,7 @@ interface TooltipData {
   position: { x: number; y: number };
 }
 
-export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
+export const NodeGraph = ({ onNext, showTutorial = true, views, files }: NodeGraphProps) => {
   const [animationPhase, setAnimationPhase] = useState(0);
   const [hoveredView, setHoveredView] = useState<string | null>(null);
   const [hoveredFile, setHoveredFile] = useState<string | null>(null);
@@ -71,10 +73,10 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
     if (animationPhase < 5 || !showTutorial) return;
     
     const showNextTooltip = () => {
-      if (tooltipIndex < mockViews.length) {
-        const view = mockViews[tooltipIndex];
+      if (tooltipIndex < views.length) {
+        const view = views[tooltipIndex];
         // Position tooltip near the view node
-        const angle = (tooltipIndex / mockViews.length) * Math.PI * 2 - Math.PI / 2;
+        const angle = (tooltipIndex / views.length) * Math.PI * 2 - Math.PI / 2;
         const radius = 180;
         setActiveTooltip({
           view,
@@ -83,14 +85,20 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
             y: Math.sin(angle) * radius,
           },
         });
-      } else if (tooltipIndex === mockViews.length) {
+      } else if (tooltipIndex === views.length) {
         setActiveTooltip(null);
         setShowInsight(true);
       }
     };
 
     showNextTooltip();
-  }, [animationPhase, tooltipIndex, showTutorial]);
+  }, [animationPhase, tooltipIndex, showTutorial, views]);
+
+  useEffect(() => {
+    setTooltipIndex(0);
+    setActiveTooltip(null);
+    setShowInsight(false);
+  }, [views.length]);
 
   const advanceTooltip = useCallback(() => {
     setTooltipIndex((prev) => prev + 1);
@@ -98,6 +106,9 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
 
   // Calculate node positions in a circular layout
   const getViewPosition = (index: number, total: number) => {
+    if (total === 0) {
+      return { x: 0, y: 0 };
+    }
     const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
     const radius = 180;
     return {
@@ -109,10 +120,10 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
   // Get file positions clustered around their primary view
   const getFilePosition = (file: FileNode, fileIndex: number) => {
     const primaryView = file.views[0];
-    const viewIndex = mockViews.findIndex((v) => v.id === primaryView);
+    const viewIndex = views.findIndex((v) => v.id === primaryView);
     if (viewIndex === -1) return { x: 0, y: 0 };
     
-    const viewPos = getViewPosition(viewIndex, mockViews.length);
+    const viewPos = getViewPosition(viewIndex, views.length);
     const offset = 50 + fileIndex * 5;
     const angle = (fileIndex * 0.8) + viewIndex;
     
@@ -123,7 +134,7 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
   };
 
   // Get files that appear in multiple views (for highlighting)
-  const multiViewFiles = mockFiles.filter((f) => f.views.length > 1);
+  const multiViewFiles = files.filter((f) => f.views.length > 1);
 
   return (
     <div 
@@ -147,8 +158,8 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
         
         <g transform={`translate(${containerRef.current?.clientWidth ? containerRef.current.clientWidth / 2 : 500}, ${containerRef.current?.clientHeight ? containerRef.current.clientHeight / 2 : 400})`}>
           {/* Connections from hub to views */}
-          {animationPhase >= 3 && mockViews.map((view, index) => {
-            const pos = getViewPosition(index, mockViews.length);
+          {animationPhase >= 3 && views.map((view, index) => {
+            const pos = getViewPosition(index, views.length);
             return (
               <line
                 key={`hub-${view.id}`}
@@ -177,14 +188,14 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
           {animationPhase >= 4 && hoveredFile && (
             <>
               {(() => {
-                const file = mockFiles.find((f) => f.id === hoveredFile);
+                const file = files.find((f) => f.id === hoveredFile);
                 if (!file) return null;
-                const filePos = getFilePosition(file, mockFiles.indexOf(file));
+                const filePos = getFilePosition(file, files.indexOf(file));
                 
                 return file.views.map((viewId) => {
-                  const viewIndex = mockViews.findIndex((v) => v.id === viewId);
+                  const viewIndex = views.findIndex((v) => v.id === viewId);
                   if (viewIndex === -1) return null;
-                  const viewPos = getViewPosition(viewIndex, mockViews.length);
+                  const viewPos = getViewPosition(viewIndex, views.length);
                   
                   return (
                     <line
@@ -230,8 +241,8 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
         </div>
         
         {/* View nodes */}
-        {mockViews.map((view, index) => {
-          const pos = getViewPosition(index, mockViews.length);
+        {views.map((view, index) => {
+          const pos = getViewPosition(index, views.length);
           const Icon = viewIcons[view.icon] || Folder;
           const colors = colorClasses[view.color];
           
@@ -366,6 +377,17 @@ export const NodeGraph = ({ onNext, showTutorial = true }: NodeGraphProps) => {
       {!showTutorial && animationPhase >= 4 && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30">
           <AnimatedButton onClick={onNext} size="md">
+            Weiter
+          </AnimatedButton>
+        </div>
+      )}
+
+      {views.length === 0 && (
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-30 glass-strong rounded-xl px-6 py-4 text-center">
+          <p className="text-sm text-muted-foreground mb-3">
+            Noch keine Daten importiert. Importiere Ordner, um dein Lattice zu sehen.
+          </p>
+          <AnimatedButton onClick={onNext} size="sm">
             Weiter
           </AnimatedButton>
         </div>

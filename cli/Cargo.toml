@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 latticefs-base = { package = "base", path = "../base" }
+axum = "0.7"
 clap = { version = "4.5", features = ["derive", "env", "color"] }
 anyhow = "1.0"
 tokio = { version = "1.36", features = ["full"] }
@@ -16,6 +17,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 indicatif = "0.17"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 toml = "0.8"
 similar = "2.4"
 walkdir = "2.5"
@@ -23,6 +25,8 @@ uuid = { version = "1", features = ["v4", "v7"] }
 dirs = "5.0"
 hex = "0.4"
 base64 = "0.22"
+tower-http = { version = "0.5", features = ["cors"] }
+humantime = "2.1"
 
 [dev-dependencies]
 assert_cmd = "2.0"

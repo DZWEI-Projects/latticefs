@@ -5,9 +5,12 @@ import { ToggleSwitch } from "./ui/ToggleSwitch";
 import { ParticleBackground } from "./ui/ParticleBackground";
 import { cn } from "@/lib/utils";
 import { Shield, Download, History, AlertTriangle, Check } from "lucide-react";
+import type { OnboardingSettings } from "@/lib/latticeApi";
 
 interface SecurityCalibrationProps {
   onNext: () => void;
+  settings: OnboardingSettings | null;
+  onUpdateSettings: (next: OnboardingSettings) => Promise<void>;
 }
 
 interface SecurityOption {
@@ -42,10 +45,12 @@ const securityOptions: SecurityOption[] = [
   },
 ];
 
-export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
-  const [settings, setSettings] = useState<Record<string, boolean>>(
+export const SecurityCalibration = ({ onNext, settings, onUpdateSettings }: SecurityCalibrationProps) => {
+  const [localSettings, setLocalSettings] = useState<Record<string, boolean>>(
     Object.fromEntries(securityOptions.map((opt) => [opt.id, opt.defaultEnabled]))
   );
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const [showShield, setShowShield] = useState(false);
 
@@ -54,16 +59,42 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (!settings) return;
+    setLocalSettings({
+      quarantine: settings.quarantineDownloads,
+      versioning: settings.versioning,
+      "execute-warning": settings.executeWarning,
+    });
+  }, [settings]);
+
   const toggleSetting = (id: string) => {
-    setSettings((prev) => ({
+    setLocalSettings((prev) => ({
       ...prev,
       [id]: !prev[id],
     }));
   };
 
-  const handleProceed = () => {
-    setIsAnimatingOut(true);
-    setTimeout(onNext, 800);
+  const handleProceed = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onUpdateSettings({
+        quarantineDownloads: localSettings.quarantine,
+        versioning: localSettings.versioning,
+        executeWarning: localSettings["execute-warning"],
+      });
+      setIsAnimatingOut(true);
+      setTimeout(onNext, 800);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Einstellungen konnten nicht gespeichert werden.");
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -138,11 +169,11 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
               <div className="flex items-start gap-4">
                 <div className={cn(
                   "flex-shrink-0 p-3 rounded-xl transition-colors duration-300",
-                  settings[option.id] ? "bg-primary/20" : "bg-muted"
+                  localSettings[option.id] ? "bg-primary/20" : "bg-muted"
                 )}>
                   <option.icon className={cn(
                     "w-5 h-5 transition-colors duration-300",
-                    settings[option.id] ? "text-primary" : "text-muted-foreground"
+                    localSettings[option.id] ? "text-primary" : "text-muted-foreground"
                   )} />
                 </div>
                 
@@ -152,13 +183,13 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
                       {option.title}
                     </h4>
                     <ToggleSwitch
-                      checked={settings[option.id]}
+                      checked={localSettings[option.id]}
                       onChange={() => toggleSetting(option.id)}
                     />
                   </div>
                   <p className={cn(
                     "text-sm transition-all duration-300 overflow-hidden",
-                    settings[option.id] 
+                    localSettings[option.id] 
                       ? "text-muted-foreground max-h-20 opacity-100" 
                       : "text-muted-foreground/50 max-h-0 opacity-0"
                   )}>
@@ -183,9 +214,14 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
           className="opacity-0 animate-fade-up"
           style={{ animationDelay: "950ms", animationFillMode: "forwards" }}
         >
-          <AnimatedButton onClick={handleProceed}>
-            Sieht gut aus
+          <AnimatedButton onClick={handleProceed} disabled={isSaving}>
+            {isSaving ? "Speichere..." : "Sieht gut aus"}
           </AnimatedButton>
+          {error && (
+            <p className="mt-3 text-sm text-warning text-center">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>
