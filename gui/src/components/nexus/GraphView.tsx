@@ -3,6 +3,14 @@ import { cn } from "@/lib/utils";
 import { ObjectNode } from "./ObjectNode";
 import type { ObjectInfo, TagInfo } from "@/lib/lfs";
 import { ObjectContextMenu } from "./ObjectContextMenu";
+import { GraphLegend } from "./GraphLegend";
+import {
+  getHeatColor,
+  getConnectionThickness,
+  getConnectionOpacity,
+  getGlowFilterId,
+  shouldApplyGlow,
+} from "@/lib/graphVisualization";
 
 interface GraphViewProps {
   objects: ObjectInfo[];
@@ -102,44 +110,6 @@ export const GraphView = ({
     return connected;
   }, [hoveredObject, objects]);
 
-  // Calculate heat-based color based on shared view count
-  // Cool colors (blue/cyan) for few views, warm colors (orange/red) for many views
-  const getHeatColor = useCallback((sharedViewCount: number): string => {
-    // Normalize to 0-1 range (assuming max ~10 shared views for good gradient)
-    const maxViews = 10;
-    const heat = Math.min(sharedViewCount / maxViews, 1);
-    
-    // Color gradient: blue (200°) -> purple (280°) -> pink (320°) -> orange (30°)
-    // Hue ranges from 200 (cool blue) to 30 (warm orange), wrapping through purple/pink
-    // We go from 200° to 30° which is 200° + 190° = 390°, wrapping to 30°
-    let hue: number;
-    if (heat < 0.33) {
-      // Cool: blue to purple (200° to 280°)
-      hue = 200 + heat * 240; // 200 to ~280
-    } else if (heat < 0.66) {
-      // Warm: purple to pink (280° to 320°)
-      hue = 280 + (heat - 0.33) * 120; // 280 to ~320
-    } else {
-      // Hot: pink to orange (320° to 30°, wrapping around)
-      // 320° + (heat - 0.66) * 190 wraps: 320° -> 360° -> 30°
-      const progress = (heat - 0.66) / 0.34; // 0 to 1
-      hue = 320 + progress * 70; // 320 to 390
-      if (hue >= 360) hue = hue - 360; // Wrap: 390 -> 30
-    }
-    
-    // Saturation and lightness increase with heat for more vibrant "hot" colors
-    const saturation = 60 + heat * 30; // 60% to 90%
-    const lightness = 50 + heat * 15; // 50% to 65%
-    
-    return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
-  }, []);
-
-  // Calculate glow intensity based on shared view count
-  const getGlowFilterId = useCallback((sharedViewCount: number): string => {
-    // More shared views = stronger glow
-    const intensity = Math.min(sharedViewCount * 0.5, 3); // 0.5 to 3
-    return `glow-${Math.round(intensity * 10)}`;
-  }, []);
 
   return (
     <div
@@ -212,21 +182,12 @@ export const GraphView = ({
                   const connectedPos = nodePositions.get(connectedId);
                   if (!hoveredPos || !connectedPos) return null;
                   
-                  // Calculate line thickness based on shared view count
-                  // Minimum 1.0px for 1 shared view, up to 3.5px for many shared views
-                  const minThickness = 1.0;
-                  const maxThickness = 3.5;
-                  const thickness = Math.min(minThickness + (sharedViewCount - 1) * 0.5, maxThickness);
-                  
-                  // Increase opacity for stronger connections (heat effect)
-                  const opacity = Math.min(0.6 + sharedViewCount * 0.05, 0.95);
-                  
-                  // Get heat-based color (cool to warm gradient)
+                  // Calculate visual properties based on shared view count
+                  const thickness = getConnectionThickness(sharedViewCount);
+                  const opacity = getConnectionOpacity(sharedViewCount);
                   const heatColor = getHeatColor(sharedViewCount);
-                  
-                  // Get glow filter for stronger connections
                   const glowFilterId = getGlowFilterId(sharedViewCount);
-                  const hasGlow = sharedViewCount >= 3; // Only glow for 3+ shared views
+                  const hasGlow = shouldApplyGlow(sharedViewCount);
                   
                   return (
                     <line
@@ -296,6 +257,9 @@ export const GraphView = ({
             </ObjectContextMenu>
           );
         })}
+
+        {/* Legend */}
+        <GraphLegend />
       </div>
     </div>
   );
