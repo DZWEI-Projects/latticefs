@@ -9,8 +9,8 @@ export function useViews() {
   });
 }
 
-export function useViewByName(viewName: string | undefined) {
+export function useViewById(viewId: string | undefined) {
   const { data: views, ...rest } = useViews();
-  const view = views?.find((v) => v.id === viewName || v.name === viewName);
+  const view = views?.find((v) => v.id === viewId);
   return { data: view, views, ...rest };
 }

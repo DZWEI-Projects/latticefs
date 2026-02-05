@@ -34,11 +34,11 @@ export interface FilterState {
 }
 
 interface NexusLayoutProps {
-  currentViewName?: string;
-  onViewChange: (viewName: string) => void;
+  currentViewId?: string;
+  onViewChange: (viewId: string) => void;
 }
 
-export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps) => {
+export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     // Check localStorage for saved preference, default to graph
     const saved = localStorage.getItem("nexus-view-mode");
@@ -63,7 +63,7 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [tagTargetId, setTagTargetId] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useViewObjects(currentViewName || "recent");
+  const { data, isLoading, error } = useViewObjects(currentViewId || "recent");
   const [objects, setObjects] = useState<ObjectInfo[]>([]);
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
   useEffect(() => {
     setSelectedObjects([]);
     setActiveObjectId(null);
-  }, [currentViewName]);
+  }, [currentViewId]);
 
   const activeObject = useMemo(
     () => objects.find((obj) => obj.id === activeObjectId) || null,
@@ -207,7 +207,7 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
-          currentViewName={currentViewName}
+          currentViewId={currentViewId}
           onViewSelect={onViewChange}
           onOpenSettings={() => setSettingsOpen(true)}
         />
@@ -216,7 +216,7 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Toolbar */}
           <Toolbar
-            currentViewName={currentViewName}
+            currentViewId={currentViewId}
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
             searchQuery={searchQuery}
@@ -263,7 +263,7 @@ export const NexusLayout = ({ currentViewName, onViewChange }: NexusLayoutProps)
 
           {/* Status bar */}
           <StatusBar
-            viewName={currentViewName}
+            viewId={currentViewId}
             selectedCount={selectedObjects.length}
           />
         </div>

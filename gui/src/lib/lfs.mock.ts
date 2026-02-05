@@ -319,12 +319,12 @@ export const mockListViews = async (): Promise<ViewInfo[]> => {
   return mockViewsData;
 };
 
-export const mockGetViewObjects = async (viewName: string): Promise<ObjectInfo[]> => {
+export const mockGetViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
   await delay(150);
-  if (viewName === "all-objects" || viewName === "all") {
+  if (viewId === "all-objects" || viewId === "all") {
     return mockObjectsData;
   }
-  return mockObjectsData.filter((obj) => obj.views.includes(viewName));
+  return mockObjectsData.filter((obj) => obj.views.includes(viewId));
 };
 
 export const mockEvaluateQuery = async (_query: string): Promise<ObjectInfo[]> => {

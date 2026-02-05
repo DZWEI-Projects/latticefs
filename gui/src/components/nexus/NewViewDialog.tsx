@@ -18,7 +18,7 @@ import { Loader2 } from "lucide-react";
 interface NewViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onViewCreated?: (viewName: string) => void;
+  onViewCreated?: (viewId: string) => void;
 }
 
 export const NewViewDialog = ({

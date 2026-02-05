@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useViewByName } from "@/hooks/useViews";
+import { useViewById } from "@/hooks/useViews";
 import { ViewSelector } from "./ViewSelector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
 interface ToolbarProps {
-  currentViewName?: string;
+  currentViewId?: string;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   searchQuery: string;
@@ -44,7 +44,7 @@ interface ToolbarProps {
 }
 
 export const Toolbar = ({
-  currentViewName,
+  currentViewId,
   viewMode,
   onViewModeChange,
   searchQuery,
@@ -54,7 +54,7 @@ export const Toolbar = ({
   filters,
   onFiltersChange,
 }: ToolbarProps) => {
-  const { data: currentView } = useViewByName(currentViewName);
+  const { data: currentView } = useViewById(currentViewId);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const SortIcon = sort.direction === "asc" ? ArrowUp : ArrowDown;
 

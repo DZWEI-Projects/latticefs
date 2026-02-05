@@ -172,9 +172,8 @@ export const listViews = async (): Promise<ViewInfo[]> => {
   return (await getMocks()).mockListViews();
 };
 
-export const getViewObjects = async (viewName: string): Promise<ObjectInfo[]> => {
+export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
   if (isTauriApp()) {
-    const viewId = viewName;
     const objects = await invoke<
       Array<{
         id: string;
@@ -203,7 +202,7 @@ export const getViewObjects = async (viewName: string): Promise<ObjectInfo[]> =>
       trustLevel: o.trust_level,
     }));
   }
-  return (await getMocks()).mockGetViewObjects(viewName);
+  return (await getMocks()).mockGetViewObjects(viewId);
 };
 
 export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {

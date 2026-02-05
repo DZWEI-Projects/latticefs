@@ -32,8 +32,8 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 interface SidebarProps {
-  currentViewName?: string;
-  onViewSelect: (viewName: string) => void;
+  currentViewId?: string;
+  onViewSelect: (viewId: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -70,7 +70,7 @@ const ViewItem = ({ view, isActive, onClick }: ViewItemProps) => {
   );
 };
 
-export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: SidebarProps) => {
+export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: SidebarProps) => {
   const { data: views, isLoading } = useViews();
   const [builtinOpen, setBuiltinOpen] = useState(true);
   const [dynamicOpen, setDynamicOpen] = useState(true);
@@ -79,8 +79,8 @@ export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: Sideb
   const builtinViews = views?.filter((v) => v.viewType === "builtin") || [];
   const dynamicViews = views?.filter((v) => v.viewType === "dynamic") || [];
 
-  const handleViewCreated = (viewName: string) => {
-    onViewSelect(viewName);
+  const handleViewCreated = (viewId: string) => {
+    onViewSelect(viewId);
     setDynamicOpen(true);
   };
 
@@ -108,7 +108,7 @@ export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: Sideb
                 <ViewItem
                   key={view.id}
                   view={view}
-                  isActive={currentViewName === view.id}
+                  isActive={currentViewId === view.id}
                   onClick={() => onViewSelect(view.id)}
                 />
               ))
@@ -133,7 +133,7 @@ export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: Sideb
                 <ViewItem
                   key={view.id}
                   view={view}
-                  isActive={currentViewName === view.id}
+                  isActive={currentViewId === view.id}
                   onClick={() => onViewSelect(view.id)}
                 />
               ))}

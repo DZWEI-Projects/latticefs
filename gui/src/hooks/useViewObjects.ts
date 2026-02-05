@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { getViewObjects, evaluateQuery, type ObjectInfo } from "@/lib/lfs";
 import { toast } from "sonner";
 
-export function useViewObjects(viewName: string | undefined) {
+export function useViewObjects(viewId: string | undefined) {
   return useQuery<ObjectInfo[], Error>({
-    queryKey: ["view-objects", viewName],
-    queryFn: () => getViewObjects(viewName!),
-    enabled: !!viewName,
+    queryKey: ["view-objects", viewId],
+    queryFn: () => getViewObjects(viewId!),
+    enabled: !!viewId,
     staleTime: 10_000, // 10 seconds
   });
 }
