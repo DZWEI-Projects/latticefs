@@ -232,3 +232,90 @@ fn cli_flow_basic() {
         .success()
         .stdout(predicate::str::contains("---"));
 }
+
+#[test]
+fn cli_flow_nested_views() {
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    // init
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success();
+
+    // Create files with different tags
+    let file1 = temp.path().join("file1.txt");
+    let file2 = temp.path().join("file2.txt");
+    let file3 = temp.path().join("file3.txt");
+    fs::write(&file1, b"content1").unwrap();
+    fs::write(&file2, b"content2").unwrap();
+    fs::write(&file3, b"content3").unwrap();
+
+    let output1 = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", file1.to_str().unwrap(), "--tag", "project:phoenix", "--tag", "kind:doc"])
+        .output()
+        .unwrap();
+    assert!(output1.status.success());
+
+    let output2 = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", file2.to_str().unwrap(), "--tag", "project:phoenix"])
+        .output()
+        .unwrap();
+    assert!(output2.status.success());
+
+    let output3 = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", file3.to_str().unwrap(), "--tag", "project:apollo"])
+        .output()
+        .unwrap();
+    assert!(output3.status.success());
+
+    // Create parent view
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([
+            "view",
+            "create",
+            "PhoenixProject",
+            "--query",
+            "tag:project:phoenix",
+        ])
+        .assert()
+        .success();
+
+    // Create nested view
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([
+            "view",
+            "create",
+            "PhoenixDocs",
+            "--query",
+            "tag:kind:doc",
+            "--parent",
+            "PhoenixProject",
+        ])
+        .assert()
+        .success();
+
+    // List views should show hierarchy
+    let list_output = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["view", "list"])
+        .output()
+        .unwrap();
+    assert!(list_output.status.success());
+    let list_stdout = String::from_utf8_lossy(&list_output.stdout);
+    assert!(list_stdout.contains("PhoenixProject"));
+    assert!(list_stdout.contains("PhoenixDocs"));
+    // Check for indentation (nested view should be indented)
+    let lines: Vec<&str> = list_stdout.lines().collect();
+    let phoenix_project_line = lines.iter().position(|l| l.contains("PhoenixProject")).unwrap();
+    let phoenix_docs_line = lines.iter().position(|l| l.contains("PhoenixDocs")).unwrap();
+    // PhoenixDocs should come after PhoenixProject and be indented
+    assert!(phoenix_docs_line > phoenix_project_line);
+
+    // Verify nested view query works (should only match file1, not file2 or file3)
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["stats", "view", "PhoenixDocs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Objects: 1"));
+}

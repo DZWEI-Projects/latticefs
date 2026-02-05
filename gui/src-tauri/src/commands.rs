@@ -6,7 +6,7 @@ use latticefs_base::error::LatticeError;
 use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
 use latticefs_base::model::{timestamp_now, ObjectID, Tag};
 use latticefs_base::query::{parse, QueryEvaluator};
-use latticefs_base::views::{BuiltinView, BuiltinViews, Locale};
+use latticefs_base::views::{BuiltinView, BuiltinViews, Locale, ViewID};
 use latticefs_base::LatticeRepo;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -388,6 +388,7 @@ pub struct ViewInfo {
     pub view_type: String, // "builtin" | "dynamic"
     pub icon: Option<String>,
     pub object_count: usize,
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -491,14 +492,21 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
             view_type: "builtin".to_string(),
             icon: builtin_view_icon(*bv),
             object_count: count,
+            parent_id: None,
         });
     }
 
     // Add dynamic views from metadata store
     if let Ok(dynamic_views) = repo.metadata.list_views() {
         for view in dynamic_views {
-            // Count objects for this view
-            let count = eval_query(&repo, &view.query)
+            // Count objects for this view (use effective query for nested views)
+            let effective_q = if view.parent_id.is_some() {
+                latticefs_base::views::effective_query(&repo.metadata, &view)
+                    .unwrap_or_else(|_| view.query.clone())
+            } else {
+                view.query.clone()
+            };
+            let count = eval_query(&repo, &effective_q)
                 .map(|ids| ids.len())
                 .unwrap_or(0);
             views.push(ViewInfo {
@@ -509,6 +517,7 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
                 view_type: "dynamic".to_string(),
                 icon: None,
                 object_count: count,
+                parent_id: view.parent_id.map(|id| id.to_string()),
             });
         }
     }
@@ -525,16 +534,25 @@ pub fn get_view_objects(view_id: String) -> Result<Vec<ObjectInfo>, String> {
         BuiltinView::by_name(&view_id).or_else(|| BuiltinView::by_name(&view_id.replace('-', " ")))
     {
         bv.query().to_string()
-    } else if let Ok(view) = repo.metadata.load_view(&view_id) {
-        view.query.clone()
-    } else if let Ok(views) = repo.metadata.list_views() {
-        views
-            .into_iter()
-            .find(|view| view.id.to_string() == view_id)
-            .map(|view| view.query)
-            .ok_or_else(|| format!("View not found: {}", view_id))?
     } else {
-        return Err(format!("View not found: {}", view_id));
+        let view = if let Ok(v) = repo.metadata.load_view(&view_id) {
+            v
+        } else if let Ok(views) = repo.metadata.list_views() {
+            views
+                .into_iter()
+                .find(|v| v.id.to_string() == view_id)
+                .ok_or_else(|| format!("View not found: {}", view_id))?
+        } else {
+            return Err(format!("View not found: {}", view_id));
+        };
+        
+        // Use effective query for nested views
+        if view.parent_id.is_some() {
+            latticefs_base::views::effective_query(&repo.metadata, &view)
+                .map_err(|e| format!("Failed to compute effective query: {}", e))?
+        } else {
+            view.query
+        }
     };
 
     let object_ids = eval_query(&repo, &query)?;
@@ -718,6 +736,7 @@ pub struct CreateViewArgs {
     pub name: String,
     pub query: String,
     pub description: Option<String>,
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -726,6 +745,7 @@ pub struct UpdateViewArgs {
     pub name: String,
     pub query: String,
     pub description: Option<String>,
+    pub parent_id: Option<String>,
 }
 
 fn validate_view_name(name: &str) -> Result<(), String> {
@@ -757,13 +777,32 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
     if let Some(desc) = args.description {
         view = view.with_description(desc);
     }
+    if let Some(parent_id_str) = args.parent_id {
+        // Resolve parent view by ID or name
+        let parent = if let Ok(uuid) = uuid::Uuid::parse_str(&parent_id_str) {
+            repo.metadata
+                .load_view_by_id(&ViewID::from_uuid(uuid))
+                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+        } else {
+            repo.metadata
+                .load_view(&parent_id_str)
+                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+        };
+        view = view.with_parent(parent.id);
+    }
 
     repo.metadata
         .store_view(&view)
         .map_err(|err| err.to_string())?;
 
-    // Return the created view info
-    let count = eval_query(&repo, &args.query)
+    // Return the created view info (use effective query for nested views)
+    let effective_q = if view.parent_id.is_some() {
+        latticefs_base::views::effective_query(&repo.metadata, &view)
+            .unwrap_or_else(|_| view.query.clone())
+    } else {
+        view.query.clone()
+    };
+    let count = eval_query(&repo, &effective_q)
         .map(|ids| ids.len())
         .unwrap_or(0);
 
@@ -775,6 +814,7 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
         view_type: "dynamic".to_string(),
         icon: None,
         object_count: count,
+        parent_id: view.parent_id.map(|id| id.to_string()),
     })
 }
 
@@ -811,6 +851,23 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
     view.query = args.query;
     view.description = args.description;
     view.modified_at = timestamp_now();
+    
+    // Update parent_id if provided
+    if let Some(parent_id_str) = args.parent_id {
+        let parent = if let Ok(uuid) = uuid::Uuid::parse_str(&parent_id_str) {
+            repo.metadata
+                .load_view_by_id(&ViewID::from_uuid(uuid))
+                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+        } else {
+            repo.metadata
+                .load_view(&parent_id_str)
+                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+        };
+        view.parent_id = Some(parent.id);
+    } else {
+        // If parent_id is explicitly None (not just omitted), remove parent
+        // For now, we'll only update if provided
+    }
 
     repo.metadata
         .store_view(&view)
@@ -822,7 +879,14 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
             .map_err(|err| err.to_string())?;
     }
 
-    let count = eval_query(&repo, &view.query)
+    // Use effective query for nested views
+    let effective_q = if view.parent_id.is_some() {
+        latticefs_base::views::effective_query(&repo.metadata, &view)
+            .unwrap_or_else(|_| view.query.clone())
+    } else {
+        view.query.clone()
+    };
+    let count = eval_query(&repo, &effective_q)
         .map(|ids| ids.len())
         .unwrap_or(0);
 
@@ -834,6 +898,7 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
         view_type: "dynamic".to_string(),
         icon: None,
         object_count: count,
+        parent_id: view.parent_id.map(|id| id.to_string()),
     })
 }
 

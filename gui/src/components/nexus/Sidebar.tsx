@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { deleteView, type ViewInfo } from "@/lib/lfs";
 import { NewViewDialog } from "./NewViewDialog";
@@ -56,7 +56,7 @@ interface ViewItemProps {
   actions?: React.ReactNode;
 }
 
-const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
+const ViewItem = ({ view, isActive, onClick, actions, indent = 0 }: ViewItemProps & { indent?: number }) => {
   const Icon = view.icon ? iconMap[view.icon] || Folder : Folder;
 
   return (
@@ -71,11 +71,12 @@ const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
         }
       }}
       className={cn(
-        "group w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm",
+        "group w-full flex items-center gap-2.5 py-1.5 rounded-md text-sm",
         "transition-colors duration-150",
         "hover:bg-muted/60",
         isActive && "bg-primary/10 text-primary hover:bg-primary/15"
       )}
+      style={{ paddingLeft: `${0.75 + indent * 0.75}rem` }}
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1 text-left truncate">{view.name}</span>
@@ -105,17 +106,134 @@ const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
   );
 };
 
+interface ViewTreeItemProps {
+  view: ViewInfo;
+  children: ViewInfo[];
+  currentViewId?: string;
+  onViewSelect: (viewId: string) => void;
+  onEditView: (view: ViewInfo) => void;
+  onDeleteView: (view: ViewInfo) => void;
+  onCreateSubView: (parentId: string) => void;
+  indent?: number;
+}
+
+const ViewTreeItem = ({
+  view,
+  children,
+  currentViewId,
+  onViewSelect,
+  onEditView,
+  onDeleteView,
+  onCreateSubView,
+  indent = 0,
+}: ViewTreeItemProps) => {
+  const [isOpen, setIsOpen] = useState(true);
+  const hasChildren = children.length > 0;
+  const isActive = currentViewId === view.id;
+
+  return (
+    <div>
+      <ViewItem
+        view={view}
+        isActive={isActive}
+        onClick={() => onViewSelect(view.id)}
+        indent={indent}
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                aria-label={`Optionen für ${view.name}`}
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onSelect={() => onCreateSubView(view.id)}>
+                Neue Unterperspektive
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => onEditView(view)}>
+                Bearbeiten
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => onDeleteView(view)}
+              >
+                Löschen
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
+      {hasChildren && (
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+          <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+            <div className="space-y-0.5">
+              {children.map((child) => {
+                const childChildren = children.filter((c) => c.parentId === child.id);
+                return (
+                  <ViewTreeItem
+                    key={child.id}
+                    view={child}
+                    children={childChildren}
+                    currentViewId={currentViewId}
+                    onViewSelect={onViewSelect}
+                    onEditView={onEditView}
+                    onDeleteView={onDeleteView}
+                    onCreateSubView={onCreateSubView}
+                    indent={indent + 1}
+                  />
+                );
+              })}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
+};
+
 export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: SidebarProps) => {
   const { data: views, isLoading } = useViews();
   const queryClient = useQueryClient();
   const [builtinOpen, setBuiltinOpen] = useState(true);
   const [dynamicOpen, setDynamicOpen] = useState(true);
   const [newViewDialogOpen, setNewViewDialogOpen] = useState(false);
+  const [newSubViewParentId, setNewSubViewParentId] = useState<string | null>(null);
   const [editingView, setEditingView] = useState<ViewInfo | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ViewInfo | null>(null);
 
   const builtinViews = views?.filter((v) => v.viewType === "builtin") || [];
   const dynamicViews = views?.filter((v) => v.viewType === "dynamic") || [];
+
+  // Build tree structure for dynamic views
+  const dynamicViewTree = useMemo(() => {
+    const viewMap = new Map<string, ViewInfo>();
+    const childrenMap = new Map<string, ViewInfo[]>();
+
+    // Index all views
+    for (const view of dynamicViews) {
+      viewMap.set(view.id, view);
+    }
+
+    // Build parent-child relationships
+    const rootViews: ViewInfo[] = [];
+    for (const view of dynamicViews) {
+      if (!view.parentId) {
+        rootViews.push(view);
+      } else {
+        const children = childrenMap.get(view.parentId) || [];
+        children.push(view);
+        childrenMap.set(view.parentId, children);
+      }
+    }
+
+    return { rootViews, childrenMap };
+  }, [dynamicViews]);
 
   const { confirm, DialogComponent } = useConfirmDialog({
     title: "Perspektive löschen",
@@ -129,6 +247,12 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   const handleViewCreated = (viewId: string) => {
     onViewSelect(viewId);
     setDynamicOpen(true);
+    setNewSubViewParentId(null);
+  };
+
+  const handleCreateSubView = (parentId: string) => {
+    setNewSubViewParentId(parentId);
+    setNewViewDialogOpen(true);
   };
 
   useEffect(() => {
@@ -211,40 +335,21 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
               Eigene Perspektiven
             </CollapsibleTrigger>
             <CollapsibleContent className="px-2 space-y-0.5 overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-              {dynamicViews.map((view) => (
-                <ViewItem
-                  key={view.id}
-                  view={view}
-                  isActive={currentViewId === view.id}
-                  onClick={() => onViewSelect(view.id)}
-                  actions={(
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                          aria-label={`Optionen für ${view.name}`}
-                        >
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem onSelect={() => setEditingView(view)}>
-                          Bearbeiten
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() => setPendingDelete(view)}
-                        >
-                          Löschen
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                />
-              ))}
+              {dynamicViewTree.rootViews.map((view) => {
+                const children = dynamicViewTree.childrenMap.get(view.id) || [];
+                return (
+                  <ViewTreeItem
+                    key={view.id}
+                    view={view}
+                    children={children}
+                    currentViewId={currentViewId}
+                    onViewSelect={onViewSelect}
+                    onEditView={setEditingView}
+                    onDeleteView={setPendingDelete}
+                    onCreateSubView={handleCreateSubView}
+                  />
+                );
+              })}
             </CollapsibleContent>
           </Collapsible>
         )}
@@ -274,8 +379,12 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
       {/* New View Dialog */}
       <NewViewDialog
         open={newViewDialogOpen}
-        onOpenChange={setNewViewDialogOpen}
+        onOpenChange={(open) => {
+          setNewViewDialogOpen(open);
+          if (!open) setNewSubViewParentId(null);
+        }}
         onViewCreated={handleViewCreated}
+        parentId={newSubViewParentId ?? undefined}
       />
 
       <EditViewDialog

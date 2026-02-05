@@ -15,6 +15,7 @@ pub use snapshot::ViewSnapshot;
 
 use crate::error::{LatticeError, Result};
 use crate::model::timestamp_now;
+use crate::storage::MetadataStore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -56,6 +57,20 @@ impl std::fmt::Display for ViewID {
     }
 }
 
+/// Legacy view struct for migration (without parent_id).
+#[doc(hidden)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyView {
+    id: ViewID,
+    name: String,
+    description: Option<String>,
+    query: String,
+    created_at: i64,
+    modified_at: i64,
+    created_by: [u8; 32],
+    config: ViewConfig,
+}
+
 /// A view definition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct View {
@@ -75,6 +90,24 @@ pub struct View {
     pub created_by: [u8; 32],
     /// View configuration options.
     pub config: ViewConfig,
+    /// Optional parent view ID for nesting.
+    pub parent_id: Option<ViewID>,
+}
+
+impl From<LegacyView> for View {
+    fn from(legacy: LegacyView) -> Self {
+        Self {
+            id: legacy.id,
+            name: legacy.name,
+            description: legacy.description,
+            query: legacy.query,
+            created_at: legacy.created_at,
+            modified_at: legacy.modified_at,
+            created_by: legacy.created_by,
+            config: legacy.config,
+            parent_id: None,
+        }
+    }
 }
 
 impl View {
@@ -90,6 +123,7 @@ impl View {
             modified_at: now,
             created_by,
             config: ViewConfig::default(),
+            parent_id: None,
         }
     }
 
@@ -109,6 +143,12 @@ impl View {
     pub fn update_query(&mut self, query: String) {
         self.query = query;
         self.modified_at = timestamp_now();
+    }
+
+    /// Set the parent view ID for nesting.
+    pub fn with_parent(mut self, parent_id: ViewID) -> Self {
+        self.parent_id = Some(parent_id);
+        self
     }
 }
 
@@ -190,6 +230,45 @@ impl Default for ViewStore {
     }
 }
 
+/// Compute the effective LQL query for a view, combining parent queries with AND.
+///
+/// This walks up the parent chain and combines all queries with logical AND.
+/// Returns an error if the parent chain exceeds 16 levels or contains a cycle.
+pub fn effective_query(store: &MetadataStore, view: &View) -> Result<String> {
+    let mut queries = vec![view.query.clone()];
+    let mut current = view.parent_id;
+    let mut depth = 0;
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(view.id);
+
+    while let Some(pid) = current {
+        if depth >= 16 {
+            return Err(LatticeError::InvalidViewQuery(
+                "Parent chain depth exceeds maximum of 16 levels".to_string(),
+            ));
+        }
+        if visited.contains(&pid) {
+            return Err(LatticeError::InvalidViewQuery(
+                "Circular reference detected in parent chain".to_string(),
+            ));
+        }
+        visited.insert(pid);
+
+        let parent = store.load_view_by_id(&pid)?;
+        queries.push(parent.query.clone());
+        current = parent.parent_id;
+        depth += 1;
+    }
+
+    queries.reverse();
+    // Wrap each query in parens and join with AND
+    Ok(queries
+        .iter()
+        .map(|q| format!("({})", q))
+        .collect::<Vec<_>>()
+        .join(" AND "))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,5 +333,14 @@ mod tests {
 
         store.delete(&id).unwrap();
         assert!(!store.exists("ToDelete"));
+    }
+
+    #[test]
+    fn test_view_with_parent() {
+        let view = View::new("Child".to_string(), "tag:child".to_string(), test_actor());
+        let parent_id = ViewID::new();
+        let nested_view = view.with_parent(parent_id);
+        
+        assert_eq!(nested_view.parent_id, Some(parent_id));
     }
 }

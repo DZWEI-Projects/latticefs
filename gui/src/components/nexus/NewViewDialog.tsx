@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -13,25 +13,40 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createView } from "@/lib/lfs";
+import { useViews } from "@/hooks/useViews";
 import { Loader2 } from "lucide-react";
 
 interface NewViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onViewCreated?: (viewId: string) => void;
+  parentId?: string | null;
 }
 
 export const NewViewDialog = ({
   open,
   onOpenChange,
   onViewCreated,
+  parentId,
 }: NewViewDialogProps) => {
   const queryClient = useQueryClient();
+  const { data: views } = useViews();
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const parentView = parentId ? views?.find((v) => v.id === parentId) : null;
+
+  useEffect(() => {
+    if (!open) {
+      setName("");
+      setQuery("");
+      setDescription("");
+      setError(null);
+    }
+  }, [open]);
 
   const handleCreate = async () => {
     if (!name.trim() || !query.trim()) {
@@ -47,6 +62,7 @@ export const NewViewDialog = ({
         name: name.trim(),
         query: query.trim(),
         description: description.trim() || undefined,
+        parentId: parentId || undefined,
       });
 
       // Invalidate the views query to refresh the sidebar
@@ -79,11 +95,13 @@ export const NewViewDialog = ({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Neue Perspektive erstellen</DialogTitle>
+          <DialogTitle>
+            {parentView ? `Neue Unterperspektive von: ${parentView.name}` : "Neue Perspektive erstellen"}
+          </DialogTitle>
           <DialogDescription>
-            Perspektiven sind gespeicherte Filterausdrücke, die deine Objekte
-            organisieren. Nutze die LQL-Filtersyntax, um festzulegen, welche
-            Objekte in dieser Perspektive erscheinen.
+            {parentView
+              ? `Diese Unterperspektive wird die Filter der übergeordneten Perspektive "${parentView.name}" weiter einschränken.`
+              : "Perspektiven sind gespeicherte Filterausdrücke, die deine Objekte organisieren. Nutze die LQL-Filtersyntax, um festzulegen, welche Objekte in dieser Perspektive erscheinen."}
           </DialogDescription>
         </DialogHeader>
 

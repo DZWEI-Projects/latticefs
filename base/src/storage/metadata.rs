@@ -377,6 +377,31 @@ impl MetadataStore {
 
     /// Store a view definition by name.
     pub fn store_view(&self, view: &crate::views::View) -> Result<()> {
+        // Validate nesting constraints
+        if let Some(parent_id) = view.parent_id {
+            // Check for self-reference
+            if view.id == parent_id {
+                return Err(LatticeError::InvalidViewQuery(
+                    "View cannot be its own parent".to_string(),
+                ));
+            }
+            // Check parent exists
+            self.load_view_by_id(&parent_id)?;
+            // Check depth limit (will be checked during effective_query, but validate here too)
+            let mut depth = 0u32;
+            let mut current = Some(parent_id);
+            while let Some(pid) = current {
+                let parent = self.load_view_by_id(&pid)?;
+                current = parent.parent_id;
+                depth += 1;
+                if depth >= 16 {
+                    return Err(LatticeError::InvalidViewQuery(
+                        "Parent chain depth exceeds maximum of 16 levels".to_string(),
+                    ));
+                }
+            }
+        }
+
         let bytes = bincode::serialize(view).map_err(|e| {
             LatticeError::Serialization(format!("Failed to serialize view: {}", e))
         })?;
@@ -392,14 +417,38 @@ impl MetadataStore {
             .ok_or_else(|| LatticeError::ViewNotFound {
                 name: name.to_string(),
             })?;
-        let view = bincode::deserialize(&data).map_err(|e| {
-            LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
-        })?;
-        Ok(view)
+        
+        // Try to deserialize as new format first
+        match bincode::deserialize::<crate::views::View>(&data) {
+            Ok(view) => Ok(view),
+            Err(_) => {
+                // Try legacy format and migrate
+                let legacy: crate::views::LegacyView = bincode::deserialize(&data).map_err(|e| {
+                    LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
+                })?;
+                let view: crate::views::View = legacy.into();
+                // Re-save in new format
+                self.store_view(&view)?;
+                Ok(view)
+            }
+        }
     }
 
     /// Delete a view by name.
+    ///
+    /// If the view has children, they will be orphaned (their parent_id set to None).
     pub fn delete_view(&self, name: &str) -> Result<()> {
+        let view = self.load_view(name)?;
+        let view_id = view.id;
+
+        // Orphan any children
+        let children = self.children_of(&view_id)?;
+        for child in children {
+            let mut orphaned = child;
+            orphaned.parent_id = None;
+            self.store_view(&orphaned)?;
+        }
+
         self.views.remove(name.as_bytes())?;
         Ok(())
     }
@@ -409,12 +458,47 @@ impl MetadataStore {
         let mut views = Vec::new();
         for item in self.views.iter() {
             let (_k, v) = item?;
-            let view = bincode::deserialize(&v).map_err(|e| {
-                LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
-            })?;
+            // Try to deserialize as new format first
+            let view = match bincode::deserialize::<crate::views::View>(&v) {
+                Ok(view) => view,
+                Err(_) => {
+                    // Try legacy format and migrate
+                    let legacy: crate::views::LegacyView = bincode::deserialize(&v).map_err(|e| {
+                        LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
+                    })?;
+                    let view: crate::views::View = legacy.into();
+                    // Re-save in new format
+                    self.store_view(&view)?;
+                    view
+                }
+            };
             views.push(view);
         }
         Ok(views)
+    }
+
+    /// Load a view by ID.
+    pub fn load_view_by_id(&self, id: &crate::views::ViewID) -> Result<crate::views::View> {
+        // Scan all views to find by ID (acceptable since view counts are small)
+        for view in self.list_views()? {
+            if view.id == *id {
+                return Ok(view);
+            }
+        }
+        Err(LatticeError::ViewNotFound {
+            name: id.to_string(),
+        })
+    }
+
+    /// Get all child views of a parent view.
+    pub fn children_of(&self, parent_id: &crate::views::ViewID) -> Result<Vec<crate::views::View>> {
+        let mut children = Vec::new();
+        for view in self.list_views()? {
+            if view.parent_id == Some(*parent_id) {
+                children.push(view);
+            }
+        }
+        Ok(children)
     }
 
     /// Store a view snapshot.
@@ -840,5 +924,129 @@ mod tests {
 
         store.delete_alias(alias).unwrap();
         assert!(store.resolve_alias(alias).unwrap().is_none());
+    }
+
+    fn test_actor() -> [u8; 32] {
+        [0u8; 32]
+    }
+
+    #[test]
+    fn test_load_view_by_id() {
+        use crate::views::View;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let view = View::new("Test View".to_string(), "tag:test".to_string(), test_actor());
+        let view_id = view.id;
+        store.store_view(&view).unwrap();
+
+        let loaded = store.load_view_by_id(&view_id).unwrap();
+        assert_eq!(loaded.id, view_id);
+        assert_eq!(loaded.name, "Test View");
+    }
+
+    #[test]
+    fn test_children_of() {
+        use crate::views::View;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let parent = View::new("Parent".to_string(), "tag:parent".to_string(), test_actor());
+        let parent_id = parent.id;
+        store.store_view(&parent).unwrap();
+
+        let child1 = View::new("Child1".to_string(), "tag:child1".to_string(), test_actor())
+            .with_parent(parent_id);
+        let child2 = View::new("Child2".to_string(), "tag:child2".to_string(), test_actor())
+            .with_parent(parent_id);
+        store.store_view(&child1).unwrap();
+        store.store_view(&child2).unwrap();
+
+        let children = store.children_of(&parent_id).unwrap();
+        assert_eq!(children.len(), 2);
+        assert!(children.iter().any(|v| v.name == "Child1"));
+        assert!(children.iter().any(|v| v.name == "Child2"));
+    }
+
+    #[test]
+    fn test_delete_view_orphans_children() {
+        use crate::views::View;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let parent = View::new("Parent".to_string(), "tag:parent".to_string(), test_actor());
+        let parent_id = parent.id;
+        store.store_view(&parent).unwrap();
+
+        let child = View::new("Child".to_string(), "tag:child".to_string(), test_actor())
+            .with_parent(parent_id);
+        let child_id = child.id;
+        store.store_view(&child).unwrap();
+
+        // Delete parent
+        store.delete_view(&parent.name).unwrap();
+
+        // Child should be orphaned
+        let orphaned = store.load_view_by_id(&child_id).unwrap();
+        assert_eq!(orphaned.parent_id, None);
+    }
+
+    #[test]
+    fn test_effective_query_nesting() {
+        use crate::views::View;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let parent = View::new(
+            "Parent".to_string(),
+            "tag:parent".to_string(),
+            test_actor(),
+        );
+        let parent_id = parent.id;
+        store.store_view(&parent).unwrap();
+
+        let child = View::new("Child".to_string(), "tag:child".to_string(), test_actor())
+            .with_parent(parent_id);
+        store.store_view(&child).unwrap();
+
+        let effective = crate::views::effective_query(&store, &child).unwrap();
+        assert!(effective.contains("tag:parent"));
+        assert!(effective.contains("tag:child"));
+        assert!(effective.contains("AND"));
+    }
+
+    #[test]
+    fn test_effective_query_depth_limit() {
+        use crate::views::View;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        // Create a chain of 16 nested views (max depth)
+        let mut current_id = None;
+        for i in 0..16 {
+            let view = if let Some(parent_id) = current_id {
+                View::new(
+                    format!("View{}", i),
+                    format!("tag:v{}", i),
+                    test_actor(),
+                )
+                .with_parent(parent_id)
+            } else {
+                View::new(
+                    format!("View{}", i),
+                    format!("tag:v{}", i),
+                    test_actor(),
+                )
+            };
+            let view_id = view.id;
+            store.store_view(&view).unwrap();
+            current_id = Some(view_id);
+        }
+
+        // The 17th level should fail depth check
+        let deep_view = View::new("Deep".to_string(), "tag:deep".to_string(), test_actor())
+            .with_parent(current_id.unwrap());
+        let result = store.store_view(&deep_view);
+        assert!(result.is_err()); // Should fail depth validation
     }
 }

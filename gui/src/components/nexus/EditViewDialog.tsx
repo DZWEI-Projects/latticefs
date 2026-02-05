@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateView, type ViewInfo } from "@/lib/lfs";
+import { useViews } from "@/hooks/useViews";
 import { Loader2 } from "lucide-react";
 
 interface EditViewDialogProps {
@@ -23,11 +24,14 @@ interface EditViewDialogProps {
 
 export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps) => {
   const queryClient = useQueryClient();
+  const { data: views } = useViews();
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const parentView = view?.parentId ? views?.find((v) => v.id === view.parentId) : null;
 
   useEffect(() => {
     if (!view || !open) return;
@@ -123,6 +127,18 @@ export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps
               disabled={isSaving}
             />
           </div>
+
+          {parentView && (
+            <div className="grid gap-2">
+              <Label>Übergeordnete Perspektive</Label>
+              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+                {parentView.name}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Diese Perspektive ist eine Unterperspektive von "{parentView.name}". Die Filter werden kombiniert.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
