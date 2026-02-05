@@ -247,7 +247,7 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
               )}
               style={{
                 left: `${NODE_CENTER + highlightedFileOffset.x + 42}px`,
-                top: `${NODE_CENTER + highlightedFileOffset.y}px`,
+                top: `${NODE_CENTER + 16 + highlightedFileOffset.y}px`,
               }}
             >
               <GlassCard hover={false} delay={0} className="opacity-100">

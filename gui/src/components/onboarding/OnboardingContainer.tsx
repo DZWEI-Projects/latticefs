@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { cn } from "@/lib/utils";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { FolderSelection } from "./FolderSelection";
@@ -30,6 +31,13 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
     transitionToStage("complete");
     onComplete?.();
   }, [onComplete, transitionToStage]);
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    if (e.buttons === 1) {
+      // Primary (left) button
+      getCurrentWindow().startDragging();
+    }
+  }, []);
 
   const renderStage = () => {
     switch (stage) {
@@ -69,25 +77,26 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
         isTransitioning && "opacity-0"
       )}
     >
-      {/* Progress indicator */}
+      {/* Drag region / Progress indicator */}
       {stage !== "complete" && (
-        <div className="fixed top-0 left-0 right-0 z-50 app-titlebar">
-          <div className="flex items-center justify-center px-4 h-10">
-            <div className="flex items-center gap-2">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <div
-                  key={s}
-                  className={cn(
-                    "w-1.5 h-1.5 rounded-full transition-all duration-400",
-                    s === stage
-                      ? "w-6 bg-primary"
-                      : s < (stage as number)
-                      ? "bg-primary/60"
-                      : "bg-muted-foreground/30"
-                  )}
-                />
-              ))}
-            </div>
+        <div 
+          className="fixed top-0 left-0 right-0 z-50 h-12 flex items-center justify-center px-4 select-none cursor-default"
+          onMouseDown={handleDragStart}
+        >
+          <div className="flex items-center gap-2 pointer-events-none">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <div
+                key={s}
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full transition-all duration-400",
+                  s === stage
+                    ? "w-6 bg-primary"
+                    : s < (stage as number)
+                    ? "bg-primary/60"
+                    : "bg-muted-foreground/30"
+                )}
+              />
+            ))}
           </div>
         </div>
       )}

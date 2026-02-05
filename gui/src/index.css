@@ -76,9 +76,6 @@
     --sidebar-accent-foreground: 240 5% 90%;
     --sidebar-border: 240 10% 15%;
     --sidebar-ring: 217 100% 65%;
-
-    --titlebar-bg: 240 15% 8%;
-    --titlebar-border: 240 12% 18%;
   }
 
   /* No light mode - NeuralFS is always dark */
@@ -92,7 +89,9 @@
     @apply border-border;
   }
 
-  html, body, #root {
+  html,
+  body,
+  #root {
     @apply h-full;
   }
 
@@ -103,7 +102,14 @@
       hsl(var(--gradient-start)) 0%,
       hsl(var(--gradient-end)) 100%
     );
-    font-family: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    font-family:
+      "SF Pro Text",
+      "SF Pro Display",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Inter",
+      system-ui,
+      sans-serif;
     font-size: 14px;
     line-height: 1.45;
     letter-spacing: -0.01em;
@@ -124,8 +130,9 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid hsl(var(--glass-border) / 0.4);
-    box-shadow: 0 10px 24px hsl(var(--background) / 0.45),
-                inset 0 1px 0 hsl(var(--glass-border) / 0.5);
+    box-shadow:
+      0 10px 24px hsl(var(--background) / 0.45),
+      inset 0 1px 0 hsl(var(--glass-border) / 0.5);
   }
 
   .glass-strong {
@@ -138,66 +145,35 @@
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid hsl(var(--glass-border) / 0.5);
-    box-shadow: 0 16px 36px hsl(var(--background) / 0.55),
-                inset 0 1px 0 hsl(var(--glass-border) / 0.55);
-  }
-
-  .app-titlebar {
-    background: linear-gradient(
-        180deg,
-        hsl(var(--titlebar-bg) / 0.9) 0%,
-        hsl(var(--titlebar-bg) / 0.65) 100%
-      );
-    backdrop-filter: blur(16px) saturate(1.2);
-    -webkit-backdrop-filter: blur(16px) saturate(1.2);
-    border-bottom: 1px solid hsl(var(--titlebar-border) / 0.7);
-    box-shadow: inset 0 1px 0 hsl(var(--glass-border) / 0.6),
-                0 10px 24px hsl(var(--background) / 0.35);
-  }
-
-  .window-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.15);
-  }
-
-  .window-dot-red {
-    background: #ff5f57;
-    border-color: #e0443e;
-  }
-
-  .window-dot-yellow {
-    background: #febc2e;
-    border-color: #d79a26;
-  }
-
-  .window-dot-green {
-    background: #28c840;
-    border-color: #1ea833;
+    box-shadow:
+      0 16px 36px hsl(var(--background) / 0.55),
+      inset 0 1px 0 hsl(var(--glass-border) / 0.55);
   }
 
   /* Glow effects */
   .glow-primary {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3),
-                0 0 40px hsl(var(--primary) / 0.1);
+    box-shadow:
+      0 0 20px hsl(var(--primary) / 0.3),
+      0 0 40px hsl(var(--primary) / 0.1);
   }
 
   .glow-primary-intense {
-    box-shadow: 0 0 30px hsl(var(--primary) / 0.5),
-                0 0 60px hsl(var(--primary) / 0.2);
+    box-shadow:
+      0 0 30px hsl(var(--primary) / 0.5),
+      0 0 60px hsl(var(--primary) / 0.2);
   }
 
   .glow-secondary {
-    box-shadow: 0 0 20px hsl(var(--secondary) / 0.3),
-                0 0 40px hsl(var(--secondary) / 0.1);
+    box-shadow:
+      0 0 20px hsl(var(--secondary) / 0.3),
+      0 0 40px hsl(var(--secondary) / 0.1);
   }
 
   /* Text glow */
   .text-glow {
-    text-shadow: 0 0 20px hsl(var(--primary) / 0.5),
-                 0 0 40px hsl(var(--primary) / 0.3);
+    text-shadow:
+      0 0 20px hsl(var(--primary) / 0.5),
+      0 0 40px hsl(var(--primary) / 0.3);
   }
 
   /* Smooth transitions */
@@ -243,7 +219,8 @@
 
 /* Keyframe animations */
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px);
   }
   50% {
@@ -252,7 +229,8 @@
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.5;
     transform: scale(1);
   }
@@ -343,7 +321,8 @@
 }
 
 @keyframes particle-float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translate(0, 0) scale(1);
     opacity: 0.3;
   }
@@ -362,7 +341,8 @@
 }
 
 @keyframes connection-pulse {
-  0%, 100% {
+  0%,
+  100% {
     stroke-opacity: 0.3;
   }
   50% {
@@ -371,7 +351,8 @@
 }
 
 @keyframes node-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
   }

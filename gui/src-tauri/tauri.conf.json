@@ -13,11 +13,11 @@
     "windows": [
       {
         "title": "NeuralFS",
-        "width": 800,
-        "height": 600,
+        "width": 920,
+        "height": 700,
         "resizable": true,
         "fullscreen": false,
-        "decorations": false
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {
