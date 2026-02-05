@@ -4,37 +4,37 @@ overview: Build the main hub view (called "Nexus") as a file manager-like interf
 todos:
   - id: backend-commands
     content: "Add Tauri commands: list_views, get_view_objects, evaluate_query in commands.rs"
-    status: in_progress
+    status: completed
   - id: frontend-types
     content: Extend lib/lfs.ts with new types (ViewInfo, ObjectInfo) and functions
-    status: pending
+    status: completed
   - id: nexus-layout
     content: Create NexusLayout with Sidebar, Toolbar, ContentArea, StatusBar
-    status: pending
+    status: completed
   - id: sidebar
     content: Build Sidebar component with views navigation and object counts
-    status: pending
+    status: completed
   - id: view-selector
     content: Create ViewSelector toggle with Graph/Grid/List modes and first-time tooltip
-    status: pending
+    status: completed
   - id: graph-view
     content: Extract and adapt NodeGraph into GraphView for Nexus (remove tutorial, add selection)
-    status: pending
+    status: completed
   - id: grid-view
     content: Create GridView with ObjectCard in responsive grid layout
-    status: pending
+    status: completed
   - id: list-view
     content: Create ListView with ObjectRow, sortable columns
-    status: pending
+    status: completed
   - id: hooks
     content: Add useViews and useViewObjects hooks with TanStack Query
-    status: pending
+    status: completed
   - id: routing
     content: Add /nexus route to App.tsx and update onboarding completion navigation
-    status: pending
+    status: completed
   - id: mocks
     content: Add mock implementations in lfs.mock.ts for browser development
-    status: pending
+    status: completed
 isProject: false
 ---
 
