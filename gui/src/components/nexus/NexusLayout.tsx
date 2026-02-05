@@ -4,12 +4,15 @@ import { Sidebar } from "./Sidebar";
 import { Toolbar } from "./Toolbar";
 import { ContentArea } from "./ContentArea";
 import { StatusBar } from "./StatusBar";
-import type { ObjectInfo, TagInfo } from "@/lib/lfs";
-import { addObjectTag, removeObjectTag, setObjectTrustLevel, openObject } from "@/lib/lfs";
+import type { ObjectInfo, TagInfo, VersionInfo } from "@/lib/lfs";
+import { addObjectTag, removeObjectTag, setObjectTrustLevel, openObject, isTextEditable } from "@/lib/lfs";
 import { useViewObjects } from "@/hooks/useViewObjects";
 import { toast } from "sonner";
 import { ObjectDetailPanel } from "./ObjectDetailPanel";
 import { NexusSettingsDialog } from "./NexusSettingsDialog";
+import { VersionHistoryDialog } from "./VersionHistoryDialog";
+import { VersionDiffDialog } from "./VersionDiffDialog";
+import { TextEditorDialog } from "./TextEditorDialog";
 
 export type ViewMode = "graph" | "grid" | "list";
 export type SortField =
@@ -59,6 +62,13 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
     const saved = localStorage.getItem("nexus-details-on-select");
     return saved ? saved === "true" : true;
   });
+
+  // Version dialog state
+  const [versionHistoryObject, setVersionHistoryObject] = useState<ObjectInfo | null>(null);
+  const [diffObject, setDiffObject] = useState<ObjectInfo | null>(null);
+  const [diffVersionA, setDiffVersionA] = useState<VersionInfo | null>(null);
+  const [diffVersionB, setDiffVersionB] = useState<VersionInfo | null>(null);
+  const [editorObject, setEditorObject] = useState<ObjectInfo | null>(null);
 
   const { data, isLoading, error } = useViewObjects(currentViewId || "recent");
   const [objects, setObjects] = useState<ObjectInfo[]>([]);
@@ -210,6 +220,57 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
     setDetailPanelOpen(true);
   }, []);
 
+  const handleOpenVersions = useCallback((object: ObjectInfo) => {
+    setVersionHistoryObject(object);
+  }, []);
+
+  const handleOpenEditor = useCallback((object: ObjectInfo) => {
+    if (object.isSealed) {
+      toast.error("Versiegeltes Objekt kann nicht bearbeitet werden");
+      return;
+    }
+    if (!isTextEditable(object.extension)) {
+      toast.error("Dieser Dateityp kann nicht als Text bearbeitet werden");
+      return;
+    }
+    setEditorObject(object);
+  }, []);
+
+  const handleOpenDiff = useCallback(
+    (versionA: VersionInfo, versionB: VersionInfo) => {
+      if (versionHistoryObject) {
+        setDiffObject(versionHistoryObject);
+        setDiffVersionA(versionA);
+        setDiffVersionB(versionB);
+      }
+    },
+    [versionHistoryObject],
+  );
+
+  const handleObjectUpdated = useCallback(() => {
+    // Refresh the objects list by updating the object in-place
+    setObjects((prev) =>
+      prev.map((obj) => {
+        if (versionHistoryObject && obj.id === versionHistoryObject.id) {
+          return { ...obj, modifiedAt: Date.now() };
+        }
+        return obj;
+      }),
+    );
+  }, [versionHistoryObject]);
+
+  const handleEditorObjectUpdated = useCallback(
+    (updated: ObjectInfo) => {
+      setObjects((prev) =>
+        prev.map((obj) =>
+          obj.id === updated.id ? { ...obj, ...updated, views: obj.views } : obj,
+        ),
+      );
+      setEditorObject(updated);
+    },
+    [],
+  );
+
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     if (e.buttons === 1) {
       getCurrentWindow().startDragging();
@@ -285,6 +346,8 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
                 onUpdateTag={handleUpdateTag}
                 onSetTrust={handleSetTrust}
                 onViewSelect={onViewChange}
+                onOpenVersions={handleOpenVersions}
+                onOpenEditor={handleOpenEditor}
               />
             )}
           </div>
@@ -306,6 +369,49 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
           localStorage.setItem("nexus-details-on-select", String(value));
         }}
       />
+
+      {/* Version History Dialog */}
+      {versionHistoryObject && (
+        <VersionHistoryDialog
+          open={!!versionHistoryObject}
+          onOpenChange={(open) => {
+            if (!open) setVersionHistoryObject(null);
+          }}
+          object={versionHistoryObject}
+          onOpenDiff={handleOpenDiff}
+          onOpenEditor={handleOpenEditor}
+          onObjectUpdated={handleObjectUpdated}
+        />
+      )}
+
+      {/* Version Diff Dialog */}
+      {diffObject && diffVersionA && diffVersionB && (
+        <VersionDiffDialog
+          open={!!diffObject}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDiffObject(null);
+              setDiffVersionA(null);
+              setDiffVersionB(null);
+            }
+          }}
+          object={diffObject}
+          versionA={diffVersionA}
+          versionB={diffVersionB}
+        />
+      )}
+
+      {/* Text Editor Dialog */}
+      {editorObject && (
+        <TextEditorDialog
+          open={!!editorObject}
+          onOpenChange={(open) => {
+            if (!open) setEditorObject(null);
+          }}
+          object={editorObject}
+          onObjectUpdated={handleEditorObjectUpdated}
+        />
+      )}
     </div>
   );
 };

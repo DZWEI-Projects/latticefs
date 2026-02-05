@@ -19,6 +19,12 @@ pub fn run() {
       crate::commands::create_view,
       crate::commands::update_view,
       crate::commands::delete_view,
+      crate::commands::get_object_versions,
+      crate::commands::get_version_content,
+      crate::commands::set_version_state,
+      crate::commands::revise_object,
+      crate::commands::diff_versions,
+      crate::commands::export_object_version,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

@@ -191,10 +191,12 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "similar",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-log",
+ "tokio",
  "uuid",
 ]
 
