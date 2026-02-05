@@ -9,7 +9,6 @@ import { addObjectTag, removeObjectTag, setObjectTrustLevel, openObject } from "
 import { useViewObjects } from "@/hooks/useViewObjects";
 import { toast } from "sonner";
 import { ObjectDetailPanel } from "./ObjectDetailPanel";
-import { TagDialog } from "./TagDialog";
 import { NexusSettingsDialog } from "./NexusSettingsDialog";
 
 export type ViewMode = "graph" | "grid" | "list";
@@ -60,8 +59,6 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
     const saved = localStorage.getItem("nexus-details-on-select");
     return saved ? saved === "true" : true;
   });
-  const [tagDialogOpen, setTagDialogOpen] = useState(false);
-  const [tagTargetId, setTagTargetId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useViewObjects(currentViewId || "recent");
   const [objects, setObjects] = useState<ObjectInfo[]>([]);
@@ -109,37 +106,30 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
   }, []);
 
   const handleRequestAddTag = useCallback((object: ObjectInfo) => {
-    setTagTargetId(object.id);
-    setTagDialogOpen(true);
+    setActiveObjectId(object.id);
+    setSelectedObjects([object.id]);
+    setDetailPanelOpen(true);
   }, []);
 
-  const handleAddTag = useCallback(
-    async (tag: TagInfo) => {
-      if (!tagTargetId) return;
-      try {
-        const updated = await addObjectTag(tagTargetId, tag);
-        setObjects((prev) =>
-          prev.map((obj) =>
-            obj.id === tagTargetId
-              ? updated ?? {
-                  ...obj,
-                  tags: obj.tags.some(
-                    (existing) =>
-                      existing.key === tag.key && existing.value === tag.value
-                  )
-                    ? obj.tags
-                    : [...obj.tags, tag],
-                }
-              : obj
-          )
-        );
-        toast.success("Eigenschaft hinzugefügt");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht hinzugefügt werden");
-      }
-    },
-    [tagTargetId]
-  );
+  const handleAddTag = useCallback(async (object: ObjectInfo, tag: TagInfo) => {
+    try {
+      const updated = await addObjectTag(object.id, tag);
+      setObjects((prev) =>
+        prev.map((obj) => {
+          if (obj.id !== object.id) return obj;
+          if (updated) return { ...obj, ...updated, views: obj.views };
+          const exists = obj.tags.some(
+            (existing) => existing.key === tag.key && existing.value === tag.value
+          );
+          return exists ? obj : { ...obj, tags: [...obj.tags, tag] };
+        })
+      );
+      toast.success("Eigenschaft hinzugefügt");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht hinzugefügt werden");
+      throw err;
+    }
+  }, []);
 
   const handleRemoveTag = useCallback(async (object: ObjectInfo, tag: TagInfo) => {
     try {
@@ -147,13 +137,15 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
       setObjects((prev) =>
         prev.map((obj) =>
           obj.id === object.id
-            ? updated ?? {
-                ...obj,
-                tags: obj.tags.filter(
-                  (existing) =>
-                    !(existing.key === tag.key && existing.value === tag.value)
-                ),
-              }
+            ? updated
+              ? { ...obj, ...updated, views: obj.views }
+              : {
+                  ...obj,
+                  tags: obj.tags.filter(
+                    (existing) =>
+                      !(existing.key === tag.key && existing.value === tag.value)
+                  ),
+                }
             : obj
         )
       );
@@ -163,13 +155,46 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
     }
   }, []);
 
+  const handleUpdateTag = useCallback(
+    async (object: ObjectInfo, previous: TagInfo, next: TagInfo) => {
+      if (previous.key === next.key && previous.value === next.value) {
+        return;
+      }
+      try {
+        await removeObjectTag(object.id, previous);
+        const updated = await addObjectTag(object.id, next);
+        setObjects((prev) =>
+          prev.map((obj) => {
+            if (obj.id !== object.id) return obj;
+            if (updated) return { ...obj, ...updated, views: obj.views };
+            const filtered = obj.tags.filter(
+              (existing) =>
+                !(existing.key === previous.key && existing.value === previous.value)
+            );
+            const exists = filtered.some(
+              (existing) => existing.key === next.key && existing.value === next.value
+            );
+            return exists ? { ...obj, tags: filtered } : { ...obj, tags: [...filtered, next] };
+          })
+        );
+        toast.success("Eigenschaft aktualisiert");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht aktualisiert werden");
+        throw err;
+      }
+    },
+    []
+  );
+
   const handleSetTrust = useCallback(async (object: ObjectInfo, trust: number | null) => {
     try {
       const updated = await setObjectTrustLevel(object.id, trust);
       setObjects((prev) =>
         prev.map((obj) =>
           obj.id === object.id
-            ? updated ?? { ...obj, trustLevel: trust }
+            ? updated
+              ? { ...obj, ...updated, views: obj.views }
+              : { ...obj, trustLevel: trust }
             : obj
         )
       );
@@ -255,8 +280,9 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
                 object={activeObject}
                 currentViewId={currentViewId}
                 onClose={() => setDetailPanelOpen(false)}
-                onRequestAddTag={handleRequestAddTag}
+                onAddTag={handleAddTag}
                 onRemoveTag={handleRemoveTag}
+                onUpdateTag={handleUpdateTag}
                 onSetTrust={handleSetTrust}
                 onViewSelect={onViewChange}
               />
@@ -270,17 +296,6 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
           />
         </div>
       </div>
-
-      <TagDialog
-        open={tagDialogOpen}
-        onOpenChange={(open) => {
-          setTagDialogOpen(open);
-          if (!open) {
-            setTagTargetId(null);
-          }
-        }}
-        onSubmit={handleAddTag}
-      />
 
       <NexusSettingsDialog
         open={settingsOpen}
