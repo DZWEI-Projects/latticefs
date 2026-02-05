@@ -1,13 +1,19 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ObjectNode } from "./ObjectNode";
-import type { ObjectInfo } from "@/lib/lfs";
+import type { ObjectInfo, TagInfo } from "@/lib/lfs";
+import { ObjectContextMenu } from "./ObjectContextMenu";
 
 interface GraphViewProps {
   objects: ObjectInfo[];
   selectedObjects: string[];
   onObjectSelect: (objectId: string, multiSelect?: boolean) => void;
   onObjectOpen: (object: ObjectInfo) => void;
+  onObjectFocus: (object: ObjectInfo) => void;
+  onRequestAddTag: (object: ObjectInfo) => void;
+  onRemoveTag: (object: ObjectInfo, tag: TagInfo) => void;
+  onSetTrust: (object: ObjectInfo, trust: number | null) => void;
+  onShowDetails: (object: ObjectInfo) => void;
 }
 
 // Graph container dimensions
@@ -22,6 +28,11 @@ export const GraphView = ({
   selectedObjects,
   onObjectSelect,
   onObjectOpen,
+  onObjectFocus,
+  onRequestAddTag,
+  onRemoveTag,
+  onSetTrust,
+  onShowDetails,
 }: GraphViewProps) => {
   const [hoveredObject, setHoveredObject] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,8 +64,9 @@ export const GraphView = ({
     (obj: ObjectInfo, e: React.MouseEvent) => {
       const multiSelect = e.metaKey || e.ctrlKey;
       onObjectSelect(obj.id, multiSelect);
+      onObjectFocus(obj);
     },
-    [onObjectSelect]
+    [onObjectSelect, onObjectFocus]
   );
 
   const handleNodeDoubleClick = useCallback(
@@ -62,6 +74,15 @@ export const GraphView = ({
       onObjectOpen(obj);
     },
     [onObjectOpen]
+  );
+
+  const handleContextMenu = useCallback(
+    (obj: ObjectInfo, e: React.MouseEvent) => {
+      e.preventDefault();
+      onObjectSelect(obj.id, false);
+      onObjectFocus(obj);
+    },
+    [onObjectSelect, onObjectFocus]
   );
 
   // Get objects that share views with the hovered object
@@ -178,18 +199,28 @@ export const GraphView = ({
           const isConnected = connectedObjects.has(obj.id);
           
           return (
-            <ObjectNode
+            <ObjectContextMenu
               key={obj.id}
               object={obj}
-              position={pos}
-              isSelected={isSelected}
-              isHovered={isHovered}
-              isConnected={isConnected}
-              onHover={() => setHoveredObject(obj.id)}
-              onLeave={() => setHoveredObject(null)}
-              onClick={(e) => handleNodeClick(obj, e)}
-              onDoubleClick={() => handleNodeDoubleClick(obj)}
-            />
+              onOpen={onObjectOpen}
+              onShowDetails={onShowDetails}
+              onRequestAddTag={onRequestAddTag}
+              onRemoveTag={onRemoveTag}
+              onSetTrust={onSetTrust}
+            >
+              <ObjectNode
+                object={obj}
+                position={pos}
+                isSelected={isSelected}
+                isHovered={isHovered}
+                isConnected={isConnected}
+                onHover={() => setHoveredObject(obj.id)}
+                onLeave={() => setHoveredObject(null)}
+                onClick={(e) => handleNodeClick(obj, e)}
+                onDoubleClick={() => handleNodeDoubleClick(obj)}
+                onContextMenu={(e) => handleContextMenu(obj, e)}
+              />
+            </ObjectContextMenu>
           );
         })}
       </div>

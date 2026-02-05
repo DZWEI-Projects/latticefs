@@ -11,6 +11,6 @@ export function useViews() {
 
 export function useViewByName(viewName: string | undefined) {
   const { data: views, ...rest } = useViews();
-  const view = views?.find((v) => v.name === viewName);
+  const view = views?.find((v) => v.id === viewName || v.name === viewName);
   return { data: view, views, ...rest };
 }

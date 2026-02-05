@@ -34,6 +34,7 @@ const iconMap: Record<string, React.ElementType> = {
 interface SidebarProps {
   currentViewName?: string;
   onViewSelect: (viewName: string) => void;
+  onOpenSettings: () => void;
 }
 
 interface ViewItemProps {
@@ -69,7 +70,7 @@ const ViewItem = ({ view, isActive, onClick }: ViewItemProps) => {
   );
 };
 
-export const Sidebar = ({ currentViewName, onViewSelect }: SidebarProps) => {
+export const Sidebar = ({ currentViewName, onViewSelect, onOpenSettings }: SidebarProps) => {
   const { data: views, isLoading } = useViews();
   const [builtinOpen, setBuiltinOpen] = useState(true);
   const [dynamicOpen, setDynamicOpen] = useState(true);
@@ -107,8 +108,8 @@ export const Sidebar = ({ currentViewName, onViewSelect }: SidebarProps) => {
                 <ViewItem
                   key={view.id}
                   view={view}
-                  isActive={currentViewName === view.name}
-                  onClick={() => onViewSelect(view.name)}
+                  isActive={currentViewName === view.id}
+                  onClick={() => onViewSelect(view.id)}
                 />
               ))
             )}
@@ -128,12 +129,12 @@ export const Sidebar = ({ currentViewName, onViewSelect }: SidebarProps) => {
               Custom Views
             </CollapsibleTrigger>
             <CollapsibleContent className="px-2 space-y-0.5">
-              {              dynamicViews.map((view) => (
+              {dynamicViews.map((view) => (
                 <ViewItem
                   key={view.id}
                   view={view}
-                  isActive={currentViewName === view.name}
-                  onClick={() => onViewSelect(view.name)}
+                  isActive={currentViewName === view.id}
+                  onClick={() => onViewSelect(view.id)}
                 />
               ))}
             </CollapsibleContent>
@@ -156,6 +157,7 @@ export const Sidebar = ({ currentViewName, onViewSelect }: SidebarProps) => {
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={onOpenSettings}
         >
           <Settings className="w-4 h-4" />
         </Button>

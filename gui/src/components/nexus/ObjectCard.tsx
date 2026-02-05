@@ -17,6 +17,7 @@ interface ObjectCardProps {
   isSelected: boolean;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function getFileIcon(ext?: string | null) {
@@ -123,6 +124,7 @@ export const ObjectCard = ({
   isSelected,
   onClick,
   onDoubleClick,
+  onContextMenu,
 }: ObjectCardProps) => {
   const Icon = getFileIcon(object.extension);
   const iconColor = getIconColor(object.extension);
@@ -137,6 +139,7 @@ export const ObjectCard = ({
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
     >
       <div
         className={cn(

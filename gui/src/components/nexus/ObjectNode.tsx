@@ -16,6 +16,7 @@ interface ObjectNodeProps {
   onLeave: () => void;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -83,6 +84,7 @@ export const ObjectNode = ({
   onLeave,
   onClick,
   onDoubleClick,
+  onContextMenu,
 }: ObjectNodeProps) => {
   const isHighlighted = isSelected || isHovered || isConnected;
 
@@ -101,6 +103,7 @@ export const ObjectNode = ({
           onMouseLeave={onLeave}
           onClick={onClick}
           onDoubleClick={onDoubleClick}
+          onContextMenu={onContextMenu}
         >
           <div
             className={cn(

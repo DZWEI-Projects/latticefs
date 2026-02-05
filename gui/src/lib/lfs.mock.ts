@@ -12,6 +12,7 @@ import type {
   ViewInfo,
   ObjectInfo,
   CreateViewArgs,
+  TagInfo,
 } from "./lfs";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -330,6 +331,55 @@ export const mockEvaluateQuery = async (_query: string): Promise<ObjectInfo[]> =
   await delay(200);
   // For mock purposes, just return all objects
   return mockObjectsData;
+};
+
+// --- Object Operations Mocks ---
+
+const findObject = (objectId: string) =>
+  mockObjectsData.find((obj) => obj.id === objectId) || null;
+
+export const mockAddObjectTag = async (
+  objectId: string,
+  tag: TagInfo,
+): Promise<ObjectInfo | null> => {
+  await delay(120);
+  const object = findObject(objectId);
+  if (!object) return null;
+  const exists = object.tags.some(
+    (existing) => existing.key === tag.key && existing.value === tag.value
+  );
+  if (!exists) {
+    object.tags.push(tag);
+  }
+  return object;
+};
+
+export const mockRemoveObjectTag = async (
+  objectId: string,
+  tag: TagInfo,
+): Promise<ObjectInfo | null> => {
+  await delay(120);
+  const object = findObject(objectId);
+  if (!object) return null;
+  object.tags = object.tags.filter(
+    (existing) => !(existing.key === tag.key && existing.value === tag.value)
+  );
+  return object;
+};
+
+export const mockSetObjectTrustLevel = async (
+  objectId: string,
+  trustLevel: number | null,
+): Promise<ObjectInfo | null> => {
+  await delay(120);
+  const object = findObject(objectId);
+  if (!object) return null;
+  object.trustLevel = trustLevel;
+  return object;
+};
+
+export const mockOpenObject = async (_objectId: string): Promise<void> => {
+  await delay(150);
 };
 
 // --- View Management Mocks ---

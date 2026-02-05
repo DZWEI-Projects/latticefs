@@ -1,63 +1,60 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ObjectRow } from "./ObjectRow";
 import { ArrowUp, ArrowDown } from "lucide-react";
-import type { ObjectInfo } from "@/lib/lfs";
+import type { ObjectInfo, TagInfo } from "@/lib/lfs";
+import { ObjectContextMenu } from "./ObjectContextMenu";
+import type { SortState, SortField } from "./NexusLayout";
 
 interface ListViewProps {
   objects: ObjectInfo[];
   selectedObjects: string[];
   onObjectSelect: (objectId: string, multiSelect?: boolean) => void;
   onObjectOpen: (object: ObjectInfo) => void;
+  onObjectFocus: (object: ObjectInfo) => void;
+  onRequestAddTag: (object: ObjectInfo) => void;
+  onRemoveTag: (object: ObjectInfo, tag: TagInfo) => void;
+  onSetTrust: (object: ObjectInfo, trust: number | null) => void;
+  onShowDetails: (object: ObjectInfo) => void;
+  sort: SortState;
+  onSortChange: (next: SortState) => void;
 }
-
-type SortField = "name" | "extension" | "sizeBytes" | "modifiedAt";
-type SortDirection = "asc" | "desc";
 
 export const ListView = ({
   objects,
   selectedObjects,
   onObjectSelect,
   onObjectOpen,
+  onObjectFocus,
+  onRequestAddTag,
+  onRemoveTag,
+  onSetTrust,
+  onShowDetails,
+  sort,
+  onSortChange,
 }: ListViewProps) => {
-  const [sortField, setSortField] = useState<SortField>("name");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-
-  const handleSort = useCallback((field: SortField) => {
-    if (sortField === field) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  }, [sortField]);
-
-  const sortedObjects = [...objects].sort((a, b) => {
-    let comparison = 0;
-    switch (sortField) {
-      case "name":
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case "extension":
-        comparison = (a.extension || "").localeCompare(b.extension || "");
-        break;
-      case "sizeBytes":
-        comparison = a.sizeBytes - b.sizeBytes;
-        break;
-      case "modifiedAt":
-        comparison = a.modifiedAt - b.modifiedAt;
-        break;
-    }
-    return sortDirection === "asc" ? comparison : -comparison;
-  });
+  const handleSort = useCallback(
+    (field: SortField) => {
+      if (sort.field === field) {
+        onSortChange({
+          field,
+          direction: sort.direction === "asc" ? "desc" : "asc",
+        });
+      } else {
+        onSortChange({ field, direction: "asc" });
+      }
+    },
+    [onSortChange, sort.direction, sort.field]
+  );
 
   const handleClick = useCallback(
     (obj: ObjectInfo, e: React.MouseEvent) => {
       const multiSelect = e.metaKey || e.ctrlKey;
       onObjectSelect(obj.id, multiSelect);
+      onObjectFocus(obj);
     },
-    [onObjectSelect]
+    [onObjectSelect, onObjectFocus]
   );
 
   const handleDoubleClick = useCallback(
@@ -67,7 +64,16 @@ export const ListView = ({
     [onObjectOpen]
   );
 
-  const SortIcon = sortDirection === "asc" ? ArrowUp : ArrowDown;
+  const handleContextMenu = useCallback(
+    (obj: ObjectInfo, e: React.MouseEvent) => {
+      e.preventDefault();
+      onObjectSelect(obj.id, false);
+      onObjectFocus(obj);
+    },
+    [onObjectSelect, onObjectFocus]
+  );
+
+  const SortIcon = sort.direction === "asc" ? ArrowUp : ArrowDown;
 
   return (
     <div className="flex flex-col h-full">
@@ -76,42 +82,42 @@ export const ListView = ({
         <button
           className={cn(
             "flex-1 min-w-0 flex items-center gap-1 text-left hover:text-foreground transition-colors",
-            sortField === "name" && "text-foreground"
+            sort.field === "name" && "text-foreground"
           )}
           onClick={() => handleSort("name")}
         >
           Name
-          {sortField === "name" && <SortIcon className="w-3 h-3" />}
+          {sort.field === "name" && <SortIcon className="w-3 h-3" />}
         </button>
         <button
           className={cn(
             "w-20 flex items-center gap-1 hover:text-foreground transition-colors",
-            sortField === "extension" && "text-foreground"
+            sort.field === "extension" && "text-foreground"
           )}
           onClick={() => handleSort("extension")}
         >
           Type
-          {sortField === "extension" && <SortIcon className="w-3 h-3" />}
+          {sort.field === "extension" && <SortIcon className="w-3 h-3" />}
         </button>
         <button
           className={cn(
             "w-24 flex items-center gap-1 hover:text-foreground transition-colors",
-            sortField === "sizeBytes" && "text-foreground"
+            sort.field === "sizeBytes" && "text-foreground"
           )}
           onClick={() => handleSort("sizeBytes")}
         >
           Size
-          {sortField === "sizeBytes" && <SortIcon className="w-3 h-3" />}
+          {sort.field === "sizeBytes" && <SortIcon className="w-3 h-3" />}
         </button>
         <button
           className={cn(
             "w-32 flex items-center gap-1 hover:text-foreground transition-colors",
-            sortField === "modifiedAt" && "text-foreground"
+            sort.field === "modifiedAt" && "text-foreground"
           )}
           onClick={() => handleSort("modifiedAt")}
         >
           Modified
-          {sortField === "modifiedAt" && <SortIcon className="w-3 h-3" />}
+          {sort.field === "modifiedAt" && <SortIcon className="w-3 h-3" />}
         </button>
         <div className="w-24">Tags</div>
         <div className="w-16 text-right">Trust</div>
@@ -120,15 +126,25 @@ export const ListView = ({
       {/* Rows */}
       <ScrollArea className="flex-1">
         <div className="divide-y divide-border/30">
-          {sortedObjects.map((obj, index) => (
-            <ObjectRow
+          {objects.map((obj, index) => (
+            <ObjectContextMenu
               key={obj.id}
               object={obj}
-              isSelected={selectedObjects.includes(obj.id)}
-              isAlternate={index % 2 === 1}
-              onClick={(e) => handleClick(obj, e)}
-              onDoubleClick={() => handleDoubleClick(obj)}
-            />
+              onOpen={onObjectOpen}
+              onShowDetails={onShowDetails}
+              onRequestAddTag={onRequestAddTag}
+              onRemoveTag={onRemoveTag}
+              onSetTrust={onSetTrust}
+            >
+              <ObjectRow
+                object={obj}
+                isSelected={selectedObjects.includes(obj.id)}
+                isAlternate={index % 2 === 1}
+                onClick={(e) => handleClick(obj, e)}
+                onDoubleClick={() => handleDoubleClick(obj)}
+                onContextMenu={(e) => handleContextMenu(obj, e)}
+              />
+            </ObjectContextMenu>
           ))}
         </div>
       </ScrollArea>

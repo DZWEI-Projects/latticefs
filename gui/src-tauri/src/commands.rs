@@ -3,7 +3,7 @@ use base64::Engine;
 use latticefs_base::config::Config;
 use latticefs_base::crypto::{Identity, KeyManager};
 use latticefs_base::error::LatticeError;
-use latticefs_base::import::{import_file, scanner, ImportOptions};
+use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
 use latticefs_base::model::{ObjectID, Tag};
 use latticefs_base::query::{parse, QueryEvaluator};
 use latticefs_base::views::{BuiltinView, BuiltinViews};
@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
 pub struct RepoInfo {
@@ -234,6 +235,42 @@ fn file_extension(name: &str) -> Option<String> {
         .map(|s| s.to_lowercase())
 }
 
+fn parse_object_id(object_id: &str) -> Result<ObjectID, String> {
+    let uuid = Uuid::parse_str(object_id).map_err(|err| err.to_string())?;
+    Ok(ObjectID::from_uuid(uuid))
+}
+
+fn open_with_default_app(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &path.to_string_lossy()])
+            .spawn()
+            .map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        Err("Opening files is not supported on this platform".to_string())
+    }
+}
+
 fn eval_query(repo: &LatticeRepo, query: &str) -> Result<Vec<ObjectID>, String> {
     let parsed = parse(query).map_err(|err| err.to_string())?;
     let evaluator = QueryEvaluator::new(&repo.metadata);
@@ -320,7 +357,7 @@ pub fn get_onboarding_graph() -> Result<OnboardingGraphData, String> {
 // Nexus / Hub View Commands
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagInfo {
     pub key: String,
     pub value: String,
@@ -510,6 +547,140 @@ pub fn evaluate_query(query: String) -> Result<Vec<ObjectInfo>, String> {
         .collect();
 
     Ok(objects)
+}
+
+#[tauri::command]
+pub fn add_object_tag(object_id: String, tag: TagInfo) -> Result<ObjectInfo, String> {
+    if tag.key.trim().is_empty() || tag.value.trim().is_empty() {
+        return Err("Tag key and value cannot be empty".to_string());
+    }
+
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let identity = load_or_create_identity()?;
+    let actor = identity.public_bytes();
+    let object_id = parse_object_id(&object_id)?;
+    let mut object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+
+    let tag = Tag::new(tag.key, tag.value, actor);
+    let tag_path = tag.full_path();
+    object.add_tag(tag);
+    repo.metadata
+        .store_object(&object)
+        .map_err(|err| err.to_string())?;
+    repo.metadata
+        .add_to_tag_index(&tag_path, object_id.as_bytes())
+        .map_err(|err| err.to_string())?;
+
+    object_to_info(&repo, &object_id, None).ok_or_else(|| "Object not found".to_string())
+}
+
+#[tauri::command]
+pub fn remove_object_tag(object_id: String, tag: TagInfo) -> Result<ObjectInfo, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let mut object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+
+    let removed_tags: Vec<String> = object
+        .tags
+        .iter()
+        .filter(|existing| existing.key == tag.key && existing.value == tag.value)
+        .map(|existing| existing.full_path())
+        .collect();
+
+    if !removed_tags.is_empty() {
+        object
+            .tags
+            .retain(|existing| !(existing.key == tag.key && existing.value == tag.value));
+        repo.metadata
+            .store_object(&object)
+            .map_err(|err| err.to_string())?;
+        for tag_path in removed_tags {
+            repo.metadata
+                .remove_from_tag_index(&tag_path, object_id.as_bytes())
+                .map_err(|err| err.to_string())?;
+        }
+    }
+
+    object_to_info(&repo, &object_id, None).ok_or_else(|| "Object not found".to_string())
+}
+
+#[tauri::command]
+pub fn set_object_trust_level(
+    object_id: String,
+    trust_level: Option<u8>,
+) -> Result<ObjectInfo, String> {
+    if let Some(level) = trust_level {
+        if level > 100 {
+            return Err("Trust level must be between 0 and 100".to_string());
+        }
+    }
+
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let identity = load_or_create_identity()?;
+    let actor = identity.public_bytes();
+    let object_id = parse_object_id(&object_id)?;
+    let mut object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+
+    let removed_trust_tags: Vec<String> = object
+        .tags
+        .iter()
+        .filter(|existing| existing.key == "trust")
+        .map(|existing| existing.full_path())
+        .collect();
+
+    if !removed_trust_tags.is_empty() {
+        object.tags.retain(|existing| existing.key != "trust");
+        for tag_path in &removed_trust_tags {
+            repo.metadata
+                .remove_from_tag_index(tag_path, object_id.as_bytes())
+                .map_err(|err| err.to_string())?;
+        }
+    }
+
+    if let Some(level) = trust_level {
+        let trust_tag = Tag::new("trust".to_string(), level.to_string(), actor);
+        let tag_path = trust_tag.full_path();
+        object.add_tag(trust_tag);
+        repo.metadata
+            .add_to_tag_index(&tag_path, object_id.as_bytes())
+            .map_err(|err| err.to_string())?;
+    }
+
+    repo.metadata
+        .store_object(&object)
+        .map_err(|err| err.to_string())?;
+
+    object_to_info(&repo, &object_id, None).ok_or_else(|| "Object not found".to_string())
+}
+
+#[tauri::command]
+pub async fn open_object(object_id: String) -> Result<(), String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+    let name = display_name(&object.tags, &object_id);
+    let safe_name = name.replace(['/', '\\'], "_");
+
+    let output_dir = std::env::temp_dir().join("latticefs-open");
+    std::fs::create_dir_all(&output_dir).map_err(|err| err.to_string())?;
+    let output_path = output_dir.join(format!("{}_{}", object_id, safe_name));
+
+    export_object(&repo, &object_id, None, &output_path, ExportMode::Tree)
+        .await
+        .map_err(|err| err.to_string())?;
+    open_with_default_app(&output_path)
 }
 
 #[derive(Debug, Deserialize)]

@@ -19,6 +19,7 @@ interface ObjectRowProps {
   isAlternate: boolean;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function getFileIcon(ext?: string | null) {
@@ -103,6 +104,7 @@ export const ObjectRow = ({
   isAlternate,
   onClick,
   onDoubleClick,
+  onContextMenu,
 }: ObjectRowProps) => {
   const Icon = getFileIcon(object.extension);
 
@@ -117,6 +119,7 @@ export const ObjectRow = ({
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
     >
       {/* Name */}
       <div className="flex-1 min-w-0 flex items-center gap-2">

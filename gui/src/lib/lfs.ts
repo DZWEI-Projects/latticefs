@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as tauriPath from "@tauri-apps/api/path";
-import { toast } from "sonner";
 
 // Types
 export interface RepoInfo {
@@ -238,6 +237,49 @@ export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {
     }));
   }
   return (await getMocks()).mockEvaluateQuery(query);
+};
+
+// --- Object Operations ---
+
+export const addObjectTag = async (
+  objectId: string,
+  tag: TagInfo,
+): Promise<ObjectInfo | null> => {
+  if (isTauriApp()) {
+    return invoke<ObjectInfo>("add_object_tag", { objectId, tag });
+  }
+  return (await getMocks()).mockAddObjectTag(objectId, tag);
+};
+
+export const removeObjectTag = async (
+  objectId: string,
+  tag: TagInfo,
+): Promise<ObjectInfo | null> => {
+  if (isTauriApp()) {
+    return invoke<ObjectInfo>("remove_object_tag", { objectId, tag });
+  }
+  return (await getMocks()).mockRemoveObjectTag(objectId, tag);
+};
+
+export const setObjectTrustLevel = async (
+  objectId: string,
+  trustLevel: number | null,
+): Promise<ObjectInfo | null> => {
+  if (isTauriApp()) {
+    return invoke<ObjectInfo>("set_object_trust_level", {
+      objectId,
+      trustLevel,
+    });
+  }
+  return (await getMocks()).mockSetObjectTrustLevel(objectId, trustLevel);
+};
+
+export const openObject = async (objectId: string): Promise<void> => {
+  if (isTauriApp()) {
+    await invoke("open_object", { objectId });
+    return;
+  }
+  return (await getMocks()).mockOpenObject(objectId);
 };
 
 // --- View Management ---
