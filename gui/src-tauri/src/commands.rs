@@ -499,10 +499,18 @@ pub fn get_view_objects(view_id: String) -> Result<Vec<ObjectInfo>, String> {
     let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
 
     // Try to find the view (builtin or dynamic)
-    let query = if let Some(bv) = BuiltinView::by_name(&view_id) {
+    let query = if let Some(bv) = BuiltinView::by_name(&view_id)
+        .or_else(|| BuiltinView::by_name(&view_id.replace('-', " ")))
+    {
         bv.query().to_string()
     } else if let Ok(view) = repo.metadata.load_view(&view_id) {
         view.query.clone()
+    } else if let Ok(views) = repo.metadata.list_views() {
+        views
+            .into_iter()
+            .find(|view| view.id.to_string() == view_id)
+            .map(|view| view.query)
+            .ok_or_else(|| format!("View not found: {}", view_id))?
     } else {
         return Err(format!("View not found: {}", view_id));
     };
