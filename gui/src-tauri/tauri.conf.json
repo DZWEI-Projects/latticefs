@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "NeuralFS",
-        "width": 920,
-        "height": 700,
+        "width": 1250,
+        "height": 840,
         "resizable": true,
         "fullscreen": false,
         "titleBarStyle": "Overlay"

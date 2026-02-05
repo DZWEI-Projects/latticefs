@@ -239,15 +239,21 @@ export const AhaTutorial = ({ onComplete }: AhaTutorialProps) => {
             y: highlightedViewPosition.y,
           };
 
+          // Panel width is 288px (w-72). When a project is selected, move panel to the left of the file
+          const panelWidth = 288;
+          const panelOffset = selectedProject 
+            ? { x: highlightedFileOffset.x - panelWidth - 20, y: highlightedFileOffset.y }
+            : { x: highlightedFileOffset.x + 42, y: highlightedFileOffset.y + 16 };
+
           return (
             <div 
               className={cn(
-                "absolute w-72 z-20 -translate-y-1/2",
-                "animate-slide-in-right"
+                "absolute w-72 z-20 -translate-y-1/2 transition-all duration-700",
+                !selectedProject && "animate-slide-in-right"
               )}
               style={{
-                left: `${NODE_CENTER + highlightedFileOffset.x + 42}px`,
-                top: `${NODE_CENTER + 16 + highlightedFileOffset.y}px`,
+                left: `${NODE_CENTER + panelOffset.x}px`,
+                top: `${NODE_CENTER + panelOffset.y}px`,
               }}
             >
               <GlassCard hover={false} delay={0} className="opacity-100">

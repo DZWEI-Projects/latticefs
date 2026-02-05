@@ -4,6 +4,7 @@ import { AnimatedButton } from "./ui/AnimatedButton";
 import { ToggleSwitch } from "./ui/ToggleSwitch";
 import { ParticleBackground } from "./ui/ParticleBackground";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/lib/confirm-dialog";
 import { Shield, Download, History, AlertTriangle, Check } from "lucide-react";
 
 interface SecurityCalibrationProps {
@@ -61,9 +62,20 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
     }));
   };
 
+  const resetToDefaults = () => {
+    setSettings(
+      Object.fromEntries(securityOptions.map((opt) => [opt.id, opt.defaultEnabled]))
+    );
+  };
+
   const handleProceed = () => {
     setIsAnimatingOut(true);
     setTimeout(onNext, 800);
+  };
+
+  const handleApplyDefaults = () => {
+    resetToDefaults();
+    handleProceed();
   };
 
   return (
@@ -182,12 +194,7 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
         </div>
         
         {/* Advanced settings link */}
-        <p 
-          className="text-xs text-muted-foreground/60 mb-6 cursor-pointer hover:text-muted-foreground transition-colors opacity-0 animate-fade-up"
-          style={{ animationDelay: "850ms", animationFillMode: "forwards" }}
-        >
-          Richtlinien später anpassen →
-        </p>
+        <ConfigureLaterButton onConfirm={handleApplyDefaults} />
         
         {/* CTA Button */}
         <div 
@@ -202,3 +209,38 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
     </div>
   );
 };
+
+interface ConfigureLaterButtonProps {
+  onConfirm: () => void;
+}
+
+function ConfigureLaterButton({ onConfirm }: ConfigureLaterButtonProps) {
+  const { confirm, DialogComponent } = useConfirmDialog({
+    title: "Standardeinstellungen anwenden?",
+    message:
+      "Es werden die empfohlenen Sicherheitseinstellungen angewendet. Du kannst diese später jederzeit ändern.",
+    hint: "Einstellungen → Sicherheit → Richtlinien",
+    confirmLabel: "Anwenden",
+    cancelLabel: "Abbrechen",
+  });
+
+  const handleClick = async () => {
+    const confirmed = await confirm();
+    if (confirmed) {
+      onConfirm();
+    }
+  };
+
+  return (
+    <>
+      <p
+        onClick={handleClick}
+        className="text-xs text-muted-foreground/60 mb-6 cursor-pointer hover:text-muted-foreground transition-colors opacity-0 animate-fade-up"
+        style={{ animationDelay: "850ms", animationFillMode: "forwards" }}
+      >
+        Richtlinien später anpassen →
+      </p>
+      <DialogComponent />
+    </>
+  );
+}
