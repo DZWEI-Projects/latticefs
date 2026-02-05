@@ -1,11 +1,16 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { useViews } from "@/hooks/useViews";
 import type { ObjectInfo, TagInfo } from "@/lib/lfs";
 import { cn } from "@/lib/utils";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
 import {
@@ -14,6 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../ui/popover";
+import { toast } from "sonner";
 
 interface ObjectDetailPanelProps {
   object: ObjectInfo;
@@ -53,6 +59,36 @@ function formatViews(views: string[]): string {
     : `${views.length} Perspektiven`;
 }
 
+function formatObjectType(type: ObjectInfo["objectType"]): string {
+  switch (type) {
+    case "blob":
+      return "Datei";
+    case "tree":
+      return "Ordner";
+    case "commit":
+      return "Commit";
+    default:
+      return type;
+  }
+}
+
+function isAutoTag(tag: TagInfo) {
+  return tag.key.startsWith("auto:");
+}
+
+function isSystemTag(tag: TagInfo) {
+  return tag.key.startsWith("sys:");
+}
+
+const ID3_PREFIX = "auto:id3:";
+const EXIF_PREFIX = "auto:exif:";
+
+function formatTagLabel(raw: string): string {
+  if (!raw) return "—";
+  const withSpaces = raw.replace(/_/g, " ");
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+}
+
 function parseTagInput(keyInput: string, valueInput: string): TagInfo | null {
   const key = keyInput.trim();
   const value = valueInput.trim();
@@ -81,10 +117,61 @@ export const ObjectDetailPanel = ({
   onViewSelect,
 }: ObjectDetailPanelProps) => {
   const [trustValue, setTrustValue] = useState<number>(object.trustLevel ?? 70);
+  const [autoTagsOpen, setAutoTagsOpen] = useState(false);
+  const { userTags, autoTags, systemTags, id3Tags, exifTags } = useMemo(() => {
+    const user: TagInfo[] = [];
+    const auto: TagInfo[] = [];
+    const system: TagInfo[] = [];
+    const id3: TagInfo[] = [];
+    const exif: TagInfo[] = [];
+    for (const tag of object.tags) {
+      if (isAutoTag(tag)) {
+        if (tag.key.startsWith(ID3_PREFIX)) {
+          id3.push(tag);
+        } else if (tag.key.startsWith(EXIF_PREFIX)) {
+          exif.push(tag);
+        } else {
+          auto.push(tag);
+        }
+      } else if (isSystemTag(tag)) {
+        system.push(tag);
+      } else {
+        user.push(tag);
+      }
+    }
+    return {
+      userTags: user,
+      autoTags: auto,
+      systemTags: system,
+      id3Tags: id3,
+      exifTags: exif,
+    };
+  }, [object.tags]);
 
   useEffect(() => {
     setTrustValue(object.trustLevel ?? 70);
   }, [object.id, object.trustLevel]);
+
+  const handleCopyId = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(object.id);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = object.id;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      toast.success("Objekt-ID kopiert");
+    } catch {
+      toast.error("Objekt-ID konnte nicht kopiert werden");
+    }
+  };
 
   const clampedTrust = useMemo(
     () => Math.max(0, Math.min(100, trustValue)),
@@ -112,10 +199,14 @@ export const ObjectDetailPanel = ({
           </h3>
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-foreground/75">Typ</span>
+              <span className="text-foreground/75">Dateiendung</span>
               <span className="font-medium uppercase">
                 {object.extension || "—"}
               </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-foreground/75">Objektart</span>
+              <span className="font-medium">{formatObjectType(object.objectType)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-foreground/75">Größe</span>
@@ -135,6 +226,21 @@ export const ObjectDetailPanel = ({
                 {formatDate(object.modifiedAt)}
               </span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-foreground/75">Objekt-ID</span>
+              <button
+                type="button"
+                className={cn(
+                  "font-medium font-mono text-[11px] truncate max-w-[180px]",
+                  "text-foreground/80 hover:text-primary hover:underline",
+                  "transition-colors",
+                )}
+                title="Objekt-ID kopieren"
+                onClick={handleCopyId}
+              >
+                {object.id}
+              </button>
+            </div>
             <ViewsInspector
               value={object.views}
               currentViewId={currentViewId}
@@ -149,16 +255,73 @@ export const ObjectDetailPanel = ({
               Eigenschaften
             </h3>
             <span className="text-xs text-muted-foreground">
-              {object.tags.length}
+              {userTags.length}
             </span>
           </div>
           <TagsEditor
             object={object}
+            tags={userTags}
             onAddTag={onAddTag}
             onRemoveTag={onRemoveTag}
             onUpdateTag={onUpdateTag}
           />
         </section>
+
+        <TagDetailsSection
+          title="Musikdetails"
+          tags={id3Tags}
+          prefix={ID3_PREFIX}
+        />
+
+        <TagDetailsSection
+          title="Bildmetadaten (EXIF)"
+          tags={exifTags}
+          prefix={EXIF_PREFIX}
+        />
+
+        <section className="space-y-3">
+          <Collapsible open={autoTagsOpen} onOpenChange={setAutoTagsOpen}>
+            <div className="flex items-center justify-between">
+              <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold text-foreground/75 uppercase tracking-wider hover:text-foreground transition-colors">
+                <ChevronDown
+                  className={cn(
+                    "w-3 h-3 transition-transform",
+                    !autoTagsOpen && "-rotate-90",
+                  )}
+                />
+                Automatische Tags
+              </CollapsibleTrigger>
+              <span className="text-xs text-muted-foreground">
+                {autoTags.length}
+              </span>
+            </div>
+            <CollapsibleContent className="pt-2">
+              <ReadOnlyTagsList
+                tags={autoTags}
+                emptyLabel="Keine automatischen Tags erkannt."
+                badgeLabel="AUTO"
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        </section>
+
+        {systemTags.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-foreground/75 uppercase tracking-wider">
+                System-Tags
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                {systemTags.length}
+              </span>
+            </div>
+            <ReadOnlyTagsList
+              tags={systemTags}
+              emptyLabel="Keine System-Tags."
+              badgeLabel="SYS"
+            />
+          </section>
+        )}
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -198,11 +361,13 @@ export const ObjectDetailPanel = ({
 
 function TagsEditor({
   object,
+  tags,
   onAddTag,
   onRemoveTag,
   onUpdateTag,
 }: {
   object: ObjectInfo;
+  tags: TagInfo[];
   onAddTag: (object: ObjectInfo, tag: TagInfo) => Promise<void>;
   onRemoveTag: (object: ObjectInfo, tag: TagInfo) => void;
   onUpdateTag: (object: ObjectInfo, previous: TagInfo, next: TagInfo) => Promise<void>;
@@ -323,13 +488,13 @@ function TagsEditor({
         </div>
       </div>
 
-      {object.tags.length === 0 ? (
+      {tags.length === 0 ? (
         <p className="text-xs text-foreground/75">
           Noch keine Eigenschaften zugewiesen.
         </p>
       ) : (
         <div className="space-y-1">
-          {object.tags.map((tag) => {
+          {tags.map((tag) => {
             const isEditing =
               editingTag?.key === tag.key && editingTag?.value === tag.value;
             if (isEditing) {
@@ -414,6 +579,105 @@ function TagsEditor({
         </div>
       )}
     </div>
+  );
+}
+
+function ReadOnlyTagsList({
+  tags,
+  emptyLabel,
+  badgeLabel,
+}: {
+  tags: TagInfo[];
+  emptyLabel: string;
+  badgeLabel: string;
+}) {
+  if (tags.length === 0) {
+    return <p className="text-xs text-foreground/75">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {tags.map((tag) => (
+        <div
+          key={`${tag.key}:${tag.value}`}
+          className="flex items-center gap-2 rounded-md border border-border/50 bg-background/60 px-2 py-1.5"
+        >
+          <span className="w-24 text-[10px] uppercase truncate">
+            {tag.key}
+          </span>
+          <span className="flex-1 text-xs truncate font-semibold">
+            {tag.value}
+          </span>
+          <Badge variant="outline" className="text-[10px] uppercase">
+            {badgeLabel}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TagDetailsSection({
+  title,
+  tags,
+  prefix,
+}: {
+  title: string;
+  tags: TagInfo[];
+  prefix: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const details = useMemo(
+    () =>
+      tags
+        .map((tag) => ({
+          key: `${tag.key}:${tag.value}`,
+          label: formatTagLabel(tag.key.replace(prefix, "")),
+          value: tag.value,
+        }))
+        .sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true }),
+        ),
+    [tags, prefix],
+  );
+
+  if (tags.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="flex items-center justify-between">
+          <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold text-foreground/75 uppercase tracking-wider hover:text-foreground transition-colors">
+            <ChevronDown
+              className={cn(
+                "w-3 h-3 transition-transform",
+                !open && "-rotate-90",
+              )}
+            />
+            {title}
+          </CollapsibleTrigger>
+          <span className="text-xs text-muted-foreground">{tags.length}</span>
+        </div>
+        <CollapsibleContent className="pt-2">
+          <div className="space-y-2 text-xs">
+            {details.map((detail) => (
+              <div
+                key={detail.key}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="text-foreground/75">{detail.label}</span>
+                <span
+                  className="font-medium text-right truncate max-w-[180px]"
+                  title={detail.value}
+                >
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </section>
   );
 }
 

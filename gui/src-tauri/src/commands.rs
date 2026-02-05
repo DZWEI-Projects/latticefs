@@ -411,7 +411,10 @@ fn object_to_info(
     // Load current version for size info
     let version = repo.metadata.load_version(&object.current_version).ok();
     let size_bytes = version.as_ref().map(|v| v.size_bytes).unwrap_or(0);
-    let modified_at = version.as_ref().map(|v| v.created_at).unwrap_or(object.created_at);
+    let modified_at = version
+        .as_ref()
+        .map(|v| v.created_at)
+        .unwrap_or(object.created_at);
 
     // Get trust level from tags
     let trust_level = object
@@ -424,7 +427,8 @@ fn object_to_info(
     let tags: Vec<TagInfo> = object
         .tags
         .iter()
-        .filter(|t| !t.key.starts_with("auto:") && !t.key.starts_with("system:"))
+        // Do NOT show system tags, for security reasons. System tags are used for internal purposes only.
+        .filter(|t| !t.key.starts_with("system:"))
         .map(|t| TagInfo {
             key: t.key.clone(),
             value: t.value.clone(),
@@ -500,8 +504,8 @@ pub fn get_view_objects(view_id: String) -> Result<Vec<ObjectInfo>, String> {
     let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
 
     // Try to find the view (builtin or dynamic)
-    let query = if let Some(bv) = BuiltinView::by_name(&view_id)
-        .or_else(|| BuiltinView::by_name(&view_id.replace('-', " ")))
+    let query = if let Some(bv) =
+        BuiltinView::by_name(&view_id).or_else(|| BuiltinView::by_name(&view_id.replace('-', " ")))
     {
         bv.query().to_string()
     } else if let Ok(view) = repo.metadata.load_view(&view_id) {
