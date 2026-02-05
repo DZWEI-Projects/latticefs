@@ -116,7 +116,7 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
           style={{ animationDelay: "200ms", animationFillMode: "forwards" }}
         >
           <h2 className="text-2xl md:text-3xl font-bold tracking-tighter mb-2">
-            NeuralFS schützt dich von Grund auf
+            Von Grund auf geschützt
           </h2>
           <p className="text-sm text-muted-foreground">
             Diese Einstellungen sind bereits aktiviert.
@@ -131,9 +131,11 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
               delay={400 + index * 150}
               hover={false}
               className={cn(
-                "transition-all duration-300",
+                "transition-all duration-300 select-none",
                 settings[option.id] && "border-primary/30"
               )}
+              tabIndex={index}
+              onClick={() => toggleSetting(option.id)}
             >
               <div className="flex items-start gap-3">
                 <div className={cn(
@@ -169,7 +171,7 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
                         : "grid-rows-[0fr] opacity-0"
                     )}
                   >
-                    <p className="text-sm text-muted-foreground overflow-hidden">
+                    <p className="text-xs text-foreground/75 overflow-hidden">
                       {option.description}
                     </p>
                   </div>
