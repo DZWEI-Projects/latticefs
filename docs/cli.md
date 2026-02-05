@@ -142,11 +142,12 @@ lfs stats object <object-id> --all-versions
 ```
 
 ### `lfs stats view <name|id>`
-Show statistics for a built-in or dynamic view.
+Show statistics for a built-in or dynamic view. Built-in view names can be provided in English or German.
 
-Example:
+Examples:
 ```bash
 lfs stats view recent
+lfs stats view neueste  # German equivalent
 ```
 
 ### `lfs stats view-objects <name|id> [--all-tags] [--raw-tags]`
@@ -162,11 +163,22 @@ lfs stats view-objects recent --all-tags
 ```
 
 ### `lfs stats views`
-Summarize all built-in and dynamic views.
+Summarize all built-in and dynamic views. Built-in views are displayed in the system locale (English or German).
 
 Example:
 ```bash
 lfs stats views
+```
+
+Example output (German locale):
+```text
+Built-in views:
+- Neueste: 5 objects
+- Projekte: 3 objects
+- Entwürfe: 2 objects
+- Zur Prüfung: 1 objects
+- Genehmigt: 10 objects
+- Alle Objekte: 15 objects
 ```
 
 ### `lfs stats policy <name>`
@@ -498,6 +510,8 @@ Checked out <object-id> to <version-id>
 
 ## Views
 
+**Localization Note**: Built-in view names and descriptions are automatically localized based on your operating system locale. The system supports English and German, with German as the default fallback for non-English locales. View names can be referenced in either language (e.g., "recent" or "neueste").
+
 ### `lfs view create <name> --query '<lql>'`
 Create a dynamic view.
 
@@ -519,7 +533,7 @@ Example:
 lfs view list
 ```
 
-Example output:
+Example output (English locale):
 ```text
 Built-in views:
 - Recent: Objects updated within the last 7 days
@@ -533,8 +547,23 @@ Dynamic views:
 - Projects (id: <view-id>): tag:project
 ```
 
+Example output (German locale):
+```text
+Built-in views:
+- Neueste: Objekte, die in den letzten 7 Tagen aktualisiert wurden
+- Projekte: Objekte, die als Projekte gekennzeichnet sind
+- Entwürfe: Objekte im Entwurfsstadium
+- Zur Prüfung: Objekte, die auf Prüfung warten
+- Genehmigt: Genehmigte Objekte
+- Alle Objekte: Alle Objekte im Repository
+
+Dynamic views:
+- Projects (id: <view-id>): tag:project
+```
+
 Notes:
 - Dynamic view IDs are UUIDs and can be used anywhere a view name is accepted.
+- Built-in view names can be referenced in either English or German (e.g., `lfs stats view recent` or `lfs stats view neueste`).
 
 ### `lfs view delete <name|id>`
 Delete a dynamic view.

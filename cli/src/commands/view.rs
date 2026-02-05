@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use latticefs_base::query::{parse, Explainer};
-use latticefs_base::views::{BuiltinView, View};
+use latticefs_base::views::{BuiltinView, View, Locale};
 use latticefs_base::LatticeRepo;
 
 use super::common::{
@@ -78,9 +78,10 @@ async fn create(repo: LatticeRepo, args: CreateArgs) -> Result<()> {
 }
 
 async fn list(repo: LatticeRepo) -> Result<()> {
+    let locale = Locale::from_system();
     println!("Built-in views:");
     for view in BuiltinView::all() {
-        println!("- {}: {}", view.name(), view.description());
+        println!("- {}: {}", view.name_localized(locale), view.description_localized(locale));
     }
 
     println!("\nDynamic views:");

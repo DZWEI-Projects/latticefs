@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 use latticefs_base::crypto::Capability;
 use latticefs_base::model::Tag;
 use latticefs_base::storage::hash_to_hex;
-use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView};
+use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView, Locale};
 use latticefs_base::{LatticeRepo, Permission};
 
 use super::common::{
@@ -170,15 +170,16 @@ async fn object_stats(repo: LatticeRepo, args: StatsObjectArgs) -> Result<()> {
 }
 
 async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
+    let locale = Locale::from_system();
     match resolve_view_reference(&repo, &args.name)? {
         ResolvedView::Builtin(builtin) => {
             let builtins = BuiltinViews::new(&repo.metadata);
             let object_ids = builtins.evaluate(builtin)?;
             let readable_count = count_readable(&repo, &object_ids);
-            println!("View: {}", builtin.name());
+            println!("View: {}", builtin.name_localized(locale));
             println!("Type: builtin");
             println!("Query: {}", builtin.query());
-            println!("Description: {}", builtin.description());
+            println!("Description: {}", builtin.description_localized(locale));
             println!("Objects: {}", readable_count);
         }
         ResolvedView::Dynamic(view) => {
@@ -256,12 +257,13 @@ async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<(
 }
 
 async fn views_summary(repo: LatticeRepo) -> Result<()> {
+    let locale = Locale::from_system();
     let builtins = BuiltinViews::new(&repo.metadata);
     println!("Built-in views:");
     for builtin in BuiltinView::all() {
         let object_ids = builtins.evaluate(*builtin)?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {}: {} objects", builtin.name(), readable_count);
+        println!("- {}: {} objects", builtin.name_localized(locale), readable_count);
     }
 
     let views = repo.metadata.list_views()?;

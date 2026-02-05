@@ -6,7 +6,7 @@ use latticefs_base::error::LatticeError;
 use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
 use latticefs_base::model::{ObjectID, Tag};
 use latticefs_base::query::{parse, QueryEvaluator};
-use latticefs_base::views::{BuiltinView, BuiltinViews};
+use latticefs_base::views::{BuiltinView, BuiltinViews, Locale};
 use latticefs_base::LatticeRepo;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -455,16 +455,17 @@ fn object_to_info(
 pub fn list_views() -> Result<Vec<ViewInfo>, String> {
     let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
     let builtin = BuiltinViews::new(&repo.metadata);
+    let locale = Locale::from_system();
 
     let mut views = Vec::new();
 
-    // Add built-in views
+    // Add built-in views with localized names and descriptions
     for bv in BuiltinView::all() {
         let count = builtin.count(*bv).unwrap_or(0);
         views.push(ViewInfo {
             id: bv.name().to_lowercase().replace(' ', "-"),
-            name: bv.name().to_string(),
-            description: bv.description().to_string(),
+            name: bv.name_localized(locale).to_string(),
+            description: bv.description_localized(locale).to_string(),
             query: bv.query().to_string(),
             view_type: "builtin".to_string(),
             icon: builtin_view_icon(*bv),

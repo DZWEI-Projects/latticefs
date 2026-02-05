@@ -42,6 +42,7 @@ fuser = { version = "0.14", optional = true }
 lru = "0.12"
 tar = "0.4"
 libc = "0.2"
+sys-locale = "0.3"
 
 [features]
 default = []
