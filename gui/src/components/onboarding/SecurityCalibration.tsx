@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { GlassCard } from "./ui/GlassCard";
 import { AnimatedButton } from "./ui/AnimatedButton";
 import { ToggleSwitch } from "./ui/ToggleSwitch";
@@ -61,6 +61,11 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
     return () => clearTimeout(timer);
   }, []);
 
+  const handleProceed = useCallback(() => {
+    setIsAnimatingOut(true);
+    setTimeout(onNext, 800);
+  }, [onNext]);
+
   useEffect(() => {
     if (isAnimatingOut) return;
 
@@ -71,12 +76,13 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
         return;
       }
       event.preventDefault();
+      event.stopPropagation();
       handleProceed();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAnimatingOut]);
+  }, [isAnimatingOut, handleProceed]);
 
   const toggleSetting = (id: string) => {
     setSettings((prev) => ({
@@ -89,11 +95,6 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
     setSettings(
       Object.fromEntries(securityOptions.map((opt) => [opt.id, opt.defaultEnabled]))
     );
-  };
-
-  const handleProceed = () => {
-    setIsAnimatingOut(true);
-    setTimeout(onNext, 800);
   };
 
   const handleApplyDefaults = () => {

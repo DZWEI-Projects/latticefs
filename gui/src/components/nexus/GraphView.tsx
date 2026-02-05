@@ -132,7 +132,7 @@ export const GraphView = ({
             </linearGradient>
             
             {/* Glow filters for heat effect - different intensities based on shared view count */}
-            {/* Generate filters for intensities from 0.5 to 3.0 in 0.5 increments */}
+            {/* Generate 6 filters for intensities from 0.5 to 3.0 (inclusive) in 0.5 increments */}
             {Array.from({ length: 6 }, (_, i) => {
               const intensity = 0.5 + i * 0.5; // 0.5, 1.0, 1.5, 2.0, 2.5, 3.0
               const filterId = `glow-${Math.round(intensity * 10)}`; // glow-5, glow-10, etc.

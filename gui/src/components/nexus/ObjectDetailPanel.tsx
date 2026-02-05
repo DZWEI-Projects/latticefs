@@ -383,20 +383,20 @@ function TagsEditor({
                       value={editKey}
                       onChange={(e) => setEditKey(e.target.value)}
                       onKeyDown={handleEditKeyDown}
-                      className="h-8 text-xs p-0! border-none! focus-visible:ring-0! focus-visible:ring-offset-0!"
+                      className="h-8 text-xs !p-0 !border-none !focus-visible:ring-0 !focus-visible:ring-offset-0"
                       disabled={isSaving}
                     />
                     <Input
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={handleEditKeyDown}
-                      className="h-8 text-xs p-0! border-none! focus-visible:ring-0! focus-visible:ring-offset-0!"
+                      className="h-8 text-xs !p-0 !border-none !focus-visible:ring-0 !focus-visible:ring-offset-0"
                       disabled={isSaving}
                     />
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-8 w-8 p-0! border-none! focus-visible:ring-0! focus-visible:ring-offset-0!"
+                      className="h-8 w-8 !p-0 !border-none !focus-visible:ring-0 !focus-visible:ring-offset-0"
                       onClick={handleSaveEdit}
                       disabled={isSaving}
                       aria-label="Eigenschaft speichern"
@@ -406,7 +406,7 @@ function TagsEditor({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-8 w-8 p-0! border-none! focus-visible:ring-0! focus-visible:ring-offset-0!"
+                      className="h-8 w-8 !p-0 !border-none !focus-visible:ring-0 !focus-visible:ring-offset-0"
                       onClick={cancelEdit}
                       disabled={isSaving}
                       aria-label="Bearbeitung abbrechen"

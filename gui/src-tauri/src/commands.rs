@@ -443,7 +443,8 @@ fn object_to_info(
     let tags: Vec<TagInfo> = object
         .tags
         .iter()
-        // Do NOT show system tags, for security reasons. System tags are used for internal purposes only.
+        // Do NOT show system tags, for security reasons. System tags (keys starting with "system:") are for internal use only;
+        // other tags, including auto: tags, may be shown in the GUI.
         .filter(|t| !t.key.starts_with("system:"))
         .map(|t| TagInfo {
             key: t.key.clone(),
@@ -811,15 +812,15 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
     view.description = args.description;
     view.modified_at = timestamp_now();
 
+    repo.metadata
+        .store_view(&view)
+        .map_err(|err| err.to_string())?;
+
     if previous_name != view.name {
         repo.metadata
             .delete_view(&previous_name)
             .map_err(|err| err.to_string())?;
     }
-
-    repo.metadata
-        .store_view(&view)
-        .map_err(|err| err.to_string())?;
 
     let count = eval_query(&repo, &view.query)
         .map(|ids| ids.len())

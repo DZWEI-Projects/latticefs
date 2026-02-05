@@ -133,14 +133,19 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
 
   useEffect(() => {
     if (!pendingDelete) return;
+    
+    let isMounted = true;
+    
     const run = async () => {
       const confirmed = await confirm();
-      if (!confirmed) {
-        setPendingDelete(null);
+      if (!isMounted || !confirmed) {
+        if (isMounted) setPendingDelete(null);
         return;
       }
       try {
         await deleteView(pendingDelete.name);
+        if (!isMounted) return;
+        
         await queryClient.invalidateQueries({ queryKey: ["views"] });
         await queryClient.invalidateQueries({ queryKey: ["view-objects", pendingDelete.id] });
         if (currentViewId === pendingDelete.id) {
@@ -148,12 +153,17 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
         }
         toast.success("Perspektive gelöscht");
       } catch (err) {
+        if (!isMounted) return;
         toast.error(err instanceof Error ? err.message : "Perspektive konnte nicht gelöscht werden");
       } finally {
-        setPendingDelete(null);
+        if (isMounted) setPendingDelete(null);
       }
     };
     run();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [pendingDelete, confirm, queryClient, currentViewId, onViewSelect]);
 
   return (
