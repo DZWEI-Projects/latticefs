@@ -36,9 +36,6 @@ go.work.sum
 .vscode/
 *.code-workspace
 
-# Cursor
-.cursor/
-
 # IntelliJ IDEA / GoLand
 .idea/
 *.iml
@@ -149,3 +146,4 @@ site/
 .cache/
 dist/
 build/
+node_modules/
