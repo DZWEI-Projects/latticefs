@@ -72,12 +72,7 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
       {/* Progress indicator */}
       {stage !== "complete" && (
         <div className="fixed top-0 left-0 right-0 z-50 app-titlebar">
-          <div className="flex items-center justify-between px-4 h-10">
-            <div className="flex items-center gap-2">
-              <span className="window-dot window-dot-red" />
-              <span className="window-dot window-dot-yellow" />
-              <span className="window-dot window-dot-green" />
-            </div>
+          <div className="flex items-center justify-center px-4 h-10">
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4, 5].map((s) => (
                 <div
@@ -93,7 +88,6 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
                 />
               ))}
             </div>
-            <div className="w-12" />
           </div>
         </div>
       )}

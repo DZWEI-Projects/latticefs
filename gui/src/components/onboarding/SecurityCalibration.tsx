@@ -147,7 +147,10 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
                 </div>
                 
                 <div className="flex-grow">
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className={cn(
+                    "flex items-center justify-between",
+                    settings[option.id] ? "mb-1.5" : "mb-0"
+                  )}>
                     <h4 className="font-semibold text-foreground">
                       {option.title}
                     </h4>
@@ -156,14 +159,18 @@ export const SecurityCalibration = ({ onNext }: SecurityCalibrationProps) => {
                       onChange={() => toggleSetting(option.id)}
                     />
                   </div>
-                  <p className={cn(
-                    "text-sm transition-all duration-300 overflow-hidden",
-                    settings[option.id] 
-                      ? "text-muted-foreground max-h-20 opacity-100" 
-                      : "text-muted-foreground/50 max-h-0 opacity-0"
-                  )}>
-                    {option.description}
-                  </p>
+                  <div
+                    className={cn(
+                      "grid overflow-hidden transition-all duration-300",
+                      settings[option.id]
+                        ? "grid-rows-[1fr] opacity-100"
+                        : "grid-rows-[0fr] opacity-0"
+                    )}
+                  >
+                    <p className="text-sm text-muted-foreground overflow-hidden">
+                      {option.description}
+                    </p>
+                  </div>
                 </div>
               </div>
             </GlassCard>
