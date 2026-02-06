@@ -703,13 +703,34 @@ pub async fn open_object(object_id: String) -> Result<(), String> {
     let name = display_name(&object.tags, &object_id);
     let safe_name = name.replace(['/', '\\'], "_");
 
-    let output_dir = std::env::temp_dir().join("latticefs-open");
+    let output_dir = repo.config.watch_dir();
     std::fs::create_dir_all(&output_dir).map_err(|err| err.to_string())?;
     let output_path = output_dir.join(format!("{}_{}", object_id, safe_name));
 
     export_object(&repo, &object_id, None, &output_path, ExportMode::Tree)
         .await
         .map_err(|err| err.to_string())?;
+
+    // Best-effort register with watcher daemon
+    let socket_path = repo.config.socket_path();
+    if latticefs_base::ipc::client::is_daemon_running(&socket_path) {
+        let content = std::fs::read(&output_path).unwrap_or_default();
+        let content_hash = latticefs_base::storage::compute_hash(&content);
+        let actor = load_or_create_identity()
+            .map(|id| id.public_bytes())
+            .unwrap_or([0u8; 32]);
+
+        let _ = latticefs_base::ipc::client::send_watch_register(
+            &socket_path,
+            &output_path,
+            &object_id.to_string(),
+            actor,
+            content_hash,
+            &name,
+        )
+        .await;
+    }
+
     open_with_default_app(&output_path)
 }
 
@@ -850,4 +871,70 @@ pub fn delete_view(name: String) -> Result<(), String> {
         .map_err(|err| err.to_string())?;
 
     Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct WatcherStatus {
+    pub running: bool,
+    pub watched_count: u64,
+    pub watch_dir: String,
+    pub pid: u64,
+}
+
+#[tauri::command]
+pub async fn get_watcher_status() -> Result<WatcherStatus, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let socket_path = repo.config.socket_path();
+
+    if !latticefs_base::ipc::client::is_daemon_running(&socket_path) {
+        return Ok(WatcherStatus {
+            running: false,
+            watched_count: 0,
+            watch_dir: repo.config.watcher.watch_dir.clone(),
+            pid: 0,
+        });
+    }
+
+    let status = latticefs_base::ipc::client::send_watch_status(&socket_path)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    Ok(WatcherStatus {
+        running: status.running,
+        watched_count: status.watched_count,
+        watch_dir: status.watch_dir,
+        pid: status.pid,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct WatchedFile {
+    pub temp_path: String,
+    pub object_id: String,
+    pub display_name: String,
+    pub registered_at: i64,
+}
+
+#[tauri::command]
+pub async fn list_watched_files() -> Result<Vec<WatchedFile>, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let socket_path = repo.config.socket_path();
+
+    if !latticefs_base::ipc::client::is_daemon_running(&socket_path) {
+        return Ok(vec![]);
+    }
+
+    let files = latticefs_base::ipc::client::send_watch_list(&socket_path)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    Ok(files
+        .into_iter()
+        .map(|f| WatchedFile {
+            temp_path: f.temp_path,
+            object_id: f.object_id,
+            display_name: f.display_name,
+            registered_at: f.registered_at,
+        })
+        .collect())
 }

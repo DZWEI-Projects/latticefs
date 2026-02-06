@@ -18,6 +18,7 @@ pub struct Config {
     pub import: ImportConfig,
     pub logging: LoggingConfig,
     pub ipc: IpcConfig,
+    pub watcher: WatcherConfig,
 }
 
 impl Default for Config {
@@ -31,6 +32,7 @@ impl Default for Config {
             import: ImportConfig::default(),
             logging: LoggingConfig::default(),
             ipc: IpcConfig::default(),
+            watcher: WatcherConfig::default(),
         }
     }
 }
@@ -177,6 +179,36 @@ impl Default for IpcConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WatcherConfig {
+    pub enabled: bool,
+    pub debounce_ms: u64,
+    pub commit_message_template: String,
+    pub watch_dir: String,
+    pub ignored_patterns: Vec<String>,
+}
+
+impl Default for WatcherConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            debounce_ms: 1000,
+            commit_message_template: "Auto-saved from external editor at {timestamp}".to_string(),
+            watch_dir: "/tmp/latticefs-open".to_string(),
+            ignored_patterns: vec![
+                "*.swp".to_string(),
+                "*.swo".to_string(),
+                "*~".to_string(),
+                ".DS_Store".to_string(),
+                "*.tmp".to_string(),
+                "*.bak".to_string(),
+                ".~lock.*".to_string(),
+            ],
+        }
+    }
+}
+
 impl Config {
     /// Load config from disk, or return defaults if missing.
     pub fn load() -> Result<Self> {
@@ -235,6 +267,21 @@ impl Config {
     /// Resolve the revocation log path.
     pub fn revocation_log_path(&self) -> PathBuf {
         self.storage_path().join("logs").join("revocations.jsonl")
+    }
+
+    /// Resolve the watcher directory path.
+    pub fn watch_dir(&self) -> PathBuf {
+        expand_tilde(&self.watcher.watch_dir)
+    }
+
+    /// Resolve the watcher daemon PID file path.
+    pub fn watchd_pid_path(&self) -> PathBuf {
+        self.storage_path().join("watchd.pid")
+    }
+
+    /// Resolve the watcher registry file path.
+    pub fn watch_registry_path(&self) -> PathBuf {
+        self.storage_path().join("watcher_registry.json")
     }
 
     /// Write config to disk at the default location.
