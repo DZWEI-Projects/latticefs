@@ -6,11 +6,12 @@ LatticeFS is a post-file filesystem with immutable, versioned objects, content-a
 
 ## Repo layout
 
-```
+```text
 / (repo root)
 ├── base/       # Rust library: storage, model, query, views, FUSE, import/export
 ├── cli/        # Rust CLI binary (lfs)
-├── services/   # Go services (share/sync)
+├── gui/        # React + Tauri desktop frontend (under active development)
+├── services/   # Go services (share/sync, future)
 ├── specs/      # PRD and protocol specifications
 ├── docs/       # Documentation
 ```
@@ -33,6 +34,32 @@ cargo build -p cli --features latticefs-base/fuse
 
 ```bash
 cargo build -p cli --release
+```
+
+### GUI development
+
+```bash
+# Development server (Vite)
+cd gui && npm run dev
+
+# Tauri development (hot-reload)
+cd gui && npm run dev:tauri
+
+# Build Tauri app
+cd gui && npm run build:tauri
+
+# Build frontend only
+cd gui && npm run build
+```
+
+### All workspace
+
+```bash
+# Check entire workspace
+cargo check --workspace
+
+# Build all (Rust only)
+cargo build --workspace
 ```
 
 ## Run
@@ -93,4 +120,21 @@ Run the CLI end-to-end smoke test:
 cargo test -p cli cli_flow_basic -- --nocapture
 ```
 
-**shrinnnggg**
+Run all tests:
+
+```bash
+cargo test --workspace
+```
+
+Frontend tests:
+
+```bash
+cd gui && npm run test
+cd gui && npm run test:watch
+```
+
+Property-based tests (base library):
+
+```bash
+cargo test -p base --test property_tests
+```
