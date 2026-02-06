@@ -198,9 +198,9 @@ export const Toolbar = ({
                 {filters.trustMin === null ? "Beliebig" : `${filters.trustMin}% oder höher`}
               </div>
               <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
+                variant="link"
+                size="xs"
+                className="text-xs text-foreground/70"
                 onClick={() => onFiltersChange({ ...filters, trustMin: null })}
               >
                 Sicherheitsfilter zurücksetzen
