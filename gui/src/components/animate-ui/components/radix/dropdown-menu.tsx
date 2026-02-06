@@ -60,7 +60,7 @@ function DropdownMenuContent({
     <DropdownMenuContentPrimitive
       sideOffset={sideOffset}
       className={cn(
-        'text-popover-foreground z-50 relative isolate max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border border-white/20 bg-white/12 supports-[backdrop-filter]:bg-white/8 dark:border-white/15 dark:bg-slate-900/40 dark:supports-[backdrop-filter]:bg-slate-900/25 backdrop-blur-2xl backdrop-saturate-150 p-0.5 shadow-[0_16px_45px_-24px_rgba(0,0,0,0.85)] before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-[linear-gradient(140deg,rgba(255,255,255,0.28),rgba(255,255,255,0.06)_38%,rgba(255,255,255,0.02)_100%)] before:opacity-80 outline-none',
+        'glass-clear text-popover-foreground z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md p-0.5 outline-none',
         className,
       )}
       {...props}
@@ -279,7 +279,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuSubContentPrimitive
       className={cn(
-        'text-popover-foreground z-50 relative isolate min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border border-white/20 bg-white/12 supports-[backdrop-filter]:bg-white/8 dark:border-white/15 dark:bg-slate-900/40 dark:supports-[backdrop-filter]:bg-slate-900/25 backdrop-blur-2xl backdrop-saturate-150 p-0.5 shadow-[0_16px_45px_-24px_rgba(0,0,0,0.85)] before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-[linear-gradient(140deg,rgba(255,255,255,0.28),rgba(255,255,255,0.06)_38%,rgba(255,255,255,0.02)_100%)] before:opacity-80 outline-none',
+        'glass-clear text-popover-foreground z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md p-0.5 outline-none',
         className,
       )}
       {...props}
