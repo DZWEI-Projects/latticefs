@@ -476,8 +476,8 @@ Example output:
 Set state draft -> sealed for <version-id>
 ```
 
-### `lfs message set <ref>[@version] [-m <message>] [--clear]`
-Update (or clear) the commit message for a version. By default the current version is used when no `@version` is provided.
+### `lfs message set <ref>[@version] (--clear | -m <message>)`
+Update (or clear) the commit message for a version. You must provide either `--clear` or `-m/--message`. By default the current version is used when no `@version` is provided.
 
 Example (explicit version):
 ```bash
