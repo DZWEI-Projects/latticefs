@@ -26,7 +26,7 @@ Examples throughout this document show English output, but German systems will s
 - `-v`, `-vv` — increase verbosity
 - `--repo <path>` — override repository root
 - `--fuse` — enable FUSE operations (required for `mount`)
-- If `--repo` is omitted and the current directory contains `.latticefs.toml` with `repo.auto_load = true`, the CLI uses the current directory as the repo root.
+- If `--repo` is omitted and the current directory contains `.latticefs.toml` with `repo.auto_load = true`, the CLI uses `.latticefs/` under the current directory as the repo root.
 
 Example:
 ```bash
@@ -40,7 +40,7 @@ cat > .latticefs.toml <<'EOF'
 auto_load = true
 EOF
 
-# Uses current directory as repo root (same as: lfs --repo "$PWD" status)
+# Uses .latticefs under current directory as repo root (same as: lfs --repo "$PWD/.latticefs" status)
 lfs status
 ```
 

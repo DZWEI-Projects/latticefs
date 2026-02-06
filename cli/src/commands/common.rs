@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const LOCAL_REPO_CONFIG_FILE: &str = ".latticefs.toml";
+const LOCAL_REPO_DIR: &str = ".latticefs";
 
 #[derive(Debug, Deserialize)]
 struct LocalRepoConfig {
@@ -35,7 +36,7 @@ fn resolve_repo_override(repo_path: Option<PathBuf>, cwd: &Path) -> Result<Optio
     }
 
     if should_auto_load_repo(cwd)? {
-        return Ok(Some(cwd.to_path_buf()));
+        return Ok(Some(cwd.join(LOCAL_REPO_DIR)));
     }
 
     Ok(None)
@@ -290,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn marker_auto_load_sets_repo_to_cwd() {
+    fn marker_auto_load_sets_repo_to_local_repo_dir() {
         let cwd = TempDir::new().unwrap();
         fs::write(
             cwd.path().join(LOCAL_REPO_CONFIG_FILE),
@@ -299,7 +300,7 @@ mod tests {
         .unwrap();
 
         let resolved = resolve_repo_override(None, cwd.path()).unwrap();
-        assert_eq!(resolved, Some(cwd.path().to_path_buf()));
+        assert_eq!(resolved, Some(cwd.path().join(LOCAL_REPO_DIR)));
     }
 
     #[test]

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 const LOCAL_REPO_CONFIG_FILE: &str = ".latticefs.toml";
+const LOCAL_REPO_DIR: &str = ".latticefs";
 
 fn lfs_cmd(lattice_home: &PathBuf, xdg_home: &PathBuf) -> Command {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("lfs"));
@@ -35,9 +36,9 @@ fn auto_loads_repo_from_current_directory_marker() {
         .assert()
         .success();
 
-    assert!(workspace.join("meta").is_dir());
-    assert!(workspace.join("chunks").is_dir());
-    assert!(workspace.join("logs").is_dir());
+    assert!(workspace.join(LOCAL_REPO_DIR).join("meta").is_dir());
+    assert!(workspace.join(LOCAL_REPO_DIR).join("chunks").is_dir());
+    assert!(workspace.join(LOCAL_REPO_DIR).join("logs").is_dir());
     assert!(!lattice_home.join("meta").exists());
 }
 
@@ -66,7 +67,7 @@ fn explicit_repo_flag_overrides_auto_load_marker() {
 
     assert!(explicit_repo.join("meta").is_dir());
     assert!(explicit_repo.join("chunks").is_dir());
-    assert!(!workspace.join("meta").exists());
+    assert!(!workspace.join(LOCAL_REPO_DIR).join("meta").exists());
 }
 
 #[test]

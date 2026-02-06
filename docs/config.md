@@ -1,23 +1,26 @@
 # Configuration
 
 Default config path:
+
 ```
 ~/.latticefs/config.toml
 ```
 
 You can override the repo root with:
+
 ```
 LATTICE_HOME=/path/to/repo lfs <command>
 ```
 
 You can also override by command:
+
 ```
 lfs --repo /path/to/repo <command>
 ```
 
 ## Per-directory auto-load
 
-If you run `lfs` from a project directory and want that directory to be used as the repo root (without typing `--repo`), create `.latticefs.toml` in that directory:
+If you run `lfs` from a project directory and want a project-local repo (without typing `--repo`), create `.latticefs.toml` in that directory:
 
 ```toml
 [repo]
@@ -26,10 +29,12 @@ auto_load = true
 
 Behavior:
 - Precedence is `--repo` (highest), then `.latticefs.toml` auto-load, then global config/default (`~/.latticefs` or `LATTICE_HOME`).
+- When auto-load is enabled, the repo root is `<cwd>/.latticefs`
 - Only the current working directory is checked for `.latticefs.toml`.
 - Any value other than `repo.auto_load = true` disables auto-load.
 
 ## Schema
+
 ```toml
 [storage]
 path = "~/.latticefs"
