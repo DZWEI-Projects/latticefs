@@ -3,6 +3,7 @@ import { useViews } from "@/hooks/useViews";
 import {
   Clock,
   Folder,
+  FolderOpen,
   FileEdit,
   Eye,
   CheckCircle,
@@ -10,6 +11,7 @@ import {
   Plus,
   Settings,
   ChevronDown,
+  ChevronRight,
   MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,10 +56,20 @@ interface ViewItemProps {
   isActive: boolean;
   onClick: () => void;
   actions?: React.ReactNode;
+  leading?: React.ReactNode;
+  iconOverride?: React.ElementType;
 }
 
-const ViewItem = ({ view, isActive, onClick, actions, indent = 0 }: ViewItemProps & { indent?: number }) => {
-  const Icon = view.icon ? iconMap[view.icon] || Folder : Folder;
+const ViewItem = ({
+  view,
+  isActive,
+  onClick,
+  actions,
+  leading,
+  iconOverride,
+  indent = 0,
+}: ViewItemProps & { indent?: number }) => {
+  const Icon = iconOverride || (view.icon ? iconMap[view.icon] || Folder : Folder);
 
   return (
     <div
@@ -71,13 +83,20 @@ const ViewItem = ({ view, isActive, onClick, actions, indent = 0 }: ViewItemProp
         }
       }}
       className={cn(
-        "group w-full flex items-center gap-2.5 py-1.5 rounded-md text-sm",
+        "group w-full flex items-center gap-1.5 py-1.5 rounded-md text-sm",
         "transition-colors duration-150",
         "hover:bg-muted/60",
         isActive && "bg-primary/10 text-primary hover:bg-primary/15"
       )}
       style={{ paddingLeft: `${0.75 + indent * 0.75}rem` }}
     >
+      {leading ? (
+        <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+          {leading}
+        </span>
+      ) : (
+        <span className="w-4 h-4 flex-shrink-0" />
+      )}
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1 text-left truncate">{view.name}</span>
       <span
@@ -132,6 +151,7 @@ const ViewTreeItem = ({
   const [isOpen, setIsOpen] = useState(true);
   const hasChildren = children.length > 0;
   const isActive = currentViewId === view.id;
+  const FolderIcon = hasChildren && isOpen ? FolderOpen : Folder;
 
   return (
     <div>
@@ -140,6 +160,26 @@ const ViewTreeItem = ({
         isActive={isActive}
         onClick={() => onViewSelect(view.id)}
         indent={indent}
+        iconOverride={FolderIcon}
+        leading={
+          hasChildren ? (
+            <button
+              type="button"
+              aria-label={isOpen ? "Unterelemente einklappen" : "Unterelemente ausklappen"}
+              className="h-4 w-4 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsOpen((prev) => !prev);
+              }}
+            >
+              {isOpen ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+            </button>
+          ) : null
+        }
         actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -171,30 +211,26 @@ const ViewTreeItem = ({
           </DropdownMenu>
         }
       />
-      {hasChildren && (
-        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-          <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-            <div className="space-y-0.5">
-              {children.map((child) => {
-                const childChildren = childrenMap.get(child.id) || [];
-                return (
-                  <ViewTreeItem
-                    key={child.id}
-                    view={child}
-                    children={childChildren}
-                    childrenMap={childrenMap}
-                    currentViewId={currentViewId}
-                    onViewSelect={onViewSelect}
-                    onEditView={onEditView}
-                    onDeleteView={onDeleteView}
-                    onCreateSubView={onCreateSubView}
-                    indent={indent + 1}
-                  />
-                );
-              })}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
+      {hasChildren && isOpen && (
+        <div className="space-y-0.5 ml-5 pl-1.5 border-l border-border/50">
+          {children.map((child) => {
+            const childChildren = childrenMap.get(child.id) || [];
+            return (
+              <ViewTreeItem
+                key={child.id}
+                view={child}
+                children={childChildren}
+                childrenMap={childrenMap}
+                currentViewId={currentViewId}
+                onViewSelect={onViewSelect}
+                onEditView={onEditView}
+                onDeleteView={onDeleteView}
+                onCreateSubView={onCreateSubView}
+                indent={indent + 1}
+              />
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -210,17 +246,24 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   const [editingView, setEditingView] = useState<ViewInfo | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ViewInfo | null>(null);
 
-  const builtinViews = views?.filter((v) => v.viewType === "builtin") || [];
-  const dynamicViews = views?.filter((v) => v.viewType === "dynamic") || [];
+  const builtinViews = useMemo(
+    () => views?.filter((v) => v.viewType === "builtin") ?? [],
+    [views]
+  );
+  const dynamicViews = useMemo(
+    () => views?.filter((v) => v.viewType === "dynamic") ?? [],
+    [views]
+  );
 
   // Build tree structure for dynamic views
   const dynamicViewTree = useMemo(() => {
+    const viewMap = new Map(dynamicViews.map((view) => [view.id, view]));
     const childrenMap = new Map<string, ViewInfo[]>();
 
     // Build parent-child relationships
     const rootViews: ViewInfo[] = [];
     for (const view of dynamicViews) {
-      if (!view.parentId) {
+      if (!view.parentId || !viewMap.has(view.parentId)) {
         rootViews.push(view);
       } else {
         const children = childrenMap.get(view.parentId) || [];
@@ -228,6 +271,16 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
         childrenMap.set(view.parentId, children);
       }
     }
+
+    const sortByName = (items: ViewInfo[]) => {
+      items.sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
+      for (const item of items) {
+        const nested = childrenMap.get(item.id);
+        if (nested) sortByName(nested);
+      }
+    };
+
+    sortByName(rootViews);
 
     return { rootViews, childrenMap };
   }, [dynamicViews]);
@@ -288,7 +341,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   }, [pendingDelete, confirm, queryClient, currentViewId, onViewSelect]);
 
   return (
-    <div className="w-60 flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
+    <div className="w-60 xl:w-72 2xl:w-[21rem] transition-all duration-200 ease-in-out flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
       <ScrollArea className="flex-1 py-2">
         {/* Built-in Views */}
         <Collapsible open={builtinOpen} onOpenChange={setBuiltinOpen}>

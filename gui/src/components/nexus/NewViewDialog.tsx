@@ -106,6 +106,24 @@ export const NewViewDialog = ({
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
+          {parentView && (
+            <div className="grid gap-2">
+              <Label>Übergeordnete Perspektive</Label>
+              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+                {parentView.name}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Basisfilter:</span>
+                <div className="mt-1 font-mono bg-muted/40 px-2 py-1 rounded break-all">
+                  {parentView.query}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Die Filter dieser Teilperspektive werden mit der übergeordneten Perspektive kombiniert.
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
             <Input
