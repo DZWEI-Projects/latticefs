@@ -114,6 +114,7 @@ export const ObjectDetailPanel = ({
 
   useEffect(() => {
     setTrustValue(object.trustLevel ?? DEFAULT_TRUST_LEVEL);
+    priorTrustRef.current = null;
   }, [object.id, object.trustLevel]);
 
   const handleCopyId = async () => {
