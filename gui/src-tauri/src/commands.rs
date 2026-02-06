@@ -1435,6 +1435,8 @@ pub async fn list_watched_files() -> Result<Vec<WatchedFile>, String> {
 mod tests {
     use super::{CreateViewArgs, UpdateViewArgs};
     use serde_json::json;
+    use std::env;
+    use tempfile::TempDir;
 
     #[test]
     fn create_view_args_accepts_parent_id_aliases() {
@@ -1500,5 +1502,36 @@ mod tests {
         }))
         .expect("null parentId should deserialize for explicit clear");
         assert!(matches!(clear_parent.parent_id, Some(None)));
+    }
+
+    #[test]
+    fn smoke_test_basic_commands() {
+        // Set up a temporary directory for the test repo
+        let temp_dir = TempDir::new().expect("should create temp dir");
+        let temp_path = temp_dir.path();
+        
+        // Set environment variables to use the temp directory
+        env::set_var("LATTICE_HOME", temp_path);
+        env::set_var("XDG_CONFIG_HOME", temp_path.join("config"));
+        
+        // Test: check_initialized should return false initially
+        assert!(!super::check_initialized());
+        
+        // Test: init_repo should succeed
+        let repo_info = super::init_repo().expect("init_repo should succeed");
+        assert!(!repo_info.root.is_empty());
+        assert!(!repo_info.config_path.is_empty());
+        
+        // Test: check_initialized should return true after init
+        assert!(super::check_initialized());
+        
+        // Test: get_repo_info should return valid info
+        let info = super::get_repo_info().expect("get_repo_info should succeed");
+        assert!(!info.root.is_empty());
+        assert!(!info.config_path.is_empty());
+        
+        // Clean up
+        env::remove_var("LATTICE_HOME");
+        env::remove_var("XDG_CONFIG_HOME");
     }
 }
