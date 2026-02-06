@@ -6,7 +6,9 @@ use latticefs_base::error::LatticeError;
 use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
 use latticefs_base::model::{timestamp_now, ObjectID, Tag, Version};
 use latticefs_base::query::{parse, QueryEvaluator};
-use latticefs_base::views::{BuiltinView, BuiltinViews, Locale, ViewID};
+use latticefs_base::views::{
+    BuiltinView, BuiltinViews, EffectiveQueryOptions, Locale, ViewID, ViewJoinOperator,
+};
 use latticefs_base::{is_quarantined_executable, LatticeRepo, Permission, State, VersionID};
 use serde::{Deserialize, Serialize};
 use similar::TextDiff;
@@ -68,6 +70,25 @@ fn repo_info() -> Result<RepoInfo, String> {
         root: root.to_string_lossy().to_string(),
         config_path: config_path.to_string_lossy().to_string(),
     })
+}
+
+fn nested_view_query(
+    repo: &LatticeRepo,
+    view: &latticefs_base::views::View,
+) -> Result<String, String> {
+    if view.parent_id.is_none() {
+        return Ok(view.query.clone());
+    }
+
+    latticefs_base::views::effective_query_with_options(
+        &repo.metadata,
+        view,
+        EffectiveQueryOptions {
+            max_parent_depth: repo.config.experimental.nested_views.max_parent_depth,
+            join_operator: ViewJoinOperator::And,
+        },
+    )
+    .map_err(|err| err.to_string())
 }
 
 fn load_or_create_identity() -> Result<Identity, String> {
@@ -574,12 +595,8 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
     if let Ok(dynamic_views) = repo.metadata.list_views() {
         for view in dynamic_views {
             // Count objects for this view (use effective query for nested views)
-            let effective_q = if view.parent_id.is_some() {
-                latticefs_base::views::effective_query(&repo.metadata, &view)
-                    .unwrap_or_else(|_| view.query.clone())
-            } else {
-                view.query.clone()
-            };
+            let effective_q =
+                nested_view_query(&repo, &view).unwrap_or_else(|_| view.query.clone());
             let count = eval_query(&repo, &effective_q)
                 .map(|ids| ids.len())
                 .unwrap_or(0);
@@ -621,12 +638,8 @@ pub fn get_view_objects(view_id: String) -> Result<Vec<ObjectInfo>, String> {
         };
 
         // Use effective query for nested views
-        if view.parent_id.is_some() {
-            latticefs_base::views::effective_query(&repo.metadata, &view)
-                .map_err(|e| format!("Failed to compute effective query: {}", e))?
-        } else {
-            view.query
-        }
+        nested_view_query(&repo, &view)
+            .map_err(|e| format!("Failed to compute effective query: {}", e))?
     };
 
     let object_ids = eval_query(&repo, &query)?;
@@ -887,16 +900,14 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
     }
 
     repo.metadata
-        .store_view(&view)
+        .store_view_with_max_depth(
+            &view,
+            repo.config.experimental.nested_views.max_parent_depth,
+        )
         .map_err(|err| err.to_string())?;
 
     // Return the created view info (use effective query for nested views)
-    let effective_q = if view.parent_id.is_some() {
-        latticefs_base::views::effective_query(&repo.metadata, &view)
-            .unwrap_or_else(|_| view.query.clone())
-    } else {
-        view.query.clone()
-    };
+    let effective_q = nested_view_query(&repo, &view).unwrap_or_else(|_| view.query.clone());
     let count = eval_query(&repo, &effective_q)
         .map(|ids| ids.len())
         .unwrap_or(0);
@@ -962,7 +973,10 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
     }
 
     repo.metadata
-        .store_view(&view)
+        .store_view_with_max_depth(
+            &view,
+            repo.config.experimental.nested_views.max_parent_depth,
+        )
         .map_err(|err| err.to_string())?;
 
     if previous_name != view.name {
@@ -972,12 +986,7 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
     }
 
     // Use effective query for nested views
-    let effective_q = if view.parent_id.is_some() {
-        latticefs_base::views::effective_query(&repo.metadata, &view)
-            .unwrap_or_else(|_| view.query.clone())
-    } else {
-        view.query.clone()
-    };
+    let effective_q = nested_view_query(&repo, &view).unwrap_or_else(|_| view.query.clone());
     let count = eval_query(&repo, &effective_q)
         .map(|ids| ids.len())
         .unwrap_or(0);

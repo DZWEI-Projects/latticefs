@@ -19,6 +19,82 @@ use crate::storage::MetadataStore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Default maximum depth allowed when traversing nested view parent chains.
+///
+/// This constant limits how many levels deep a view hierarchy can be nested
+/// to prevent infinite recursion and excessive query complexity. When computing
+/// the effective query for a nested view, the system walks up the parent chain
+/// and stops at this depth limit, returning an error if exceeded.
+pub const DEFAULT_MAX_PARENT_DEPTH: u32 = 16;
+
+/// Logical operator for combining parent view queries when computing effective queries.
+///
+/// When a view has a parent, the effective query combines the view's own query
+/// with all ancestor queries using this operator. For example:
+/// - `And`: Combines queries with logical AND (intersection)
+/// - `Or`: Combines queries with logical OR (union)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewJoinOperator {
+    /// Combine queries with logical AND (intersection).
+    And,
+    /// Combine queries with logical OR (union).
+    Or,
+}
+
+impl ViewJoinOperator {
+    /// Returns the SQL/LQL keyword string for this operator.
+    fn as_keyword(self) -> &'static str {
+        match self {
+            Self::And => "AND",
+            Self::Or => "OR",
+        }
+    }
+}
+
+/// Configuration options for computing effective queries from nested views.
+///
+/// When a view has a parent, the effective query is computed by walking up
+/// the parent chain and combining all queries. This struct controls how
+/// that composition is performed.
+///
+/// # Example
+///
+/// ```no_run
+/// use latticefs_base::views::{EffectiveQueryOptions, ViewJoinOperator};
+///
+/// // Use AND to combine parent queries (default)
+/// let options = EffectiveQueryOptions::default();
+///
+/// // Use OR to combine parent queries
+/// let options = EffectiveQueryOptions {
+///     max_parent_depth: 10,
+///     join_operator: ViewJoinOperator::Or,
+/// };
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct EffectiveQueryOptions {
+    /// Maximum depth allowed when traversing the parent chain.
+    ///
+    /// If the parent chain exceeds this depth, an error is returned.
+    /// This prevents infinite recursion and overly complex queries.
+    pub max_parent_depth: u32,
+    /// Operator used to combine queries from the view and its parents.
+    ///
+    /// When multiple queries are combined, they are wrapped in parentheses
+    /// and joined with this operator's keyword (e.g., "AND" or "OR").
+    pub join_operator: ViewJoinOperator,
+}
+
+impl Default for EffectiveQueryOptions {
+    /// Creates default options with `DEFAULT_MAX_PARENT_DEPTH` and `ViewJoinOperator::And`.
+    fn default() -> Self {
+        Self {
+            max_parent_depth: DEFAULT_MAX_PARENT_DEPTH,
+            join_operator: ViewJoinOperator::And,
+        }
+    }
+}
+
 /// Unique identifier for a view.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ViewID(Uuid);
@@ -189,9 +265,11 @@ impl ViewStore {
 
     /// Get a view by ID.
     pub fn get(&self, id: &ViewID) -> Result<&View> {
-        self.views.get(id).ok_or_else(|| LatticeError::ViewNotFound {
-            name: id.to_string(),
-        })
+        self.views
+            .get(id)
+            .ok_or_else(|| LatticeError::ViewNotFound {
+                name: id.to_string(),
+            })
     }
 
     /// Get a view by name.
@@ -233,19 +311,29 @@ impl Default for ViewStore {
 /// Compute the effective LQL query for a view, combining parent queries with AND.
 ///
 /// This walks up the parent chain and combines all queries with logical AND.
-/// Returns an error if the parent chain exceeds 16 levels or contains a cycle.
+/// Returns an error if the parent chain exceeds the default depth limit or contains a cycle.
 pub fn effective_query(store: &MetadataStore, view: &View) -> Result<String> {
+    effective_query_with_options(store, view, EffectiveQueryOptions::default())
+}
+
+/// Compute the effective LQL query for a view with explicit composition options.
+pub fn effective_query_with_options(
+    store: &MetadataStore,
+    view: &View,
+    options: EffectiveQueryOptions,
+) -> Result<String> {
     let mut queries = vec![view.query.clone()];
     let mut current = view.parent_id;
-    let mut depth = 0;
+    let mut depth = 0u32;
     let mut visited = std::collections::HashSet::new();
     visited.insert(view.id);
 
     while let Some(pid) = current {
-        if depth >= 16 {
-            return Err(LatticeError::InvalidViewQuery(
-                "Parent chain depth exceeds maximum of 16 levels".to_string(),
-            ));
+        if depth >= options.max_parent_depth {
+            return Err(LatticeError::InvalidViewQuery(format!(
+                "Parent chain depth exceeds maximum of {} levels",
+                options.max_parent_depth
+            )));
         }
         if visited.contains(&pid) {
             return Err(LatticeError::InvalidViewQuery(
@@ -261,12 +349,13 @@ pub fn effective_query(store: &MetadataStore, view: &View) -> Result<String> {
     }
 
     queries.reverse();
-    // Wrap each query in parens and join with AND
+    let joiner = format!(" {} ", options.join_operator.as_keyword());
+    // Wrap each query in parens and join with the selected operator.
     Ok(queries
         .iter()
         .map(|q| format!("({})", q))
         .collect::<Vec<_>>()
-        .join(" AND "))
+        .join(&joiner))
 }
 
 #[cfg(test)]
@@ -295,7 +384,11 @@ mod tests {
     fn test_view_store() {
         let mut store = ViewStore::new();
 
-        let view = View::new("Recent".to_string(), "updated within 7d".to_string(), test_actor());
+        let view = View::new(
+            "Recent".to_string(),
+            "updated within 7d".to_string(),
+            test_actor(),
+        );
         let id = view.id;
 
         store.store(view).unwrap();
@@ -322,6 +415,72 @@ mod tests {
     }
 
     #[test]
+    fn test_effective_query_or_join() {
+        use crate::storage::MetadataStore;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let parent = View::new(
+            "Parent".to_string(),
+            "tag:project:phoenix".to_string(),
+            test_actor(),
+        );
+        let parent_id = parent.id;
+        store.store_view(&parent).unwrap();
+
+        let child = View::new(
+            "Child".to_string(),
+            "tag:kind:doc".to_string(),
+            test_actor(),
+        )
+        .with_parent(parent_id);
+        store.store_view(&child).unwrap();
+
+        let effective = effective_query_with_options(
+            &store,
+            &child,
+            EffectiveQueryOptions {
+                max_parent_depth: 16,
+                join_operator: ViewJoinOperator::Or,
+            },
+        )
+        .unwrap();
+
+        assert!(effective.contains(" OR "));
+        assert!(!effective.contains(" AND "));
+    }
+
+    #[test]
+    fn test_effective_query_with_custom_depth_limit() {
+        use crate::storage::MetadataStore;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let parent = View::new("Parent".to_string(), "tag:parent".to_string(), test_actor());
+        let parent_id = parent.id;
+        store.store_view(&parent).unwrap();
+
+        let child = View::new("Child".to_string(), "tag:child".to_string(), test_actor())
+            .with_parent(parent_id);
+        store.store_view(&child).unwrap();
+
+        let err = effective_query_with_options(
+            &store,
+            &child,
+            EffectiveQueryOptions {
+                max_parent_depth: 0,
+                join_operator: ViewJoinOperator::And,
+            },
+        )
+        .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Parent chain depth exceeds maximum of 0 levels"));
+    }
+
+    #[test]
     fn test_view_delete() {
         let mut store = ViewStore::new();
 
@@ -340,7 +499,7 @@ mod tests {
         let view = View::new("Child".to_string(), "tag:child".to_string(), test_actor());
         let parent_id = ViewID::new();
         let nested_view = view.with_parent(parent_id);
-        
+
         assert_eq!(nested_view.parent_id, Some(parent_id));
     }
 }

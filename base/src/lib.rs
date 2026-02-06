@@ -1,9 +1,9 @@
-pub mod crypto;
 pub mod config;
+pub mod crypto;
 pub mod error;
+pub mod events;
 pub mod fuse;
 pub mod import;
-pub mod events;
 pub mod ipc;
 pub mod model;
 pub mod policy;
@@ -18,10 +18,15 @@ pub mod watcher;
 pub use error::{LatticeError, Result};
 
 // Config + repo
-pub use config::{Config, FuseConfig, ImportConfig, QuotaConfig, ShareConfig, StorageConfig, WatcherConfig};
-pub use repo::LatticeRepo;
+pub use config::{
+    Config, ExperimentalConfig, FuseConfig, ImportConfig, NestedViewsExperimentalConfig,
+    QuotaConfig, ShareConfig, StorageConfig, WatcherConfig,
+};
 pub use events::{Event, EventBus, EventKind};
-pub use policy::{PolicyContext, PolicyDecision, PolicyEngine, QuotaEnforcer, QuotaReport, RateLimiter};
+pub use policy::{
+    PolicyContext, PolicyDecision, PolicyEngine, QuotaEnforcer, QuotaReport, RateLimiter,
+};
+pub use repo::LatticeRepo;
 
 // Crypto types
 pub use crypto::{
@@ -52,12 +57,13 @@ pub use fuse::LatticeFS;
 
 // Query types
 pub use query::{
-    parse, CompareOp, Explanation, Explainer, Expr, Lexer, MimePattern, ObjectRef, OrderBy,
-    Parser, Predicate, Query, QueryEvaluator, Reason, SortDirection, SortField, TimeField, TimeOp,
+    parse, CompareOp, Explainer, Explanation, Expr, Lexer, MimePattern, ObjectRef, OrderBy, Parser,
+    Predicate, Query, QueryEvaluator, Reason, SortDirection, SortField, TimeField, TimeOp,
     TimeValue, Token, TrustLevel,
 };
 
 // View types
 pub use views::{
-    BuiltinView, BuiltinViews, DynamicView, View, ViewConfig, ViewID, ViewSnapshot, ViewStore,
+    BuiltinView, BuiltinViews, DynamicView, EffectiveQueryOptions, View, ViewConfig, ViewID,
+    ViewJoinOperator, ViewSnapshot, ViewStore, DEFAULT_MAX_PARENT_DEPTH,
 };

@@ -135,7 +135,7 @@ export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps
                 {parentView.name}
               </div>
               <p className="text-xs text-muted-foreground">
-                Diese Perspektive ist eine Unterperspektive von "{parentView.name}". Die Filter werden kombiniert.
+                Diese Perspektive ist eine Teilperspektive von "{parentView.name}". Die Filter werden kombiniert.
               </p>
             </div>
           )}

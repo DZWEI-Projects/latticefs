@@ -109,6 +109,7 @@ const ViewItem = ({ view, isActive, onClick, actions, indent = 0 }: ViewItemProp
 interface ViewTreeItemProps {
   view: ViewInfo;
   children: ViewInfo[];
+  childrenMap: Map<string, ViewInfo[]>;
   currentViewId?: string;
   onViewSelect: (viewId: string) => void;
   onEditView: (view: ViewInfo) => void;
@@ -120,6 +121,7 @@ interface ViewTreeItemProps {
 const ViewTreeItem = ({
   view,
   children,
+  childrenMap,
   currentViewId,
   onViewSelect,
   onEditView,
@@ -152,7 +154,7 @@ const ViewTreeItem = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onSelect={() => onCreateSubView(view.id)}>
-                Neue Unterperspektive
+                Neue Teilperspektive
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => onEditView(view)}>
@@ -174,12 +176,13 @@ const ViewTreeItem = ({
           <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
             <div className="space-y-0.5">
               {children.map((child) => {
-                const childChildren = children.filter((c) => c.parentId === child.id);
+                const childChildren = childrenMap.get(child.id) || [];
                 return (
                   <ViewTreeItem
                     key={child.id}
                     view={child}
                     children={childChildren}
+                    childrenMap={childrenMap}
                     currentViewId={currentViewId}
                     onViewSelect={onViewSelect}
                     onEditView={onEditView}
@@ -212,13 +215,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
 
   // Build tree structure for dynamic views
   const dynamicViewTree = useMemo(() => {
-    const viewMap = new Map<string, ViewInfo>();
     const childrenMap = new Map<string, ViewInfo[]>();
-
-    // Index all views
-    for (const view of dynamicViews) {
-      viewMap.set(view.id, view);
-    }
 
     // Build parent-child relationships
     const rootViews: ViewInfo[] = [];
@@ -342,6 +339,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
                     key={view.id}
                     view={view}
                     children={children}
+                    childrenMap={dynamicViewTree.childrenMap}
                     currentViewId={currentViewId}
                     onViewSelect={onViewSelect}
                     onEditView={setEditingView}

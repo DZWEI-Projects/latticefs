@@ -96,11 +96,11 @@ export const NewViewDialog = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {parentView ? `Neue Unterperspektive von: ${parentView.name}` : "Neue Perspektive erstellen"}
+            {parentView ? `Neue Teilperspektive von: ${parentView.name}` : "Neue Perspektive erstellen"}
           </DialogTitle>
           <DialogDescription>
             {parentView
-              ? `Diese Unterperspektive wird die Filter der übergeordneten Perspektive "${parentView.name}" weiter einschränken.`
+              ? `Diese Teilperspektive wird die Filter der übergeordneten Perspektive "${parentView.name}" weiter einschränken.`
               : "Perspektiven sind gespeicherte Filterausdrücke, die deine Objekte organisieren. Nutze die LQL-Filtersyntax, um festzulegen, welche Objekte in dieser Perspektive erscheinen."}
           </DialogDescription>
         </DialogHeader>

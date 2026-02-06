@@ -282,9 +282,8 @@ impl MetadataStore {
 
     /// Store a link record.
     pub fn store_link(&self, link: &crate::model::Link) -> Result<()> {
-        let bytes = bincode::serialize(link).map_err(|e| {
-            LatticeError::Serialization(format!("Failed to serialize link: {}", e))
-        })?;
+        let bytes = bincode::serialize(link)
+            .map_err(|e| LatticeError::Serialization(format!("Failed to serialize link: {}", e)))?;
         self.links.insert(link.id.as_bytes(), bytes)?;
         Ok(())
     }
@@ -316,12 +315,12 @@ impl MetadataStore {
 
     /// Load a policy by name.
     pub fn load_policy(&self, name: &str) -> Result<crate::model::Policy> {
-        let data = self
-            .policies
-            .get(name.as_bytes())?
-            .ok_or_else(|| LatticeError::ObjectNotFound {
-                id: format!("policy:{}", name),
-            })?;
+        let data =
+            self.policies
+                .get(name.as_bytes())?
+                .ok_or_else(|| LatticeError::ObjectNotFound {
+                    id: format!("policy:{}", name),
+                })?;
         let policy = bincode::deserialize(&data).map_err(|e| {
             LatticeError::Serialization(format!("Failed to deserialize policy: {}", e))
         })?;
@@ -377,6 +376,15 @@ impl MetadataStore {
 
     /// Store a view definition by name.
     pub fn store_view(&self, view: &crate::views::View) -> Result<()> {
+        self.store_view_with_max_depth(view, crate::views::DEFAULT_MAX_PARENT_DEPTH)
+    }
+
+    /// Store a view definition by name with an explicit max parent depth.
+    pub fn store_view_with_max_depth(
+        &self,
+        view: &crate::views::View,
+        max_parent_depth: u32,
+    ) -> Result<()> {
         // Validate nesting constraints
         if let Some(parent_id) = view.parent_id {
             // Check for self-reference
@@ -394,17 +402,17 @@ impl MetadataStore {
                 let parent = self.load_view_by_id(&pid)?;
                 current = parent.parent_id;
                 depth += 1;
-                if depth >= 16 {
-                    return Err(LatticeError::InvalidViewQuery(
-                        "Parent chain depth exceeds maximum of 16 levels".to_string(),
-                    ));
+                if depth >= max_parent_depth {
+                    return Err(LatticeError::InvalidViewQuery(format!(
+                        "Parent chain depth exceeds maximum of {} levels",
+                        max_parent_depth
+                    )));
                 }
             }
         }
 
-        let bytes = bincode::serialize(view).map_err(|e| {
-            LatticeError::Serialization(format!("Failed to serialize view: {}", e))
-        })?;
+        let bytes = bincode::serialize(view)
+            .map_err(|e| LatticeError::Serialization(format!("Failed to serialize view: {}", e)))?;
         self.views.insert(view.name.as_bytes(), bytes)?;
         Ok(())
     }
@@ -417,15 +425,16 @@ impl MetadataStore {
             .ok_or_else(|| LatticeError::ViewNotFound {
                 name: name.to_string(),
             })?;
-        
+
         // Try to deserialize as new format first
         match bincode::deserialize::<crate::views::View>(&data) {
             Ok(view) => Ok(view),
             Err(_) => {
                 // Try legacy format and migrate
-                let legacy: crate::views::LegacyView = bincode::deserialize(&data).map_err(|e| {
-                    LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
-                })?;
+                let legacy: crate::views::LegacyView =
+                    bincode::deserialize(&data).map_err(|e| {
+                        LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
+                    })?;
                 let view: crate::views::View = legacy.into();
                 // Re-save in new format
                 self.store_view(&view)?;
@@ -463,9 +472,13 @@ impl MetadataStore {
                 Ok(view) => view,
                 Err(_) => {
                     // Try legacy format and migrate
-                    let legacy: crate::views::LegacyView = bincode::deserialize(&v).map_err(|e| {
-                        LatticeError::Serialization(format!("Failed to deserialize view: {}", e))
-                    })?;
+                    let legacy: crate::views::LegacyView =
+                        bincode::deserialize(&v).map_err(|e| {
+                            LatticeError::Serialization(format!(
+                                "Failed to deserialize view: {}",
+                                e
+                            ))
+                        })?;
                     let view: crate::views::View = legacy.into();
                     // Re-save in new format
                     self.store_view(&view)?;
@@ -506,18 +519,19 @@ impl MetadataStore {
         let bytes = bincode::serialize(snapshot).map_err(|e| {
             LatticeError::Serialization(format!("Failed to serialize snapshot: {}", e))
         })?;
-        self.snapshots.insert(snapshot.id.to_string().as_bytes(), bytes)?;
+        self.snapshots
+            .insert(snapshot.id.to_string().as_bytes(), bytes)?;
         Ok(())
     }
 
     /// Load a snapshot by ID string.
     pub fn load_snapshot(&self, id: &str) -> Result<crate::views::ViewSnapshot> {
-        let data = self
-            .snapshots
-            .get(id.as_bytes())?
-            .ok_or_else(|| LatticeError::ObjectNotFound {
-                id: format!("snapshot:{}", id),
-            })?;
+        let data =
+            self.snapshots
+                .get(id.as_bytes())?
+                .ok_or_else(|| LatticeError::ObjectNotFound {
+                    id: format!("snapshot:{}", id),
+                })?;
         let snapshot = bincode::deserialize(&data).map_err(|e| {
             LatticeError::Serialization(format!("Failed to deserialize snapshot: {}", e))
         })?;
@@ -614,12 +628,11 @@ impl MetadataStore {
 
     /// Load a capability token by its CID.
     pub fn load_capability(&self, cid: &str) -> Result<crate::crypto::Capability> {
-        let data = self
-            .capabilities
-            .get(cid.as_bytes())?
-            .ok_or_else(|| LatticeError::CapabilityNotFound {
+        let data = self.capabilities.get(cid.as_bytes())?.ok_or_else(|| {
+            LatticeError::CapabilityNotFound {
                 cid: cid.to_string(),
-            })?;
+            }
+        })?;
 
         let token = std::str::from_utf8(&data)
             .map_err(|e| LatticeError::Serialization(format!("Invalid UTF-8 token: {}", e)))?;
@@ -657,16 +670,14 @@ impl MetadataStore {
 
     /// Load a revocation entry by CID.
     pub fn load_revocation(&self, cid: &str) -> Result<crate::crypto::Revocation> {
-        let data = self
-            .revocations
-            .get(cid.as_bytes())?
-            .ok_or_else(|| LatticeError::RevocationNotFound {
+        let data = self.revocations.get(cid.as_bytes())?.ok_or_else(|| {
+            LatticeError::RevocationNotFound {
                 cid: cid.to_string(),
-            })?;
-
-        let revocation: crate::crypto::Revocation = serde_json::from_slice(&data).map_err(|e| {
-            LatticeError::Serialization(format!("Revocation deserialize: {}", e))
+            }
         })?;
+
+        let revocation: crate::crypto::Revocation = serde_json::from_slice(&data)
+            .map_err(|e| LatticeError::Serialization(format!("Revocation deserialize: {}", e)))?;
 
         Ok(revocation)
     }
@@ -698,11 +709,15 @@ impl MetadataStore {
     }
 
     /// Load the current rate limit state (if any).
-    pub fn load_rate_limit_state(&self, key: &str) -> Result<Option<crate::policy::RateLimitState>> {
+    pub fn load_rate_limit_state(
+        &self,
+        key: &str,
+    ) -> Result<Option<crate::policy::RateLimitState>> {
         if let Some(data) = self.rate_limits.get(key.as_bytes())? {
-            let state: crate::policy::RateLimitState = bincode::deserialize(&data).map_err(|e| {
-                LatticeError::Serialization(format!("Rate limit deserialize: {}", e))
-            })?;
+            let state: crate::policy::RateLimitState =
+                bincode::deserialize(&data).map_err(|e| {
+                    LatticeError::Serialization(format!("Rate limit deserialize: {}", e))
+                })?;
             Ok(Some(state))
         } else {
             Ok(None)
@@ -715,9 +730,8 @@ impl MetadataStore {
         key: &str,
         state: &crate::policy::RateLimitState,
     ) -> Result<()> {
-        let data = bincode::serialize(state).map_err(|e| {
-            LatticeError::Serialization(format!("Rate limit serialize: {}", e))
-        })?;
+        let data = bincode::serialize(state)
+            .map_err(|e| LatticeError::Serialization(format!("Rate limit serialize: {}", e)))?;
         self.rate_limits.insert(key.as_bytes(), data)?;
         Ok(())
     }
@@ -726,11 +740,7 @@ impl MetadataStore {
     ///
     /// This prevents race conditions when multiple concurrent requests try to
     /// consume tokens simultaneously. Uses optimistic locking with retry.
-    pub fn atomic_rate_limit_consume<F>(
-        &self,
-        key: &str,
-        check_fn: F,
-    ) -> Result<()>
+    pub fn atomic_rate_limit_consume<F>(&self, key: &str, check_fn: F) -> Result<()>
     where
         F: Fn(Option<crate::policy::RateLimitState>) -> Result<crate::policy::RateLimitState>,
     {
@@ -751,14 +761,13 @@ impl MetadataStore {
             let new_state = check_fn(current_state)?;
 
             // Serialize new state
-            let new_data = bincode::serialize(&new_state).map_err(|e| {
-                LatticeError::Serialization(format!("Rate limit serialize: {}", e))
-            })?;
+            let new_data = bincode::serialize(&new_state)
+                .map_err(|e| LatticeError::Serialization(format!("Rate limit serialize: {}", e)))?;
 
             // Attempt atomic compare-and-swap
-            let cas_result = self
-                .rate_limits
-                .compare_and_swap(key_bytes, current, Some(new_data))?;
+            let cas_result =
+                self.rate_limits
+                    .compare_and_swap(key_bytes, current, Some(new_data))?;
 
             match cas_result {
                 Ok(()) => return Ok(()),
@@ -936,7 +945,11 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = MetadataStore::open(temp_dir.path()).unwrap();
 
-        let view = View::new("Test View".to_string(), "tag:test".to_string(), test_actor());
+        let view = View::new(
+            "Test View".to_string(),
+            "tag:test".to_string(),
+            test_actor(),
+        );
         let view_id = view.id;
         store.store_view(&view).unwrap();
 
@@ -997,11 +1010,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = MetadataStore::open(temp_dir.path()).unwrap();
 
-        let parent = View::new(
-            "Parent".to_string(),
-            "tag:parent".to_string(),
-            test_actor(),
-        );
+        let parent = View::new("Parent".to_string(), "tag:parent".to_string(), test_actor());
         let parent_id = parent.id;
         store.store_view(&parent).unwrap();
 
@@ -1025,18 +1034,10 @@ mod tests {
         let mut current_id = None;
         for i in 0..16 {
             let view = if let Some(parent_id) = current_id {
-                View::new(
-                    format!("View{}", i),
-                    format!("tag:v{}", i),
-                    test_actor(),
-                )
-                .with_parent(parent_id)
+                View::new(format!("View{}", i), format!("tag:v{}", i), test_actor())
+                    .with_parent(parent_id)
             } else {
-                View::new(
-                    format!("View{}", i),
-                    format!("tag:v{}", i),
-                    test_actor(),
-                )
+                View::new(format!("View{}", i), format!("tag:v{}", i), test_actor())
             };
             let view_id = view.id;
             store.store_view(&view).unwrap();
@@ -1048,5 +1049,34 @@ mod tests {
             .with_parent(current_id.unwrap());
         let result = store.store_view(&deep_view);
         assert!(result.is_err()); // Should fail depth validation
+    }
+
+    #[test]
+    fn test_store_view_with_custom_max_depth() {
+        use crate::views::View;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = MetadataStore::open(temp_dir.path()).unwrap();
+
+        let root = View::new("Root".to_string(), "tag:root".to_string(), test_actor());
+        let root_id = root.id;
+        store.store_view(&root).unwrap();
+
+        let child = View::new("Child".to_string(), "tag:child".to_string(), test_actor())
+            .with_parent(root_id);
+        let child_id = child.id;
+        store.store_view_with_max_depth(&child, 3).unwrap();
+
+        let grandchild = View::new(
+            "Grandchild".to_string(),
+            "tag:grandchild".to_string(),
+            test_actor(),
+        )
+        .with_parent(child_id);
+        let err = store
+            .store_view_with_max_depth(&grandchild, 2)
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("Parent chain depth exceeds maximum of 2 levels"));
     }
 }
