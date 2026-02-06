@@ -9,6 +9,7 @@ pub mod edit;
 pub mod export;
 pub mod get;
 pub mod import;
+pub mod info;
 pub mod ipc;
 pub mod link;
 pub mod message;
@@ -20,7 +21,6 @@ pub mod revoke;
 pub mod share;
 pub mod shares;
 pub mod state;
-pub mod stats;
 pub mod system;
 pub mod tag;
 pub mod tags;
@@ -54,7 +54,7 @@ pub enum Command {
     Policy(policy::PolicyArgs),
     Trust(trust::TrustArgs),
     Quarantine(trust::QuarantineArgs),
-    Stats(stats::StatsArgs),
+    Info(info::InfoArgs),
     Import(import::ImportArgs),
     Export(export::ExportArgs),
     Edit(edit::EditArgs),

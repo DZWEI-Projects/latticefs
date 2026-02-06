@@ -6,8 +6,8 @@
 use crate::error::Result;
 use crate::model::{LinkType, Object, ObjectID, Tag, Version};
 use crate::query::ast::*;
-use crate::storage::MetadataStore;
 use crate::storage::content::hex_to_hash;
+use crate::storage::MetadataStore;
 use std::fmt;
 
 /// Maximum traversal depth for graph queries.
@@ -30,7 +30,11 @@ impl fmt::Display for Explanation {
             f,
             "Object {}: {}",
             self.object_id,
-            if self.matched { "MATCHED" } else { "DID NOT MATCH" }
+            if self.matched {
+                "MATCHED"
+            } else {
+                "DID NOT MATCH"
+            }
         )?;
         self.reason.fmt_indented(f, 0)
     }
@@ -67,12 +71,20 @@ impl Reason {
         let status = |matched: bool| if matched { "✓" } else { "✗" };
 
         match self {
-            Reason::And { matched, left, right } => {
+            Reason::And {
+                matched,
+                left,
+                right,
+            } => {
                 writeln!(f, "{}{} AND", prefix, status(*matched))?;
                 left.fmt_indented(f, indent + 1)?;
                 right.fmt_indented(f, indent + 1)
             }
-            Reason::Or { matched, left, right } => {
+            Reason::Or {
+                matched,
+                left,
+                right,
+            } => {
                 writeln!(f, "{}{} OR", prefix, status(*matched))?;
                 left.fmt_indented(f, indent + 1)?;
                 right.fmt_indented(f, indent + 1)
@@ -87,7 +99,14 @@ impl Reason {
                 actual_value,
             } => {
                 if let Some(actual) = actual_value {
-                    writeln!(f, "{}{} {} (actual: {})", prefix, status(*matched), description, actual)
+                    writeln!(
+                        f,
+                        "{}{} {} (actual: {})",
+                        prefix,
+                        status(*matched),
+                        description,
+                        actual
+                    )
                 } else {
                     writeln!(f, "{}{} {}", prefix, status(*matched), description)
                 }
@@ -250,11 +269,10 @@ impl<'a> Explainer<'a> {
                 let now = crate::model::timestamp_now();
                 let timestamp = match field {
                     TimeField::Created => object.created_at,
-                    TimeField::Updated => {
-                        self.load_version(&object.current_version)
-                            .map(|v| v.created_at)
-                            .unwrap_or(object.created_at)
-                    }
+                    TimeField::Updated => self
+                        .load_version(&object.current_version)
+                        .map(|v| v.created_at)
+                        .unwrap_or(object.created_at),
                 };
 
                 let matched = match (op, value) {
@@ -296,11 +314,10 @@ impl<'a> Explainer<'a> {
             Predicate::Ref { reference } => {
                 let matched = match reference {
                     ObjectRef::Id(id) => id == object_id,
-                    ObjectRef::Alias(alias) => {
-                        self.resolve_alias(alias)?
-                            .map(|resolved| &resolved == object_id)
-                            .unwrap_or(false)
-                    }
+                    ObjectRef::Alias(alias) => self
+                        .resolve_alias(alias)?
+                        .map(|resolved| &resolved == object_id)
+                        .unwrap_or(false),
                     _ => false, // Hash resolution requires content lookup
                 };
 
@@ -681,8 +698,7 @@ mod tests {
             create_test_object(&store, vec![("project", "phoenix"), ("status", "active")]).unwrap();
 
         let explainer = Explainer::new(&store);
-        let query =
-            crate::query::parser::parse("tag:project:phoenix AND NOT tag:deleted").unwrap();
+        let query = crate::query::parser::parse("tag:project:phoenix AND NOT tag:deleted").unwrap();
 
         let explanation = explainer.explain(&object_id, &query).unwrap();
 

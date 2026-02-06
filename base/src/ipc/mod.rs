@@ -66,7 +66,12 @@ impl MessageType {
             407 => MessageType::WatchStatusRequest,
             408 => MessageType::WatchStatusResponse,
             999 => MessageType::Error,
-            _ => return Err(LatticeError::InvalidPredicate(format!("Unknown message type: {}", value))),
+            _ => {
+                return Err(LatticeError::InvalidPredicate(format!(
+                    "Unknown message type: {}",
+                    value
+                )))
+            }
         };
         Ok(msg)
     }

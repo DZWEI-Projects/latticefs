@@ -56,6 +56,7 @@ export interface ViewInfo {
   viewType: "builtin" | "dynamic";
   icon?: string | null;
   objectCount: number;
+  parentId?: string | null;
 }
 
 export interface ObjectInfo {
@@ -218,6 +219,7 @@ export const listViews = async (): Promise<ViewInfo[]> => {
         view_type: string;
         icon: string | null;
         object_count: number;
+        parent_id: string | null;
       }>
     >("list_views");
     // Transform snake_case to camelCase
@@ -229,6 +231,7 @@ export const listViews = async (): Promise<ViewInfo[]> => {
       viewType: v.view_type as "builtin" | "dynamic",
       icon: v.icon,
       objectCount: v.object_count,
+      parentId: v.parent_id,
     }));
   }
   return (await getMocks()).mockListViews();
@@ -361,6 +364,7 @@ export interface CreateViewArgs {
   name: string;
   query: string;
   description?: string;
+  parentId?: string | null;
 }
 
 export interface UpdateViewArgs {
@@ -368,6 +372,7 @@ export interface UpdateViewArgs {
   name: string;
   query: string;
   description?: string;
+  parentId?: string | null;
 }
 
 export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
@@ -380,7 +385,15 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
       view_type: string;
       icon: string | null;
       object_count: number;
-    }>("create_view", { args });
+      parent_id: string | null;
+    }>("create_view", {
+      args: {
+        name: args.name,
+        query: args.query,
+        description: args.description,
+        parent_id: args.parentId ?? null,
+      },
+    });
     return {
       id: view.id,
       name: view.name,
@@ -389,6 +402,7 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
       viewType: view.view_type as "builtin" | "dynamic",
       icon: view.icon,
       objectCount: view.object_count,
+      parentId: view.parent_id,
     };
   }
   return (await getMocks()).mockCreateView(args);
@@ -396,6 +410,23 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
 
 export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
   if (isTauriApp()) {
+    const tauriArgs: {
+      id: string;
+      name: string;
+      query: string;
+      description?: string;
+      parent_id?: string | null;
+    } = {
+      id: args.id,
+      name: args.name,
+      query: args.query,
+      description: args.description,
+    };
+
+    if (args.parentId !== undefined) {
+      tauriArgs.parent_id = args.parentId;
+    }
+
     const view = await invoke<{
       id: string;
       name: string;
@@ -404,7 +435,10 @@ export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
       view_type: string;
       icon: string | null;
       object_count: number;
-    }>("update_view", { args });
+      parent_id: string | null;
+    }>("update_view", {
+      args: tauriArgs,
+    });
     return {
       id: view.id,
       name: view.name,
@@ -413,6 +447,7 @@ export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
       viewType: view.view_type as "builtin" | "dynamic",
       icon: view.icon,
       objectCount: view.object_count,
+      parentId: view.parent_id,
     };
   }
   return (await getMocks()).mockUpdateView(args);

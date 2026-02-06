@@ -14,7 +14,9 @@ pub struct CheckoutArgs {
 pub async fn run(repo: LatticeRepo, args: CheckoutArgs) -> Result<()> {
     let (object_id, version_id) = parse_ref_with_version(&repo, &args.reference)?;
     let Some(version_id) = version_id else {
-        return Err(anyhow::anyhow!("checkout requires a version spec (ref@version)"));
+        return Err(anyhow::anyhow!(
+            "checkout requires a version spec (ref@version)"
+        ));
     };
 
     let mut object = repo

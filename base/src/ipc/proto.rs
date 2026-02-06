@@ -278,3 +278,80 @@ pub struct ShutdownResponse {
     #[prost(bool, tag = "1")]
     pub success: bool,
 }
+/// Watch register request: track an edited file for auto-revision.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchRegisterRequest {
+    #[prost(string, tag = "1")]
+    pub temp_path: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub object_id: ::prost::alloc::string::String,
+    /// 32 bytes
+    #[prost(bytes = "vec", tag = "3")]
+    pub actor_id: ::prost::alloc::vec::Vec<u8>,
+    /// 32 bytes (BLAKE3)
+    #[prost(bytes = "vec", tag = "4")]
+    pub content_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "5")]
+    pub display_name: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchRegisterResponse {
+    #[prost(bool, tag = "1")]
+    pub success: bool,
+    #[prost(string, tag = "2")]
+    pub message: ::prost::alloc::string::String,
+}
+/// Watch unregister request: stop tracking a file.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchUnregisterRequest {
+    #[prost(string, tag = "1")]
+    pub temp_path: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchUnregisterResponse {
+    #[prost(bool, tag = "1")]
+    pub success: bool,
+    #[prost(string, tag = "2")]
+    pub message: ::prost::alloc::string::String,
+}
+/// One tracked file entry.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchedFileInfo {
+    #[prost(string, tag = "1")]
+    pub temp_path: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub object_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub display_name: ::prost::alloc::string::String,
+    #[prost(int64, tag = "4")]
+    pub registered_at: i64,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchListRequest {}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchListResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub files: ::prost::alloc::vec::Vec<WatchedFileInfo>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchStatusRequest {}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchStatusResponse {
+    #[prost(bool, tag = "1")]
+    pub running: bool,
+    #[prost(uint64, tag = "2")]
+    pub watched_count: u64,
+    #[prost(string, tag = "3")]
+    pub watch_dir: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "4")]
+    pub pid: u64,
+}

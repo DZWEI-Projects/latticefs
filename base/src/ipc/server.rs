@@ -40,7 +40,11 @@ pub async fn run_ipc_server_with_watcher(
         eprintln!("✓ IPC server started successfully");
         eprintln!("  {:<18} {}", "Socket:", sock.display());
         eprintln!("  {:<18} {}", "Protocol:", "Unix domain socket");
-        eprintln!("  {:<18} {}", "Message types:", "ShareRequest, RevokeRequest, FetchRequest, StatusRequest, ShutdownRequest, SyncEvent");
+        eprintln!(
+            "  {:<18} {}",
+            "Message types:",
+            "ShareRequest, RevokeRequest, FetchRequest, StatusRequest, ShutdownRequest, SyncEvent"
+        );
         eprintln!(
             "  {:<18} {} MiB",
             "Max message size:",
@@ -205,10 +209,7 @@ async fn handle_share_request(config: &Config, request: pb::ShareRequest) -> pb:
     }
 }
 
-async fn handle_revoke_request(
-    config: &Config,
-    request: pb::RevokeRequest,
-) -> pb::RevokeResponse {
+async fn handle_revoke_request(config: &Config, request: pb::RevokeRequest) -> pb::RevokeResponse {
     let result = (|| {
         let repo = open_repo(config)?;
         repo.enforce_rate_limit(1)?;
@@ -319,10 +320,7 @@ async fn handle_fetch_request(config: &Config, request: pb::FetchRequest) -> pb:
     }
 }
 
-async fn handle_status_request(
-    config: &Config,
-    request: pb::StatusRequest,
-) -> pb::StatusResponse {
+async fn handle_status_request(config: &Config, request: pb::StatusRequest) -> pb::StatusResponse {
     let stats = if request.include_stats {
         match open_repo(config) {
             Ok(repo) => Some(build_stats(&repo).unwrap_or_default()),

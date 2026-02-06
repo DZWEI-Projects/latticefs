@@ -113,9 +113,13 @@ impl BuiltinView {
     pub fn description_localized(&self, locale: Locale) -> &'static str {
         match (self, locale) {
             (BuiltinView::Recent, Locale::English) => "Objects updated within the last 7 days",
-            (BuiltinView::Recent, Locale::German) => "Objekte, die in den letzten 7 Tagen aktualisiert wurden",
+            (BuiltinView::Recent, Locale::German) => {
+                "Objekte, die in den letzten 7 Tagen aktualisiert wurden"
+            }
             (BuiltinView::Projects, Locale::English) => "Objects tagged as projects",
-            (BuiltinView::Projects, Locale::German) => "Objekte, die als Projekte gekennzeichnet sind",
+            (BuiltinView::Projects, Locale::German) => {
+                "Objekte, die als Projekte gekennzeichnet sind"
+            }
             (BuiltinView::Drafts, Locale::English) => "Objects in draft state",
             (BuiltinView::Drafts, Locale::German) => "Objekte im Entwurfsstadium",
             (BuiltinView::Review, Locale::English) => "Objects pending review",
@@ -283,7 +287,12 @@ mod tests {
         // Ensure all built-in queries are valid
         for view in BuiltinView::all() {
             let result = parse(view.query());
-            assert!(result.is_ok(), "Failed to parse query for {:?}: {:?}", view, result.err());
+            assert!(
+                result.is_ok(),
+                "Failed to parse query for {:?}: {:?}",
+                view,
+                result.err()
+            );
         }
     }
 
@@ -291,27 +300,49 @@ mod tests {
     fn test_builtin_view_by_name() {
         assert_eq!(BuiltinView::by_name("recent"), Some(BuiltinView::Recent));
         assert_eq!(BuiltinView::by_name("RECENT"), Some(BuiltinView::Recent));
-        assert_eq!(BuiltinView::by_name("projects"), Some(BuiltinView::Projects));
+        assert_eq!(
+            BuiltinView::by_name("projects"),
+            Some(BuiltinView::Projects)
+        );
         assert_eq!(BuiltinView::by_name("nonexistent"), None);
-        
+
         // Test German names
         assert_eq!(BuiltinView::by_name("neueste"), Some(BuiltinView::Recent));
-        assert_eq!(BuiltinView::by_name("projekte"), Some(BuiltinView::Projects));
+        assert_eq!(
+            BuiltinView::by_name("projekte"),
+            Some(BuiltinView::Projects)
+        );
         assert_eq!(BuiltinView::by_name("entwürfe"), Some(BuiltinView::Drafts));
     }
 
     #[test]
     fn test_localization() {
         // Test English
-        assert_eq!(BuiltinView::Recent.name_localized(Locale::English), "Recent");
-        assert_eq!(BuiltinView::Projects.name_localized(Locale::English), "Projects");
-        assert!(BuiltinView::Recent.description_localized(Locale::English).contains("7 days"));
-        
+        assert_eq!(
+            BuiltinView::Recent.name_localized(Locale::English),
+            "Recent"
+        );
+        assert_eq!(
+            BuiltinView::Projects.name_localized(Locale::English),
+            "Projects"
+        );
+        assert!(BuiltinView::Recent
+            .description_localized(Locale::English)
+            .contains("7 days"));
+
         // Test German
-        assert_eq!(BuiltinView::Recent.name_localized(Locale::German), "Neueste");
-        assert_eq!(BuiltinView::Projects.name_localized(Locale::German), "Projekte");
-        assert!(BuiltinView::Recent.description_localized(Locale::German).contains("7 Tagen"));
-        
+        assert_eq!(
+            BuiltinView::Recent.name_localized(Locale::German),
+            "Neueste"
+        );
+        assert_eq!(
+            BuiltinView::Projects.name_localized(Locale::German),
+            "Projekte"
+        );
+        assert!(BuiltinView::Recent
+            .description_localized(Locale::German)
+            .contains("7 Tagen"));
+
         // Test system locale detection doesn't panic
         let _system_locale = Locale::from_system();
     }

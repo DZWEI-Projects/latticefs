@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::import::{import_file, ImportOptions};
 use latticefs_base::LatticeRepo;
+use latticefs_base::import::{ImportOptions, import_file};
 use std::path::PathBuf;
 
 use super::common::{ensure_identity, identity_actor};

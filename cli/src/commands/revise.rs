@@ -22,15 +22,16 @@ pub struct ReviseArgs {
 
 pub async fn run(repo: LatticeRepo, args: ReviseArgs) -> Result<()> {
     if args.stdin && args.file.is_some() {
-        return Err(anyhow::anyhow!("Use either a file path or --stdin, not both"));
+        return Err(anyhow::anyhow!(
+            "Use either a file path or --stdin, not both"
+        ));
     }
     if !args.stdin && args.file.is_none() {
         return Err(anyhow::anyhow!("revise requires a file path or --stdin"));
     }
 
     let object_id = resolve_object_id(&repo, &args.reference)?;
-    repo
-        .metadata
+    repo.metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
 
@@ -50,7 +51,9 @@ pub async fn run(repo: LatticeRepo, args: ReviseArgs) -> Result<()> {
             .await
             .with_context(|| format!("Failed to read {}", path.display()))?
     };
-    let version = repo.add_version_from_bytes(&object_id, &data, actor, args.message.clone()).await?;
+    let version = repo
+        .add_version_from_bytes(&object_id, &data, actor, args.message.clone())
+        .await?;
     println!("Revised {} to new version {}", object_id, version.id);
     Ok(())
 }

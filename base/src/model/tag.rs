@@ -249,11 +249,7 @@ mod tests {
         assert!(!tag.matches("auto:mimetype:text/*"));
 
         // Edge cases: consecutive wildcards
-        let tag2 = Tag::new(
-            "test:key".to_string(),
-            "abc".to_string(),
-            test_actor(),
-        );
+        let tag2 = Tag::new("test:key".to_string(), "abc".to_string(), test_actor());
         assert!(tag2.matches("test:key:**"));
         assert!(tag2.matches("test:key:a**c"));
         assert!(tag2.matches("test:key:**abc"));
@@ -263,11 +259,7 @@ mod tests {
         assert!(tag2.matches("test:key:*c"));
 
         // Wildcard matching zero characters
-        let tag3 = Tag::new(
-            "test:empty".to_string(),
-            "test".to_string(),
-            test_actor(),
-        );
+        let tag3 = Tag::new("test:empty".to_string(), "test".to_string(), test_actor());
         assert!(tag3.matches("test:empty:test*"));
         assert!(tag3.matches("test:empty:*test"));
 

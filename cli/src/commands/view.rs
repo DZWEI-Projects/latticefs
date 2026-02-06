@@ -1,16 +1,12 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
-use latticefs_base::query::{parse, Explainer};
-use latticefs_base::views::{BuiltinView, View, Locale};
 use latticefs_base::LatticeRepo;
+use latticefs_base::query::{Explainer, parse};
+use latticefs_base::views::{BuiltinView, Locale, View, ViewID};
 
 use super::common::{
-    ensure_identity,
-    identity_actor,
-    resolve_dynamic_view,
-    resolve_object_id,
+    ResolvedView, ensure_identity, identity_actor, resolve_dynamic_view, resolve_object_id,
     resolve_view_reference,
-    ResolvedView,
 };
 
 #[derive(Subcommand, Debug)]
@@ -32,6 +28,9 @@ pub struct CreateArgs {
     pub name: String,
     #[arg(long)]
     pub query: String,
+    #[arg(long)]
+    /// Parent view name or ID
+    pub parent: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -71,8 +70,17 @@ async fn create(repo: LatticeRepo, args: CreateArgs) -> Result<()> {
         Err(_) => [0u8; 32],
     };
 
-    let view = View::new(args.name.clone(), args.query, actor);
-    repo.metadata.store_view(&view)?;
+    let mut view = View::new(args.name.clone(), args.query, actor);
+
+    if let Some(parent_ref) = args.parent {
+        let parent = resolve_dynamic_view(&repo, &parent_ref)?;
+        view = view.with_parent(parent.id);
+    }
+
+    repo.metadata.store_view_with_max_depth(
+        &view,
+        repo.config.experimental.nested_views.max_parent_depth,
+    )?;
     println!("Created view {} ({})", view.name, view.id);
     Ok(())
 }
@@ -81,13 +89,52 @@ async fn list(repo: LatticeRepo) -> Result<()> {
     let locale = Locale::from_system();
     println!("Built-in views:");
     for view in BuiltinView::all() {
-        println!("- {}: {}", view.name_localized(locale), view.description_localized(locale));
+        println!(
+            "- {}: {}",
+            view.name_localized(locale),
+            view.description_localized(locale)
+        );
     }
 
     println!("\nDynamic views:");
-    for view in repo.metadata.list_views()? {
-        println!("- {} (id: {}): {}", view.name, view.id, view.query);
+    let views = repo.metadata.list_views()?;
+
+    // Build tree structure
+    let mut view_map: std::collections::HashMap<ViewID, Vec<&View>> =
+        std::collections::HashMap::new();
+    let mut root_views = Vec::new();
+
+    for view in &views {
+        if let Some(parent_id) = view.parent_id {
+            view_map.entry(parent_id).or_default().push(view);
+        } else {
+            root_views.push(view);
+        }
     }
+
+    // Print tree recursively
+    fn print_view_tree(
+        view: &View,
+        view_map: &std::collections::HashMap<ViewID, Vec<&View>>,
+        indent: usize,
+    ) {
+        let prefix = "  ".repeat(indent);
+        println!(
+            "{}- {} (id: {}): {}",
+            prefix, view.name, view.id, view.query
+        );
+
+        if let Some(children) = view_map.get(&view.id) {
+            for child in children {
+                print_view_tree(child, view_map, indent + 1);
+            }
+        }
+    }
+
+    for view in root_views {
+        print_view_tree(view, &view_map, 0);
+    }
+
     Ok(())
 }
 

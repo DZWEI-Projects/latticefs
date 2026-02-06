@@ -4,31 +4,30 @@ use clap::{Args, Subcommand};
 use latticefs_base::crypto::Capability;
 use latticefs_base::model::Tag;
 use latticefs_base::storage::hash_to_hex;
-use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView, Locale};
+use latticefs_base::views::{
+    BuiltinView, BuiltinViews, DynamicView, EffectiveQueryOptions, Locale, View, ViewJoinOperator,
+};
 use latticefs_base::{LatticeRepo, Permission};
 
 use super::common::{
-    parse_ref_with_version,
-    resolve_object_id,
-    resolve_view_reference,
-    ResolvedView,
+    ResolvedView, parse_ref_with_version, resolve_object_id, resolve_view_reference,
 };
 
 #[derive(Subcommand, Debug)]
-pub enum StatsCommand {
+pub enum InfoCommand {
     /// Show content checksum for an object (alias: hash)
     #[command(alias = "hash")]
-    Checksum(StatsChecksumArgs),
+    Checksum(InfoChecksumArgs),
     /// Show object statistics
-    Object(StatsObjectArgs),
+    Object(InfoObjectArgs),
     /// Show statistics for a single view
-    View(StatsViewArgs),
+    View(InfoViewArgs),
     /// List objects for a view with minimal tag output
-    ViewObjects(StatsViewObjectsArgs),
+    ViewObjects(InfoViewObjectsArgs),
     /// Summarize all views
     Views,
     /// Show statistics for a single policy
-    Policy(StatsPolicyArgs),
+    Policy(InfoPolicyArgs),
     /// Summarize all policies
     Policies,
     /// Summarize shared capabilities
@@ -36,19 +35,19 @@ pub enum StatsCommand {
 }
 
 #[derive(Args, Debug)]
-pub struct StatsArgs {
+pub struct InfoArgs {
     #[command(subcommand)]
-    pub command: StatsCommand,
+    pub command: InfoCommand,
 }
 
 #[derive(Args, Debug)]
-pub struct StatsChecksumArgs {
+pub struct InfoChecksumArgs {
     /// Object reference (optionally @version)
     pub reference: String,
 }
 
 #[derive(Args, Debug)]
-pub struct StatsObjectArgs {
+pub struct InfoObjectArgs {
     /// Object reference
     pub reference: String,
     /// Include per-version stats
@@ -57,13 +56,13 @@ pub struct StatsObjectArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct StatsViewArgs {
+pub struct InfoViewArgs {
     /// View name or ID (builtin or dynamic)
     pub name: String,
 }
 
 #[derive(Args, Debug)]
-pub struct StatsViewObjectsArgs {
+pub struct InfoViewObjectsArgs {
     /// View name or ID (builtin or dynamic)
     pub name: String,
     /// Include auto/system tags
@@ -75,25 +74,25 @@ pub struct StatsViewObjectsArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct StatsPolicyArgs {
+pub struct InfoPolicyArgs {
     /// Policy name
     pub name: String,
 }
 
-pub async fn run(repo: LatticeRepo, cmd: StatsCommand) -> Result<()> {
+pub async fn run(repo: LatticeRepo, cmd: InfoCommand) -> Result<()> {
     match cmd {
-        StatsCommand::Checksum(args) => checksum(repo, args).await,
-        StatsCommand::Object(args) => object_stats(repo, args).await,
-        StatsCommand::View(args) => view_stats(repo, args).await,
-        StatsCommand::ViewObjects(args) => view_objects(repo, args).await,
-        StatsCommand::Views => views_summary(repo).await,
-        StatsCommand::Policy(args) => policy_stats(repo, args).await,
-        StatsCommand::Policies => policies_summary(repo).await,
-        StatsCommand::Shares => shares_summary(repo).await,
+        InfoCommand::Checksum(args) => checksum(repo, args).await,
+        InfoCommand::Object(args) => object_stats(repo, args).await,
+        InfoCommand::View(args) => view_stats(repo, args).await,
+        InfoCommand::ViewObjects(args) => view_objects(repo, args).await,
+        InfoCommand::Views => views_summary(repo).await,
+        InfoCommand::Policy(args) => policy_stats(repo, args).await,
+        InfoCommand::Policies => policies_summary(repo).await,
+        InfoCommand::Shares => shares_summary(repo).await,
     }
 }
 
-async fn checksum(repo: LatticeRepo, args: StatsChecksumArgs) -> Result<()> {
+async fn checksum(repo: LatticeRepo, args: InfoChecksumArgs) -> Result<()> {
     let (object_id, version_id) = parse_ref_with_version(&repo, &args.reference)?;
     let object = repo
         .metadata
@@ -117,7 +116,7 @@ async fn checksum(repo: LatticeRepo, args: StatsChecksumArgs) -> Result<()> {
     Ok(())
 }
 
-async fn object_stats(repo: LatticeRepo, args: StatsObjectArgs) -> Result<()> {
+async fn object_stats(repo: LatticeRepo, args: InfoObjectArgs) -> Result<()> {
     let object_id = resolve_object_id(&repo, &args.reference)?;
     let object = repo
         .metadata
@@ -169,7 +168,7 @@ async fn object_stats(repo: LatticeRepo, args: StatsObjectArgs) -> Result<()> {
     Ok(())
 }
 
-async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
+async fn view_stats(repo: LatticeRepo, args: InfoViewArgs) -> Result<()> {
     let locale = Locale::from_system();
     match resolve_view_reference(&repo, &args.name)? {
         ResolvedView::Builtin(builtin) => {
@@ -183,8 +182,9 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
             println!("Objects: {}", readable_count);
         }
         ResolvedView::Dynamic(view) => {
-            let mut dynamic =
-                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            let effective_query = dynamic_view_query(&repo, &view)?;
+            let mut dynamic = DynamicView::new(&effective_query, &repo.metadata)?
+                .with_config(view.config.clone());
             let object_ids = dynamic.evaluate()?;
             let readable_count = count_readable(&repo, &object_ids);
 
@@ -192,6 +192,10 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
             println!("Id: {}", view.id);
             println!("Type: dynamic");
             println!("Query: {}", view.query);
+            if effective_query != view.query {
+                println!("Effective query: {}", effective_query);
+            }
+            println!("Parent: {}", format_parent_view(&repo, &view));
             if let Some(description) = &view.description {
                 println!("Description: {}", description);
             }
@@ -208,15 +212,16 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
     Ok(())
 }
 
-async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<()> {
+async fn view_objects(repo: LatticeRepo, args: InfoViewObjectsArgs) -> Result<()> {
     let object_ids = match resolve_view_reference(&repo, &args.name)? {
         ResolvedView::Builtin(builtin) => {
             let builtins = BuiltinViews::new(&repo.metadata);
             builtins.evaluate(builtin)?
         }
         ResolvedView::Dynamic(view) => {
-            let mut dynamic =
-                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            let effective_query = dynamic_view_query(&repo, &view)?;
+            let mut dynamic = DynamicView::new(&effective_query, &repo.metadata)?
+                .with_config(view.config.clone());
             dynamic.evaluate()?
         }
     };
@@ -263,17 +268,25 @@ async fn views_summary(repo: LatticeRepo) -> Result<()> {
     for builtin in BuiltinView::all() {
         let object_ids = builtins.evaluate(*builtin)?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {}: {} objects", builtin.name_localized(locale), readable_count);
+        println!(
+            "- {}: {} objects",
+            builtin.name_localized(locale),
+            readable_count
+        );
     }
 
     let views = repo.metadata.list_views()?;
     println!("\nDynamic views: {}", views.len());
     for view in views {
+        let effective_query = dynamic_view_query(&repo, &view)?;
         let mut dynamic =
-            DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            DynamicView::new(&effective_query, &repo.metadata)?.with_config(view.config.clone());
         let object_ids = dynamic.evaluate()?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {} (id: {}): {} objects", view.name, view.id, readable_count);
+        println!(
+            "- {} (id: {}): {} objects",
+            view.name, view.id, readable_count
+        );
     }
 
     let snapshots = repo.metadata.list_snapshots()?;
@@ -281,7 +294,7 @@ async fn views_summary(repo: LatticeRepo) -> Result<()> {
     Ok(())
 }
 
-async fn policy_stats(repo: LatticeRepo, args: StatsPolicyArgs) -> Result<()> {
+async fn policy_stats(repo: LatticeRepo, args: InfoPolicyArgs) -> Result<()> {
     let policy = repo.metadata.load_policy(&args.name)?;
     let mut object_count = 0usize;
     for object in repo.metadata.iter_objects() {
@@ -445,6 +458,33 @@ fn count_readable(repo: &LatticeRepo, object_ids: &[latticefs_base::model::Objec
                 .unwrap_or(false)
         })
         .count()
+}
+
+fn dynamic_view_query(repo: &LatticeRepo, view: &View) -> Result<String> {
+    if view.parent_id.is_none() {
+        return Ok(view.query.clone());
+    }
+
+    latticefs_base::views::effective_query_with_options(
+        &repo.metadata,
+        view,
+        EffectiveQueryOptions {
+            max_parent_depth: repo.config.experimental.nested_views.max_parent_depth,
+            join_operator: ViewJoinOperator::And,
+        },
+    )
+    .with_context(|| format!("Failed to compute effective query for view {}", view.id))
+}
+
+fn format_parent_view(repo: &LatticeRepo, view: &View) -> String {
+    let Some(parent_id) = view.parent_id else {
+        return "(none)".to_string();
+    };
+
+    match repo.metadata.load_view_by_id(&parent_id) {
+        Ok(parent) => format!("{} ({})", parent.name, parent.id),
+        Err(_) => format!("{} (missing)", parent_id),
+    }
 }
 
 #[cfg(test)]

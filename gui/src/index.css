@@ -150,6 +150,23 @@
       inset 0 1px 0 hsl(var(--glass-border) / 0.55);
   }
 
+  /* Plain frosted glass surface without artificial gradients */
+  .glass-clear {
+    background: hsl(var(--glass-bg) / 0.62);
+    backdrop-filter: blur(14px) saturate(200%);
+    -webkit-backdrop-filter: blur(14px) saturate(200%);
+    border: 1px solid hsl(var(--glass-border) / 0.5);
+    box-shadow: 0 11px 30px hsl(var(--card) / 0.7);
+  }
+
+  @supports (
+    (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+  ) {
+    .glass-clear {
+      background: hsl(var(--glass-bg) / 0.4);
+    }
+  }
+
   /* Glow effects */
   .glow-primary {
     box-shadow:

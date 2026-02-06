@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::import::{export_object, ExportMode};
+use latticefs_base::LatticeRepo;
+use latticefs_base::import::{ExportMode, export_object};
 use latticefs_base::ipc::client;
 use latticefs_base::storage::compute_hash;
-use latticefs_base::LatticeRepo;
 
 use super::common::{ensure_identity, identity_actor, resolve_object_id};
 
@@ -72,9 +72,7 @@ pub async fn run(repo: LatticeRepo, args: EditArgs) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "Hint: Start the watcher daemon with `lfs watchd start` for auto-versioning"
-            );
+            eprintln!("Hint: Start the watcher daemon with `lfs watchd start` for auto-versioning");
         }
     }
 
@@ -84,9 +82,12 @@ pub async fn run(repo: LatticeRepo, args: EditArgs) -> Result<()> {
     Ok(())
 }
 
-fn display_name_from_tags(tags: &[latticefs_base::model::Tag], object_id: &latticefs_base::model::ObjectID) -> String {
-    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+fn display_name_from_tags(
+    tags: &[latticefs_base::model::Tag],
+    object_id: &latticefs_base::model::ObjectID,
+) -> String {
     use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
     for tag in tags {
         if tag.key == "auto:filename_b64" {

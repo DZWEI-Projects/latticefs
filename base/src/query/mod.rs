@@ -18,6 +18,6 @@ pub use ast::{
     TimeField, TimeOp, TimeValue, TrustLevel,
 };
 pub use evaluator::QueryEvaluator;
-pub use explain::{Explanation, Explainer, Reason};
+pub use explain::{Explainer, Explanation, Reason};
 pub use lexer::{Lexer, Token};
 pub use parser::{parse, Parser};
