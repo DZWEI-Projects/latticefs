@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/animate-ui/components/radix/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, MoreVertical } from "lucide-react";
 import { useMemo, useState } from "react";
