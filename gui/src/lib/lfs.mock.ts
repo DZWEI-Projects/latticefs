@@ -562,6 +562,32 @@ export const mockSetVersionState = async (
   };
 };
 
+export const mockSetVersionMessage = async (
+  objectId: string,
+  versionId: string,
+  message: string | null,
+): Promise<VersionInfo> => {
+  await delay(120);
+  const versions = mockVersionsStore[objectId];
+  if (versions) {
+    const v = versions.find((ver) => ver.id === versionId);
+    if (v) {
+      v.commitMessage = message;
+      return v;
+    }
+  }
+  return {
+    id: versionId,
+    number: 1,
+    parentVersion: null,
+    state: "draft",
+    sizeBytes: 0,
+    createdAt: Date.now(),
+    commitMessage: message,
+    isCurrent: true,
+  };
+};
+
 export const mockReviseObject = async (
   objectId: string,
   _content: string,

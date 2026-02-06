@@ -25,6 +25,7 @@ pub fn run() {
             crate::commands::revise_object_from_text,
             crate::commands::revise_object_from_file,
             crate::commands::set_version_state,
+            crate::commands::set_version_message,
             crate::commands::checkout_object_version,
             crate::commands::export_object_version,
             crate::commands::get_watcher_status,

@@ -80,7 +80,14 @@ impl LatticeRepo {
         self.quota.check_storage_quota(&self.chunks, data)?;
         let manifest = self.chunks.store_object(data).await?;
         let manifest_ref = self.metadata.store_manifest(&manifest)?;
-        self.add_version_from_manifest(object_id, &manifest, manifest_ref, data.len() as u64, actor, message)
+        self.add_version_from_manifest(
+            object_id,
+            &manifest,
+            manifest_ref,
+            data.len() as u64,
+            actor,
+            message,
+        )
     }
 
     /// Add a new version for an existing object using an existing manifest.
@@ -154,6 +161,30 @@ impl LatticeRepo {
         Ok(version)
     }
 
+    /// Update the commit message for any version on an object.
+    pub fn update_version_message(
+        &self,
+        object_id: &ObjectID,
+        version_id: Option<crate::model::VersionID>,
+        message: Option<String>,
+    ) -> Result<Version> {
+        self.enforce_rate_limit(1)?;
+        let object = self.metadata.load_object(object_id)?;
+        self.authorize_object_permission(&object, crate::crypto::Permission::Write, false)?;
+
+        let target_version = version_id.unwrap_or(object.current_version);
+        let mut version = self.metadata.load_version(&target_version)?;
+        if version.object_id != *object_id {
+            return Err(LatticeError::InvalidPredicate(
+                "Version does not belong to object".to_string(),
+            ));
+        }
+
+        version.commit_message = message;
+        self.metadata.store_version(&version)?;
+        Ok(version)
+    }
+
     pub fn authorize_object_permission(
         &self,
         object: &Object,
@@ -193,9 +224,10 @@ impl LatticeRepo {
     /// cannot bypass rate limits by reading stale state.
     pub fn enforce_rate_limit(&self, ops: u64) -> Result<()> {
         let rate_limiter = self.rate_limiter.clone();
-        self.metadata.atomic_rate_limit_consume("default", move |state| {
-            rate_limiter.check_and_consume(state, ops)
-        })
+        self.metadata
+            .atomic_rate_limit_consume("default", move |state| {
+                rate_limiter.check_and_consume(state, ops)
+            })
     }
 }
 
@@ -219,4 +251,53 @@ fn ensure_layout(root: &Path) -> Result<()> {
 /// Get the default LatticeFS root path.
 pub fn default_repo_root() -> PathBuf {
     default_home()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{Object, ObjectType, Version};
+    use tempfile::TempDir;
+
+    #[test]
+    fn update_version_message_allows_empty_and_clear() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+        let actor: ActorID = [0u8; 32];
+
+        let object_id = ObjectID::new();
+        let version = Version::new(
+            object_id,
+            None,
+            [0u8; 32],
+            [1u8; 32],
+            actor,
+            0,
+            0,
+            Some("initial".to_string()),
+        );
+        let mut object = Object::new(ObjectType::Blob, version.id, actor);
+        object.id = object_id;
+
+        repo.metadata.store_object(&object).unwrap();
+        repo.metadata.store_version(&version).unwrap();
+
+        let updated = repo
+            .update_version_message(&object_id, Some(version.id), Some("new".to_string()))
+            .unwrap();
+        assert_eq!(updated.commit_message.as_deref(), Some("new"));
+
+        let updated = repo
+            .update_version_message(&object_id, Some(version.id), Some(String::new()))
+            .unwrap();
+        assert_eq!(updated.commit_message.as_deref(), Some(""));
+
+        let updated = repo
+            .update_version_message(&object_id, Some(version.id), None)
+            .unwrap();
+        assert!(updated.commit_message.is_none());
+
+        let stored = repo.metadata.load_version(&version.id).unwrap();
+        assert!(stored.commit_message.is_none());
+    }
 }

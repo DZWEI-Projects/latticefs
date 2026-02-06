@@ -531,6 +531,36 @@ export const setVersionState = async (
   return (await getMocks()).mockSetVersionState(objectId, versionId, state);
 };
 
+export const setVersionMessage = async (
+  objectId: string,
+  versionId: string,
+  message: string | null,
+): Promise<VersionInfo> => {
+  if (isTauriApp()) {
+    const v = await invoke<{
+      id: string;
+      number: number;
+      parent_version: string | null;
+      state: string;
+      size_bytes: number;
+      created_at: number;
+      commit_message: string | null;
+      is_current: boolean;
+    }>("set_version_message", { objectId, versionId, message });
+    return {
+      id: v.id,
+      number: v.number,
+      parentVersion: v.parent_version,
+      state: v.state,
+      sizeBytes: v.size_bytes,
+      createdAt: v.created_at,
+      commitMessage: v.commit_message,
+      isCurrent: v.is_current,
+    };
+  }
+  return (await getMocks()).mockSetVersionMessage(objectId, versionId, message);
+};
+
 export const reviseObject = async (
   objectId: string,
   content: string,

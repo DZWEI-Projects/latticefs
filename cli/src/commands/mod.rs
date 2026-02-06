@@ -1,9 +1,9 @@
 use clap::Subcommand;
 
 pub mod add;
-pub mod common;
 pub mod cat;
 pub mod checkout;
+pub mod common;
 pub mod diff;
 pub mod edit;
 pub mod export;
@@ -11,16 +11,17 @@ pub mod get;
 pub mod import;
 pub mod ipc;
 pub mod link;
+pub mod message;
 pub mod meta;
 pub mod mount;
 pub mod policy;
-pub mod revoke;
 pub mod revise;
-pub mod state;
+pub mod revoke;
 pub mod share;
 pub mod shares;
-pub mod system;
+pub mod state;
 pub mod stats;
+pub mod system;
 pub mod tag;
 pub mod tags;
 pub mod trust;
@@ -45,6 +46,7 @@ pub enum Command {
     Checkout(checkout::CheckoutArgs),
     Revise(revise::ReviseArgs),
     State(state::StateArgs),
+    Message(message::MessageArgs),
     View(view::ViewArgs),
     Share(share::ShareCommand),
     Revoke(revoke::RevokeArgs),

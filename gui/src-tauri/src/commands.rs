@@ -1159,6 +1159,51 @@ pub fn set_version_state(
 }
 
 #[tauri::command]
+pub fn set_version_message(
+    object_id: String,
+    version_id: String,
+    message: Option<String>,
+) -> Result<VersionInfo, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let version_id = parse_version_id(&version_id)?;
+
+    let object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+
+    let version = repo
+        .update_version_message(&object_id, Some(version_id), message)
+        .map_err(|err| err.to_string())?;
+
+    // Find version number
+    let mut all_versions: Vec<Version> = Vec::new();
+    for vid in &object.versions {
+        if let Ok(v) = repo.metadata.load_version(vid) {
+            all_versions.push(v);
+        }
+    }
+    all_versions.sort_by_key(|v| v.created_at);
+    let number = all_versions
+        .iter()
+        .position(|v| v.id == version.id)
+        .map(|i| i + 1)
+        .unwrap_or(1);
+
+    Ok(VersionInfo {
+        id: version.id.to_string(),
+        number,
+        created_at: version.created_at,
+        size_bytes: version.size_bytes,
+        state: version.state.to_string(),
+        parent_version: version.parent_version.map(|p| p.to_string()),
+        commit_message: version.commit_message.clone(),
+        is_current: version.id == object.current_version,
+    })
+}
+
+#[tauri::command]
 pub fn checkout_object_version(
     object_id: String,
     version_id: String,
