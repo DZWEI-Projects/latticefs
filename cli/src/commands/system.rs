@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Args;
-use latticefs_base::storage::hash_to_hex;
 use latticefs_base::LatticeRepo;
+use latticefs_base::storage::hash_to_hex;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -48,7 +48,10 @@ pub async fn gc(repo: LatticeRepo, _args: GcArgs) -> Result<()> {
     let referenced = collect_referenced_chunks(&repo)?;
     let mut removed = 0u64;
 
-    for entry in walkdir::WalkDir::new(repo.root.join("chunks")).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(repo.root.join("chunks"))
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if !entry.file_type().is_file() {
             continue;
         }
@@ -85,7 +88,11 @@ pub async fn verify(repo: LatticeRepo, args: VerifyArgs) -> Result<()> {
     Ok(())
 }
 
-async fn verify_object(repo: &LatticeRepo, object_id: &latticefs_base::ObjectID, deep: bool) -> Result<()> {
+async fn verify_object(
+    repo: &LatticeRepo,
+    object_id: &latticefs_base::ObjectID,
+    deep: bool,
+) -> Result<()> {
     let object = repo.metadata.load_object(object_id)?;
     if deep {
         for vid in object.versions {
@@ -135,7 +142,10 @@ fn count_chunks(path: &PathBuf) -> Result<(u64, u64)> {
     if !path.exists() {
         return Ok((0, 0));
     }
-    for entry in walkdir::WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file() {
             count += 1;
             bytes += entry.metadata()?.len();

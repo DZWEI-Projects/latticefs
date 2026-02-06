@@ -80,7 +80,14 @@ impl LatticeRepo {
         self.quota.check_storage_quota(&self.chunks, data)?;
         let manifest = self.chunks.store_object(data).await?;
         let manifest_ref = self.metadata.store_manifest(&manifest)?;
-        self.add_version_from_manifest(object_id, &manifest, manifest_ref, data.len() as u64, actor, message)
+        self.add_version_from_manifest(
+            object_id,
+            &manifest,
+            manifest_ref,
+            data.len() as u64,
+            actor,
+            message,
+        )
     }
 
     /// Add a new version for an existing object using an existing manifest.
@@ -193,9 +200,10 @@ impl LatticeRepo {
     /// cannot bypass rate limits by reading stale state.
     pub fn enforce_rate_limit(&self, ops: u64) -> Result<()> {
         let rate_limiter = self.rate_limiter.clone();
-        self.metadata.atomic_rate_limit_consume("default", move |state| {
-            rate_limiter.check_and_consume(state, ops)
-        })
+        self.metadata
+            .atomic_rate_limit_consume("default", move |state| {
+                rate_limiter.check_and_consume(state, ops)
+            })
     }
 }
 

@@ -49,21 +49,17 @@ impl FileWatcher {
         let mut debouncer = new_debouncer(
             debounce_duration,
             None,
-            move |result: DebounceEventResult| {
-                match result {
-                    Ok(events) => {
-                        let paths: Vec<PathBuf> = events
-                            .into_iter()
-                            .flat_map(|e| e.event.paths)
-                            .collect();
-                        if !paths.is_empty() {
-                            let _ = tx.blocking_send(paths);
-                        }
+            move |result: DebounceEventResult| match result {
+                Ok(events) => {
+                    let paths: Vec<PathBuf> =
+                        events.into_iter().flat_map(|e| e.event.paths).collect();
+                    if !paths.is_empty() {
+                        let _ = tx.blocking_send(paths);
                     }
-                    Err(errors) => {
-                        for err in errors {
-                            error!("File watcher error: {:?}", err);
-                        }
+                }
+                Err(errors) => {
+                    for err in errors {
+                        error!("File watcher error: {:?}", err);
                     }
                 }
             },
@@ -125,7 +121,10 @@ impl FileWatcher {
         let entry = match self.registry.get(&canonical_path) {
             Some(entry) => entry,
             None => {
-                debug!("File not in registry, skipping: {}", canonical_path.display());
+                debug!(
+                    "File not in registry, skipping: {}",
+                    canonical_path.display()
+                );
                 return Ok(());
             }
         };
@@ -134,7 +133,10 @@ impl FileWatcher {
         let data = match std::fs::read(&canonical_path) {
             Ok(data) => data,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                info!("Watched file deleted, unregistering: {}", canonical_path.display());
+                info!(
+                    "Watched file deleted, unregistering: {}",
+                    canonical_path.display()
+                );
                 self.registry.unregister(&canonical_path);
                 self.persist.save(&self.registry)?;
                 // Open repo briefly to emit event
@@ -153,7 +155,10 @@ impl FileWatcher {
         // Compute hash — skip if identical to last known
         let new_hash = compute_hash(&data);
         if new_hash == entry.last_known_hash {
-            debug!("No content change (hash match), skipping: {}", canonical_path.display());
+            debug!(
+                "No content change (hash match), skipping: {}",
+                canonical_path.display()
+            );
             return Ok(());
         }
 
@@ -172,7 +177,9 @@ impl FileWatcher {
             Ok(version) => {
                 info!(
                     "Auto-created version {} for object {} from {}",
-                    version.id, entry.object_id, canonical_path.display()
+                    version.id,
+                    entry.object_id,
+                    canonical_path.display()
                 );
                 self.registry.update_hash(&canonical_path, new_hash);
                 self.persist.save(&self.registry)?;
@@ -184,7 +191,11 @@ impl FileWatcher {
                 ));
             }
             Err(LatticeError::ObjectSealed { id }) => {
-                warn!("Object {} is sealed, unregistering watcher for {}", id, canonical_path.display());
+                warn!(
+                    "Object {} is sealed, unregistering watcher for {}",
+                    id,
+                    canonical_path.display()
+                );
                 self.registry.unregister(&canonical_path);
                 self.persist.save(&self.registry)?;
                 repo.events.emit_sync(Event::watch_file_removed(
@@ -194,7 +205,11 @@ impl FileWatcher {
                 ));
             }
             Err(e) => {
-                error!("Failed to create version for {}: {}", canonical_path.display(), e);
+                error!(
+                    "Failed to create version for {}: {}",
+                    canonical_path.display(),
+                    e
+                );
             }
         }
 

@@ -337,7 +337,14 @@ fn cli_flow_nested_views() {
     assert!(output2.status.success());
 
     let output3 = lfs_cmd(&lattice_home, &xdg_home)
-        .args(["add", file3.to_str().unwrap(), "--tag", "project:apollo"])
+        .args([
+            "add",
+            file3.to_str().unwrap(),
+            "--tag",
+            "project:apollo",
+            "--tag",
+            "kind:doc",
+        ])
         .output()
         .unwrap();
     assert!(output3.status.success());
@@ -395,6 +402,7 @@ fn cli_flow_nested_views() {
         .args(["stats", "view", "PhoenixDocs"])
         .assert()
         .success()
+        .stdout(predicate::str::contains("Parent: PhoenixProject"))
         .stdout(predicate::str::contains("Objects: 1"));
 }
 

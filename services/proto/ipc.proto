@@ -153,3 +153,50 @@ message ShutdownRequest {
 message ShutdownResponse {
   bool success = 1;
 }
+
+// Watch register request: track an edited file for auto-revision.
+message WatchRegisterRequest {
+  string temp_path = 1;
+  string object_id = 2;
+  bytes actor_id = 3;      // 32 bytes
+  bytes content_hash = 4;  // 32 bytes (BLAKE3)
+  string display_name = 5;
+}
+
+message WatchRegisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Watch unregister request: stop tracking a file.
+message WatchUnregisterRequest {
+  string temp_path = 1;
+}
+
+message WatchUnregisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// One tracked file entry.
+message WatchedFileInfo {
+  string temp_path = 1;
+  string object_id = 2;
+  string display_name = 3;
+  int64 registered_at = 4;
+}
+
+message WatchListRequest {}
+
+message WatchListResponse {
+  repeated WatchedFileInfo files = 1;
+}
+
+message WatchStatusRequest {}
+
+message WatchStatusResponse {
+  bool running = 1;
+  uint64 watched_count = 2;
+  string watch_dir = 3;
+  uint64 pid = 4;
+}

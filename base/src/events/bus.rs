@@ -1,5 +1,5 @@
-use crate::events::types::Event;
 use crate::error::Result;
+use crate::events::types::Event;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;

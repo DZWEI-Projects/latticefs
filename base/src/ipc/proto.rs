@@ -278,7 +278,7 @@ pub struct ShutdownResponse {
     #[prost(bool, tag = "1")]
     pub success: bool,
 }
-/// Watch register request: Register a file for watching
+/// Watch register request: track an edited file for auto-revision.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct WatchRegisterRequest {
@@ -286,8 +286,10 @@ pub struct WatchRegisterRequest {
     pub temp_path: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub object_id: ::prost::alloc::string::String,
+    /// 32 bytes
     #[prost(bytes = "vec", tag = "3")]
     pub actor_id: ::prost::alloc::vec::Vec<u8>,
+    /// 32 bytes (BLAKE3)
     #[prost(bytes = "vec", tag = "4")]
     pub content_hash: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag = "5")]
@@ -301,7 +303,7 @@ pub struct WatchRegisterResponse {
     #[prost(string, tag = "2")]
     pub message: ::prost::alloc::string::String,
 }
-/// Watch unregister request: Stop watching a file
+/// Watch unregister request: stop tracking a file.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct WatchUnregisterRequest {
@@ -316,16 +318,7 @@ pub struct WatchUnregisterResponse {
     #[prost(string, tag = "2")]
     pub message: ::prost::alloc::string::String,
 }
-/// Watch list request: List all watched files
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct WatchListRequest {}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct WatchListResponse {
-    #[prost(message, repeated, tag = "1")]
-    pub files: ::prost::alloc::vec::Vec<WatchedFileInfo>,
-}
+/// One tracked file entry.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct WatchedFileInfo {
@@ -338,7 +331,15 @@ pub struct WatchedFileInfo {
     #[prost(int64, tag = "4")]
     pub registered_at: i64,
 }
-/// Watch status request: Get watcher daemon status
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchListRequest {}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WatchListResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub files: ::prost::alloc::vec::Vec<WatchedFileInfo>,
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct WatchStatusRequest {}

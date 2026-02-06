@@ -79,9 +79,9 @@ impl Policy {
             PolicyTemplate::ProjectCollab => {
                 policy.allow = vec![Permission::Read, Permission::Write, Permission::Comment];
                 policy.deny = vec![Permission::Admin];
-                policy.require = vec![Requirement::ApprovalFrom(vec![
-                    "lead-architect".to_string(),
-                ])];
+                policy.require = vec![Requirement::ApprovalFrom(
+                    vec!["lead-architect".to_string()],
+                )];
                 policy.retain_days = Some(365 * 7);
                 policy.external_share = false;
             }

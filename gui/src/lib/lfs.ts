@@ -386,7 +386,14 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
       icon: string | null;
       object_count: number;
       parent_id: string | null;
-    }>("create_view", { args });
+    }>("create_view", {
+      args: {
+        name: args.name,
+        query: args.query,
+        description: args.description,
+        parent_id: args.parentId ?? null,
+      },
+    });
     return {
       id: view.id,
       name: view.name,
@@ -403,6 +410,23 @@ export const createView = async (args: CreateViewArgs): Promise<ViewInfo> => {
 
 export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
   if (isTauriApp()) {
+    const tauriArgs: {
+      id: string;
+      name: string;
+      query: string;
+      description?: string;
+      parent_id?: string | null;
+    } = {
+      id: args.id,
+      name: args.name,
+      query: args.query,
+      description: args.description,
+    };
+
+    if (args.parentId !== undefined) {
+      tauriArgs.parent_id = args.parentId;
+    }
+
     const view = await invoke<{
       id: string;
       name: string;
@@ -412,7 +436,9 @@ export const updateView = async (args: UpdateViewArgs): Promise<ViewInfo> => {
       icon: string | null;
       object_count: number;
       parent_id: string | null;
-    }>("update_view", { args });
+    }>("update_view", {
+      args: tauriArgs,
+    });
     return {
       id: view.id,
       name: view.name,

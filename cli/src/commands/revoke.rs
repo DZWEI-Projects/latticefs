@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Args;
-use latticefs_base::crypto::{Capability, Revocation};
 use latticefs_base::LatticeRepo;
+use latticefs_base::crypto::{Capability, Revocation};
 
 use super::common::{ensure_identity, resolve_identity_password};
 

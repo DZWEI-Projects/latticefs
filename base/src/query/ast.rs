@@ -178,12 +178,12 @@ impl std::fmt::Display for MimePattern {
 /// Comparison operators for trust/numeric predicates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CompareOp {
-    Eq,  // =
-    Ne,  // !=
-    Gt,  // >
-    Lt,  // <
-    Ge,  // >=
-    Le,  // <=
+    Eq, // =
+    Ne, // !=
+    Gt, // >
+    Lt, // <
+    Ge, // >=
+    Le, // <=
 }
 
 impl std::fmt::Display for CompareOp {

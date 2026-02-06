@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::mount_fs;
 use latticefs_base::LatticeRepo;
+use latticefs_base::mount_fs;
 use std::path::PathBuf;
 
 use super::common::expand_path;

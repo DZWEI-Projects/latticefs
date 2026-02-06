@@ -4,14 +4,13 @@ use clap::{Args, Subcommand};
 use latticefs_base::crypto::Capability;
 use latticefs_base::model::Tag;
 use latticefs_base::storage::hash_to_hex;
-use latticefs_base::views::{BuiltinView, BuiltinViews, DynamicView, Locale};
+use latticefs_base::views::{
+    BuiltinView, BuiltinViews, DynamicView, EffectiveQueryOptions, Locale, View, ViewJoinOperator,
+};
 use latticefs_base::{LatticeRepo, Permission};
 
 use super::common::{
-    parse_ref_with_version,
-    resolve_object_id,
-    resolve_view_reference,
-    ResolvedView,
+    ResolvedView, parse_ref_with_version, resolve_object_id, resolve_view_reference,
 };
 
 #[derive(Subcommand, Debug)]
@@ -183,8 +182,9 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
             println!("Objects: {}", readable_count);
         }
         ResolvedView::Dynamic(view) => {
-            let mut dynamic =
-                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            let effective_query = dynamic_view_query(&repo, &view)?;
+            let mut dynamic = DynamicView::new(&effective_query, &repo.metadata)?
+                .with_config(view.config.clone());
             let object_ids = dynamic.evaluate()?;
             let readable_count = count_readable(&repo, &object_ids);
 
@@ -192,6 +192,10 @@ async fn view_stats(repo: LatticeRepo, args: StatsViewArgs) -> Result<()> {
             println!("Id: {}", view.id);
             println!("Type: dynamic");
             println!("Query: {}", view.query);
+            if effective_query != view.query {
+                println!("Effective query: {}", effective_query);
+            }
+            println!("Parent: {}", format_parent_view(&repo, &view));
             if let Some(description) = &view.description {
                 println!("Description: {}", description);
             }
@@ -215,8 +219,9 @@ async fn view_objects(repo: LatticeRepo, args: StatsViewObjectsArgs) -> Result<(
             builtins.evaluate(builtin)?
         }
         ResolvedView::Dynamic(view) => {
-            let mut dynamic =
-                DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            let effective_query = dynamic_view_query(&repo, &view)?;
+            let mut dynamic = DynamicView::new(&effective_query, &repo.metadata)?
+                .with_config(view.config.clone());
             dynamic.evaluate()?
         }
     };
@@ -263,17 +268,25 @@ async fn views_summary(repo: LatticeRepo) -> Result<()> {
     for builtin in BuiltinView::all() {
         let object_ids = builtins.evaluate(*builtin)?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {}: {} objects", builtin.name_localized(locale), readable_count);
+        println!(
+            "- {}: {} objects",
+            builtin.name_localized(locale),
+            readable_count
+        );
     }
 
     let views = repo.metadata.list_views()?;
     println!("\nDynamic views: {}", views.len());
     for view in views {
+        let effective_query = dynamic_view_query(&repo, &view)?;
         let mut dynamic =
-            DynamicView::new(&view.query, &repo.metadata)?.with_config(view.config.clone());
+            DynamicView::new(&effective_query, &repo.metadata)?.with_config(view.config.clone());
         let object_ids = dynamic.evaluate()?;
         let readable_count = count_readable(&repo, &object_ids);
-        println!("- {} (id: {}): {} objects", view.name, view.id, readable_count);
+        println!(
+            "- {} (id: {}): {} objects",
+            view.name, view.id, readable_count
+        );
     }
 
     let snapshots = repo.metadata.list_snapshots()?;
@@ -445,6 +458,33 @@ fn count_readable(repo: &LatticeRepo, object_ids: &[latticefs_base::model::Objec
                 .unwrap_or(false)
         })
         .count()
+}
+
+fn dynamic_view_query(repo: &LatticeRepo, view: &View) -> Result<String> {
+    if view.parent_id.is_none() {
+        return Ok(view.query.clone());
+    }
+
+    latticefs_base::views::effective_query_with_options(
+        &repo.metadata,
+        view,
+        EffectiveQueryOptions {
+            max_parent_depth: repo.config.experimental.nested_views.max_parent_depth,
+            join_operator: ViewJoinOperator::And,
+        },
+    )
+    .with_context(|| format!("Failed to compute effective query for view {}", view.id))
+}
+
+fn format_parent_view(repo: &LatticeRepo, view: &View) -> String {
+    let Some(parent_id) = view.parent_id else {
+        return "(none)".to_string();
+    };
+
+    match repo.metadata.load_view_by_id(&parent_id) {
+        Ok(parent) => format!("{} ({})", parent.name, parent.id),
+        Err(_) => format!("{} (missing)", parent_id),
+    }
 }
 
 #[cfg(test)]

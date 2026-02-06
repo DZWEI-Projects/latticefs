@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::crypto::Capability;
-use latticefs_base::Permission;
 use latticefs_base::LatticeRepo;
+use latticefs_base::Permission;
+use latticefs_base::crypto::Capability;
 use std::path::PathBuf;
 
 use super::common::parse_ref_with_version;

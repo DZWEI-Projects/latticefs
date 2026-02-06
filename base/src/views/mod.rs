@@ -60,7 +60,7 @@ impl ViewJoinOperator {
 /// # Example
 ///
 /// ```no_run
-/// use latticefs_base::views::{EffectiveQueryOptions, ViewJoinOperator};
+/// use base::views::{EffectiveQueryOptions, ViewJoinOperator};
 ///
 /// // Use AND to combine parent queries (default)
 /// let options = EffectiveQueryOptions::default();

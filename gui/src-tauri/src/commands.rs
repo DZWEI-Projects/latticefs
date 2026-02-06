@@ -840,20 +840,37 @@ pub async fn open_object(object_id: String) -> Result<(), String> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateViewArgs {
     pub name: String,
     pub query: String,
     pub description: Option<String>,
+    #[serde(alias = "parent_id")]
     pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateViewArgs {
     pub id: String,
     pub name: String,
     pub query: String,
     pub description: Option<String>,
-    pub parent_id: Option<String>,
+    #[serde(
+        default,
+        alias = "parent_id",
+        deserialize_with = "deserialize_optional_parent_id"
+    )]
+    pub parent_id: Option<Option<String>>,
+}
+
+fn deserialize_optional_parent_id<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(Option::<String>::deserialize(deserializer)?))
 }
 
 fn validate_view_name(name: &str) -> Result<(), String> {
@@ -956,20 +973,23 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
     view.modified_at = timestamp_now();
 
     // Update parent_id if provided
-    if let Some(parent_id_str) = args.parent_id {
-        let parent = if let Ok(uuid) = uuid::Uuid::parse_str(&parent_id_str) {
-            repo.metadata
-                .load_view_by_id(&ViewID::from_uuid(uuid))
-                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
-        } else {
-            repo.metadata
-                .load_view(&parent_id_str)
-                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
-        };
-        view.parent_id = Some(parent.id);
-    } else {
-        // If parent_id is explicitly None (not just omitted), remove parent
-        // For now, we'll only update if provided
+    match args.parent_id {
+        Some(Some(parent_id_str)) => {
+            let parent = if let Ok(uuid) = uuid::Uuid::parse_str(&parent_id_str) {
+                repo.metadata
+                    .load_view_by_id(&ViewID::from_uuid(uuid))
+                    .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+            } else {
+                repo.metadata
+                    .load_view(&parent_id_str)
+                    .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+            };
+            view.parent_id = Some(parent.id);
+        }
+        Some(None) => {
+            view.parent_id = None;
+        }
+        None => {}
     }
 
     repo.metadata
@@ -1357,4 +1377,76 @@ pub async fn list_watched_files() -> Result<Vec<WatchedFile>, String> {
             registered_at: f.registered_at,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CreateViewArgs, UpdateViewArgs};
+    use serde_json::json;
+
+    #[test]
+    fn create_view_args_accepts_parent_id_aliases() {
+        let camel: CreateViewArgs = serde_json::from_value(json!({
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parentId": "parent-123"
+        }))
+        .expect("camelCase args should deserialize");
+        assert_eq!(camel.parent_id.as_deref(), Some("parent-123"));
+
+        let snake: CreateViewArgs = serde_json::from_value(json!({
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parent_id": "parent-456"
+        }))
+        .expect("snake_case args should deserialize");
+        assert_eq!(snake.parent_id.as_deref(), Some("parent-456"));
+    }
+
+    #[test]
+    fn update_view_args_accepts_parent_id_aliases() {
+        let camel: UpdateViewArgs = serde_json::from_value(json!({
+            "id": "view-1",
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parentId": "parent-123"
+        }))
+        .expect("camelCase args should deserialize");
+        assert_eq!(
+            camel
+                .parent_id
+                .as_ref()
+                .and_then(|parent| parent.as_deref()),
+            Some("parent-123")
+        );
+
+        let snake: UpdateViewArgs = serde_json::from_value(json!({
+            "id": "view-1",
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parent_id": "parent-456"
+        }))
+        .expect("snake_case args should deserialize");
+        assert_eq!(
+            snake
+                .parent_id
+                .as_ref()
+                .and_then(|parent| parent.as_deref()),
+            Some("parent-456")
+        );
+
+        let clear_parent: UpdateViewArgs = serde_json::from_value(json!({
+            "id": "view-1",
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parentId": null
+        }))
+        .expect("null parentId should deserialize for explicit clear");
+        assert!(matches!(clear_parent.parent_id, Some(None)));
+    }
 }

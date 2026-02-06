@@ -44,7 +44,8 @@ impl<'a> InodeMapper<'a> {
                 continue;
             }
 
-            self.store.store_inode_mapping(inode, object_id.as_bytes())?;
+            self.store
+                .store_inode_mapping(inode, object_id.as_bytes())?;
             return Ok(inode);
         }
     }

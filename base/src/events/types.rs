@@ -79,7 +79,12 @@ impl Event {
         }
     }
 
-    pub fn share_issued(resource: String, capability_cid: String, audience: String, expires_at: u64) -> Self {
+    pub fn share_issued(
+        resource: String,
+        capability_cid: String,
+        audience: String,
+        expires_at: u64,
+    ) -> Self {
         Self {
             timestamp: crate::model::timestamp_now(),
             kind: EventKind::ShareIssued {

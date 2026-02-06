@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
-use latticefs_base::model::Tag;
 use latticefs_base::LatticeRepo;
 use latticefs_base::Permission;
+use latticefs_base::model::Tag;
 
 use super::common::{ensure_identity, identity_actor, resolve_object_id};
 
@@ -82,7 +82,12 @@ async fn set(repo: LatticeRepo, args: SetArgs) -> Result<()> {
     repo.authorize_object_permission(&object, Permission::Write, false)?;
     repo.enforce_rate_limit(1)?;
 
-    let removed: Vec<_> = object.tags.iter().filter(|t| t.key == "sys:trust").cloned().collect();
+    let removed: Vec<_> = object
+        .tags
+        .iter()
+        .filter(|t| t.key == "sys:trust")
+        .cloned()
+        .collect();
     object.tags.retain(|t| t.key != "sys:trust");
     for tag in removed {
         repo.metadata
@@ -90,7 +95,8 @@ async fn set(repo: LatticeRepo, args: SetArgs) -> Result<()> {
     }
     let tag = Tag::new("sys:trust".to_string(), value.to_string(), actor);
     object.add_tag(tag.clone());
-    repo.metadata.add_to_tag_index(&tag.full_path(), object_id.as_bytes())?;
+    repo.metadata
+        .add_to_tag_index(&tag.full_path(), object_id.as_bytes())?;
     repo.metadata.store_object(&object)?;
 
     println!("Set trust {} -> {}", object_id, value);

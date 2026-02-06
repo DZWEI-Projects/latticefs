@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::import::{export_object, export_ref, export_view, ExportMode};
 use latticefs_base::LatticeRepo;
+use latticefs_base::import::{ExportMode, export_object, export_ref, export_view};
 use std::path::PathBuf;
 
 use super::common::{find_view_by_id, parse_ref_with_version};
@@ -19,10 +19,7 @@ pub struct ExportArgs {
 }
 
 pub async fn run(repo: LatticeRepo, args: ExportArgs) -> Result<()> {
-    let mode: ExportMode = args
-        .mode
-        .parse()
-        .map_err(|e: String| anyhow::anyhow!(e))?;
+    let mode: ExportMode = args.mode.parse().map_err(|e: String| anyhow::anyhow!(e))?;
 
     // Check if reference contains a version specifier (e.g., @v1 or @<version-id>)
     if args.reference.contains('@') {

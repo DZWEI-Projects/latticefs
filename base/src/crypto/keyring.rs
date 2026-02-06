@@ -68,8 +68,9 @@ impl KeyManager {
     pub fn store(&self, identity: &Identity, password: Option<&str>) -> Result<()> {
         match &self.storage {
             KeyStorage::SystemKeyring => {
-                let entry = keyring::Entry::new(KEYRING_SERVICE, &identity.name)
-                    .map_err(|e| LatticeError::Keyring(format!("Failed to create keyring entry: {}", e)))?;
+                let entry = keyring::Entry::new(KEYRING_SERVICE, &identity.name).map_err(|e| {
+                    LatticeError::Keyring(format!("Failed to create keyring entry: {}", e))
+                })?;
 
                 let secret_hex = hex::encode(identity.secret_bytes());
                 entry
@@ -80,7 +81,9 @@ impl KeyManager {
             }
             KeyStorage::EncryptedFile { path } => {
                 let password = password.ok_or_else(|| {
-                    LatticeError::Keyring("Password required for encrypted file storage".to_string())
+                    LatticeError::Keyring(
+                        "Password required for encrypted file storage".to_string(),
+                    )
                 })?;
 
                 self.store_to_file(path, identity, password)
@@ -95,12 +98,16 @@ impl KeyManager {
     pub fn load(&self, name: &str, password: Option<&str>) -> Result<Identity> {
         match &self.storage {
             KeyStorage::SystemKeyring => {
-                let entry = keyring::Entry::new(KEYRING_SERVICE, name)
-                    .map_err(|e| LatticeError::Keyring(format!("Failed to access keyring: {}", e)))?;
+                let entry = keyring::Entry::new(KEYRING_SERVICE, name).map_err(|e| {
+                    LatticeError::Keyring(format!("Failed to access keyring: {}", e))
+                })?;
 
-                let secret_hex = entry
-                    .get_password()
-                    .map_err(|e| LatticeError::IdentityNotFound { name: format!("{}: {}", name, e) })?;
+                let secret_hex =
+                    entry
+                        .get_password()
+                        .map_err(|e| LatticeError::IdentityNotFound {
+                            name: format!("{}: {}", name, e),
+                        })?;
 
                 let secret_bytes = hex::decode(&secret_hex)
                     .map_err(|e| LatticeError::Keyring(format!("Invalid key format: {}", e)))?;
@@ -113,7 +120,9 @@ impl KeyManager {
             }
             KeyStorage::EncryptedFile { path } => {
                 let password = password.ok_or_else(|| {
-                    LatticeError::Keyring("Password required for encrypted file storage".to_string())
+                    LatticeError::Keyring(
+                        "Password required for encrypted file storage".to_string(),
+                    )
                 })?;
 
                 self.load_from_file(path, name, password)
@@ -125,8 +134,9 @@ impl KeyManager {
     pub fn delete(&self, name: &str) -> Result<()> {
         match &self.storage {
             KeyStorage::SystemKeyring => {
-                let entry = keyring::Entry::new(KEYRING_SERVICE, name)
-                    .map_err(|e| LatticeError::Keyring(format!("Failed to access keyring: {}", e)))?;
+                let entry = keyring::Entry::new(KEYRING_SERVICE, name).map_err(|e| {
+                    LatticeError::Keyring(format!("Failed to access keyring: {}", e))
+                })?;
 
                 entry
                     .delete_password()

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::model::Tag;
 use latticefs_base::LatticeRepo;
+use latticefs_base::model::Tag;
 
 use super::common::{ensure_identity, identity_actor, resolve_object_id};
 
@@ -31,7 +31,8 @@ pub async fn run(repo: LatticeRepo, args: TagArgs) -> Result<()> {
         let tag = Tag::parse(tag_str, actor)?;
         let full = tag.full_path();
         object.add_tag(tag);
-        repo.metadata.add_to_tag_index(&full, object_id.as_bytes())?;
+        repo.metadata
+            .add_to_tag_index(&full, object_id.as_bytes())?;
     }
 
     repo.metadata.store_object(&object)?;

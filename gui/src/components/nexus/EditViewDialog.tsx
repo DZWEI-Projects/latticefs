@@ -12,6 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { updateView, type ViewInfo } from "@/lib/lfs";
 import { useViews } from "@/hooks/useViews";
 import { Loader2 } from "lucide-react";
@@ -28,16 +35,21 @@ export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
+  const [parentId, setParentId] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const parentView = view?.parentId ? views?.find((v) => v.id === view.parentId) : null;
+  const parentCandidates = (views ?? [])
+    .filter((v) => v.viewType === "dynamic" && v.id !== view?.id)
+    .sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
 
   useEffect(() => {
     if (!view || !open) return;
     setName(view.name);
     setQuery(view.query);
     setDescription(view.description || "");
+    setParentId(view.parentId ?? "");
     setError(null);
   }, [view, open]);
 
@@ -58,6 +70,7 @@ export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps
         name: name.trim(),
         query: query.trim(),
         description: description.trim() || undefined,
+        parentId: parentId || null,
       });
 
       await queryClient.invalidateQueries({ queryKey: ["views"] });
@@ -128,17 +141,34 @@ export const EditViewDialog = ({ view, open, onOpenChange }: EditViewDialogProps
             />
           </div>
 
-          {parentView && (
-            <div className="grid gap-2">
-              <Label>Übergeordnete Perspektive</Label>
-              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
-                {parentView.name}
-              </div>
+          <div className="grid gap-2">
+            <Label>Übergeordnete Perspektive</Label>
+            <Select
+              value={parentId || "__none__"}
+              onValueChange={(value) => setParentId(value === "__none__" ? "" : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Keine (Top-Level)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Keine (Top-Level)</SelectItem>
+                {parentCandidates.map((candidate) => (
+                  <SelectItem key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {parentView ? (
               <p className="text-xs text-muted-foreground">
-                Diese Perspektive ist eine Teilperspektive von "{parentView.name}". Die Filter werden kombiniert.
+                Diese Perspektive ist aktuell unter "{parentView.name}" einsortiert.
               </p>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Optional: Perspektive auswählen, um diese als Teilperspektive einzuordnen.
+              </p>
+            )}
+          </div>
 
           {error && (
             <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">

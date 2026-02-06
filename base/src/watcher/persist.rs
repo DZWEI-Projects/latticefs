@@ -19,8 +19,13 @@ impl PersistentRegistry {
         }
 
         let contents = std::fs::read_to_string(&self.path)?;
-        let entries: HashMap<PathBuf, WatchEntry> = serde_json::from_str(&contents)
-            .map_err(|e| crate::error::LatticeError::Serialization(format!("Failed to parse watcher registry: {}", e)))?;
+        let entries: HashMap<PathBuf, WatchEntry> =
+            serde_json::from_str(&contents).map_err(|e| {
+                crate::error::LatticeError::Serialization(format!(
+                    "Failed to parse watcher registry: {}",
+                    e
+                ))
+            })?;
 
         // Prune entries whose temp files no longer exist
         let pruned: HashMap<PathBuf, WatchEntry> = entries
@@ -38,8 +43,12 @@ impl PersistentRegistry {
         }
 
         let snapshot = registry.snapshot();
-        let contents = serde_json::to_string_pretty(&snapshot)
-            .map_err(|e| crate::error::LatticeError::Serialization(format!("Failed to serialize watcher registry: {}", e)))?;
+        let contents = serde_json::to_string_pretty(&snapshot).map_err(|e| {
+            crate::error::LatticeError::Serialization(format!(
+                "Failed to serialize watcher registry: {}",
+                e
+            ))
+        })?;
         std::fs::write(&self.path, contents)?;
         Ok(())
     }

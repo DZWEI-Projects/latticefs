@@ -1,8 +1,8 @@
 use anyhow::Result;
 use clap::Args;
 use indicatif::{ProgressBar, ProgressStyle};
-use latticefs_base::import::{import_file, scanner, ImportOptions};
 use latticefs_base::LatticeRepo;
+use latticefs_base::import::{ImportOptions, import_file, scanner};
 use std::path::PathBuf;
 
 use super::common::{ensure_identity, identity_actor};
@@ -59,6 +59,9 @@ pub async fn run(repo: LatticeRepo, args: ImportArgs) -> Result<()> {
         for err in &errors {
             eprintln!("Import error: {}", err);
         }
-        Err(anyhow::anyhow!("Import completed with {} errors", errors.len()))
+        Err(anyhow::anyhow!(
+            "Import completed with {} errors",
+            errors.len()
+        ))
     }
 }

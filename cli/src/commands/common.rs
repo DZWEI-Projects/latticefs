@@ -21,7 +21,8 @@ struct LocalRepoSection {
 }
 
 pub fn open_repo(repo_path: Option<PathBuf>) -> Result<LatticeRepo> {
-    let cwd = std::env::current_dir().map_err(|err| anyhow!("Failed to read current directory: {}", err))?;
+    let cwd = std::env::current_dir()
+        .map_err(|err| anyhow!("Failed to read current directory: {}", err))?;
     if let Some(path) = resolve_repo_override(repo_path, &cwd)? {
         return Ok(LatticeRepo::open_at(&path)?);
     }
@@ -51,10 +52,7 @@ fn should_auto_load_repo(cwd: &Path) -> Result<bool> {
     let contents = fs::read_to_string(&marker_path)?;
     let config: LocalRepoConfig = toml::from_str(&contents)
         .map_err(|err| anyhow!("Failed to parse {}: {}", marker_path.display(), err))?;
-    Ok(config
-        .repo
-        .and_then(|repo| repo.auto_load)
-        .unwrap_or(false))
+    Ok(config.repo.and_then(|repo| repo.auto_load).unwrap_or(false))
 }
 
 pub fn ensure_identity(name: &str, password: Option<&str>) -> Result<Identity> {
@@ -271,9 +269,10 @@ mod tests {
         .unwrap();
 
         let err = should_auto_load_repo(temp.path()).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains(&format!("Failed to parse {}", temp.path().join(LOCAL_REPO_CONFIG_FILE).display())));
+        assert!(err.to_string().contains(&format!(
+            "Failed to parse {}",
+            temp.path().join(LOCAL_REPO_CONFIG_FILE).display()
+        )));
     }
 
     #[test]
