@@ -62,3 +62,37 @@ pub async fn run(repo: LatticeRepo, args: GetArgs) -> Result<()> {
     println!("Wrote {}", out_path.display());
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: GetArgs,
+    }
+
+    #[test]
+    fn parses_get_args_with_optional_ucan() {
+        let cli = Cli::parse_from([
+            "get",
+            "obj-ref",
+            "--output",
+            "out.bin",
+            "--ucan",
+            "token.value.sig",
+        ]);
+
+        assert_eq!(cli.args.reference, "obj-ref");
+        assert_eq!(cli.args.output, PathBuf::from("out.bin"));
+        assert_eq!(cli.args.ucan.as_deref(), Some("token.value.sig"));
+    }
+
+    #[test]
+    fn get_requires_output_flag() {
+        let err = Cli::try_parse_from(["get", "obj-ref"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    }
+}

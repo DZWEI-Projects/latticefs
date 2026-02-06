@@ -190,3 +190,61 @@ fn create_snapshot(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use latticefs_base::Identity;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: ShareCommand,
+    }
+
+    #[test]
+    fn parse_public_key_accepts_did_key() {
+        let identity = Identity::generate("alice");
+        let did = identity.did();
+
+        let parsed = parse_public_key(&did).unwrap();
+        assert_eq!(parsed.did(), did);
+    }
+
+    #[test]
+    fn parse_public_key_accepts_hex() {
+        let identity = Identity::generate("alice");
+        let key_hex = hex::encode(identity.public_bytes());
+
+        let parsed = parse_public_key(&key_hex).unwrap();
+        assert_eq!(parsed.to_bytes(), identity.public_bytes());
+    }
+
+    #[test]
+    fn parse_public_key_rejects_invalid_hex() {
+        let err = parse_public_key("zz-not-hex").unwrap_err();
+        assert!(err.to_string().contains("Invalid public key format"));
+    }
+
+    #[test]
+    fn parse_public_key_rejects_wrong_length() {
+        let short_hex = hex::encode([7u8; 31]);
+        let err = parse_public_key(&short_hex).unwrap_err();
+        assert!(err.to_string().contains("Invalid public key length"));
+    }
+
+    #[test]
+    fn parses_share_snapshot_subcommand() {
+        let audience = hex::encode(Identity::generate("aud").public_bytes());
+        let cli = Cli::parse_from(["share", "snapshot", "recent", "--to", audience.as_str()]);
+
+        assert!(matches!(
+            cli.args.subcommand,
+            Some(ShareSubcommand::Snapshot(_))
+        ));
+        assert_eq!(cli.args.to, Some(audience));
+        assert_eq!(cli.args.cap, "read");
+        assert_eq!(cli.args.expires, "7d");
+    }
+}
