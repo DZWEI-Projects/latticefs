@@ -4,6 +4,7 @@ use crate::events::Event;
 use crate::ipc::{bind_listener, recv_message, send_message, socket_path, MessageType};
 use crate::repo::LatticeRepo;
 use crate::security::is_quarantined_executable;
+use crate::watcher::WatchRegistry;
 use crate::KeyManager;
 use prost::Message;
 use std::collections::HashMap;
@@ -15,6 +16,13 @@ use tokio::sync::watch;
 use super::proto as pb;
 
 pub async fn run_ipc_server(repo: LatticeRepo) -> Result<()> {
+    run_ipc_server_with_watcher(repo, None).await
+}
+
+pub async fn run_ipc_server_with_watcher(
+    repo: LatticeRepo,
+    watcher_registry: Option<Arc<WatchRegistry>>,
+) -> Result<()> {
     let repo = Arc::new(repo);
     let socket_path = socket_path(&repo);
     let listener = bind_listener(&repo).await?;
@@ -45,8 +53,9 @@ pub async fn run_ipc_server(repo: LatticeRepo) -> Result<()> {
                 let (stream, _) = accept?;
                 let repo = Arc::clone(&repo);
                 let shutdown_tx = shutdown_tx.clone();
+                let registry = watcher_registry.clone();
                 tokio::spawn(async move {
-                    let _ = handle_connection(repo, stream, shutdown_tx).await;
+                    let _ = handle_connection(repo, stream, shutdown_tx, registry).await;
                 });
             }
         }
@@ -59,6 +68,7 @@ async fn handle_connection(
     repo: Arc<LatticeRepo>,
     mut stream: UnixStream,
     shutdown_tx: watch::Sender<bool>,
+    watcher_registry: Option<Arc<WatchRegistry>>,
 ) -> Result<()> {
     loop {
         let (msg_type, payload) = match recv_message(&mut stream).await {
@@ -101,6 +111,26 @@ async fn handle_connection(
                     success: true,
                 };
                 send_message(&mut stream, MessageType::SyncAck, &ack).await?;
+            }
+            MessageType::WatchRegisterRequest => {
+                let request = pb::WatchRegisterRequest::decode(payload)?;
+                let response = handle_watch_register(&watcher_registry, request);
+                send_message(&mut stream, MessageType::WatchRegisterResponse, &response).await?;
+            }
+            MessageType::WatchUnregisterRequest => {
+                let request = pb::WatchUnregisterRequest::decode(payload)?;
+                let response = handle_watch_unregister(&watcher_registry, request);
+                send_message(&mut stream, MessageType::WatchUnregisterResponse, &response).await?;
+            }
+            MessageType::WatchListRequest => {
+                let _request = pb::WatchListRequest::decode(payload)?;
+                let response = handle_watch_list(&watcher_registry);
+                send_message(&mut stream, MessageType::WatchListResponse, &response).await?;
+            }
+            MessageType::WatchStatusRequest => {
+                let _request = pb::WatchStatusRequest::decode(payload)?;
+                let response = handle_watch_status(&repo, &watcher_registry);
+                send_message(&mut stream, MessageType::WatchStatusResponse, &response).await?;
             }
             _ => {
                 let err = pb::Error {
@@ -399,6 +429,130 @@ fn load_default_identity() -> Result<crate::crypto::Identity> {
     let identity = crate::crypto::Identity::generate("default");
     manager.store(&identity, std::env::var("LFS_KEY_PASSWORD").ok().as_deref())?;
     Ok(identity)
+}
+
+fn handle_watch_register(
+    registry: &Option<Arc<WatchRegistry>>,
+    request: pb::WatchRegisterRequest,
+) -> pb::WatchRegisterResponse {
+    let registry = match registry {
+        Some(r) => r,
+        None => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: "Watcher not enabled on this server".to_string(),
+            };
+        }
+    };
+
+    let object_id = match uuid::Uuid::parse_str(&request.object_id) {
+        Ok(uuid) => crate::model::ObjectID::from_uuid(uuid),
+        Err(e) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: format!("Invalid object ID: {}", e),
+            };
+        }
+    };
+
+    let actor_id: [u8; 32] = match request.actor_id.try_into() {
+        Ok(arr) => arr,
+        Err(_) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: "Invalid actor ID: expected 32 bytes".to_string(),
+            };
+        }
+    };
+
+    let content_hash: [u8; 32] = match request.content_hash.try_into() {
+        Ok(arr) => arr,
+        Err(_) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: "Invalid content hash: expected 32 bytes".to_string(),
+            };
+        }
+    };
+
+    let entry = crate::watcher::WatchEntry {
+        temp_path: std::path::PathBuf::from(&request.temp_path),
+        object_id,
+        actor_id,
+        original_hash: content_hash,
+        last_known_hash: content_hash,
+        display_name: request.display_name,
+        registered_at: crate::model::timestamp_now(),
+    };
+
+    registry.register(entry);
+
+    pb::WatchRegisterResponse {
+        success: true,
+        message: format!("Registered {}", request.temp_path),
+    }
+}
+
+fn handle_watch_unregister(
+    registry: &Option<Arc<WatchRegistry>>,
+    request: pb::WatchUnregisterRequest,
+) -> pb::WatchUnregisterResponse {
+    let registry = match registry {
+        Some(r) => r,
+        None => {
+            return pb::WatchUnregisterResponse {
+                success: false,
+                message: "Watcher not enabled on this server".to_string(),
+            };
+        }
+    };
+
+    let path = std::path::PathBuf::from(&request.temp_path);
+    match registry.unregister(&path) {
+        Some(_) => pb::WatchUnregisterResponse {
+            success: true,
+            message: format!("Unregistered {}", request.temp_path),
+        },
+        None => pb::WatchUnregisterResponse {
+            success: false,
+            message: format!("File not registered: {}", request.temp_path),
+        },
+    }
+}
+
+fn handle_watch_list(registry: &Option<Arc<WatchRegistry>>) -> pb::WatchListResponse {
+    let files = match registry {
+        Some(r) => r
+            .list()
+            .into_iter()
+            .map(|e| pb::WatchedFileInfo {
+                temp_path: e.temp_path.display().to_string(),
+                object_id: e.object_id.to_string(),
+                display_name: e.display_name,
+                registered_at: e.registered_at,
+            })
+            .collect(),
+        None => vec![],
+    };
+
+    pb::WatchListResponse { files }
+}
+
+fn handle_watch_status(
+    repo: &LatticeRepo,
+    registry: &Option<Arc<WatchRegistry>>,
+) -> pb::WatchStatusResponse {
+    let (watched_count, watch_dir) = match registry {
+        Some(r) => (r.count() as u64, repo.config.watcher.watch_dir.clone()),
+        None => (0, String::new()),
+    };
+
+    pb::WatchStatusResponse {
+        running: registry.is_some(),
+        watched_count,
+        watch_dir,
+        pid: std::process::id() as u64,
+    }
 }
 
 fn ipc_error(err: &LatticeError) -> pb::Error {

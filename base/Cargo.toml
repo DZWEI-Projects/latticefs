@@ -30,6 +30,11 @@ bs58 = "0.5"
 dirs = "5.0"
 time = { version = "0.3", features = ["parsing", "formatting"] }
 
+# Phase 4: File watcher
+notify = "7"
+notify-debouncer-full = "0.4"
+glob = "0.3"
+
 # Phase 3: Import/Export, FUSE, config
 mime_guess = "2.0"
 exif = { package = "kamadak-exif", version = "0.5" }

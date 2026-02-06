@@ -19,6 +19,8 @@ pub fn run() {
       crate::commands::create_view,
       crate::commands::update_view,
       crate::commands::delete_view,
+      crate::commands::get_watcher_status,
+      crate::commands::list_watched_files,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

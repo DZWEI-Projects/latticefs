@@ -8,6 +8,7 @@ pub mod proto {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/ipc/proto.rs"));
 }
 
+pub mod client;
 pub mod server;
 
 /// Maximum IPC message size (100 MiB).
@@ -29,6 +30,14 @@ pub enum MessageType {
     StatusResponse = 302,
     ShutdownRequest = 303,
     ShutdownResponse = 304,
+    WatchRegisterRequest = 401,
+    WatchRegisterResponse = 402,
+    WatchUnregisterRequest = 403,
+    WatchUnregisterResponse = 404,
+    WatchListRequest = 405,
+    WatchListResponse = 406,
+    WatchStatusRequest = 407,
+    WatchStatusResponse = 408,
     Error = 999,
 }
 
@@ -48,6 +57,14 @@ impl MessageType {
             302 => MessageType::StatusResponse,
             303 => MessageType::ShutdownRequest,
             304 => MessageType::ShutdownResponse,
+            401 => MessageType::WatchRegisterRequest,
+            402 => MessageType::WatchRegisterResponse,
+            403 => MessageType::WatchUnregisterRequest,
+            404 => MessageType::WatchUnregisterResponse,
+            405 => MessageType::WatchListRequest,
+            406 => MessageType::WatchListResponse,
+            407 => MessageType::WatchStatusRequest,
+            408 => MessageType::WatchStatusResponse,
             999 => MessageType::Error,
             _ => return Err(LatticeError::InvalidPredicate(format!("Unknown message type: {}", value))),
         };

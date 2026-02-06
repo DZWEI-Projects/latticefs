@@ -12,12 +12,13 @@ pub mod repo;
 pub mod security;
 pub mod storage;
 pub mod views;
+pub mod watcher;
 
 // Re-export commonly used types
 pub use error::{LatticeError, Result};
 
 // Config + repo
-pub use config::{Config, FuseConfig, ImportConfig, QuotaConfig, ShareConfig, StorageConfig};
+pub use config::{Config, FuseConfig, ImportConfig, QuotaConfig, ShareConfig, StorageConfig, WatcherConfig};
 pub use repo::LatticeRepo;
 pub use events::{Event, EventBus, EventKind};
 pub use policy::{PolicyContext, PolicyDecision, PolicyEngine, QuotaEnforcer, QuotaReport, RateLimiter};

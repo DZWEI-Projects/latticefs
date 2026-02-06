@@ -867,3 +867,66 @@ Example output:
 ```text
 (no output on success)
 ```
+
+## File Watcher Commands
+
+### `lfs edit <reference> [--no-watch] [-m <message>]`
+Export an object to the watch directory and open it in the default editor. When the watcher daemon is running, saves are automatically versioned.
+
+Example:
+```bash
+lfs edit a1b2c3d4-5678-90ab-cdef-1234567890ab
+lfs edit my-alias
+lfs edit my-alias --no-watch
+```
+
+Example output:
+```text
+Exported to /tmp/latticefs-open/a1b2c3d4-..._report.pdf
+Registered with watcher daemon (auto-versioning enabled)
+```
+
+### `lfs watchd start [--foreground]`
+Start the watcher daemon. By default runs as a background process.
+
+Example:
+```bash
+lfs watchd start
+lfs watchd start --foreground
+```
+
+Example output:
+```text
+Watcher daemon started (pid 12345)
+```
+
+### `lfs watchd stop`
+Stop the running watcher daemon.
+
+Example:
+```bash
+lfs watchd stop
+```
+
+Example output:
+```text
+Shutdown request sent to watcher daemon
+```
+
+### `lfs watchd status`
+Show watcher daemon status and list of watched files.
+
+Example:
+```bash
+lfs watchd status
+```
+
+Example output:
+```text
+Watcher daemon: running (pid 12345)
+Watch directory: /tmp/latticefs-open
+Watched files: 1
+
+OBJECT ID                              NAME                           PATH
+a1b2c3d4-...                           report.pdf                     /tmp/latticefs-open/a1b2c3d4-..._report.pdf
+```
