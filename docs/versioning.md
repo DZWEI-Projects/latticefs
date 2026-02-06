@@ -12,7 +12,7 @@ This document explains how versioning works and walks through two hands-on examp
 CLI commands involved:
 
 - `lfs revise <object-id> <file> [-m <message>]` — create a new version from file content
-- `lfs message set <object-id>[@version] [-m <message>] [--clear]` — update a version commit message
+- `lfs message set <object-id>[@version] (-m <message> | --clear)` — set or clear a version commit message
 - `lfs state set <object-id>[@version] <state>` — set version workflow state
 - `lfs versions <object-id>` — list versions
 - `lfs diff <object-id>@v1 <object-id>@v2` — compare two versions of the same object
