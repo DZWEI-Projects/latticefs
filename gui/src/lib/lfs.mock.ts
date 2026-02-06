@@ -131,8 +131,8 @@ const mockViewsData: ViewInfo[] = [
   },
   {
     id: "approved",
-    name: "Genehmigt",
-    description: "Genehmigte Objekte",
+    name: "Final",
+    description: "Finale Objekte",
     query: "state:approved SORT updated DESC",
     viewType: "builtin",
     icon: "CheckCircle",
