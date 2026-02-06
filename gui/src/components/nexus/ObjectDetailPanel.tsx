@@ -3,8 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import type { ObjectInfo, TagInfo } from "@/lib/lfs";
+import { isTextEditable, exportObjectVersion } from "@/lib/lfs";
 import { cn } from "@/lib/utils";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  ArrowDownToLine,
+  Check,
+  Clock,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
@@ -21,6 +30,8 @@ interface ObjectDetailPanelProps {
   onUpdateTag: (object: ObjectInfo, previous: TagInfo, next: TagInfo) => Promise<void>;
   onSetTrust: (object: ObjectInfo, trust: number | null) => void;
   onViewSelect: (viewId: string) => void;
+  onOpenVersions?: (object: ObjectInfo) => void;
+  onOpenEditor?: (object: ObjectInfo) => void;
 }
 
 function isAutoTag(tag: TagInfo) {
@@ -60,6 +71,8 @@ export const ObjectDetailPanel = ({
   onUpdateTag,
   onSetTrust,
   onViewSelect,
+  onOpenVersions,
+  onOpenEditor,
 }: ObjectDetailPanelProps) => {
   const [trustValue, setTrustValue] = useState<number>(object.trustLevel ?? 70);
   const { userTags, systemTags, id3Tags, exifTags, mimeType } = useMemo(() => {
@@ -147,7 +160,52 @@ export const ObjectDetailPanel = ({
           mimeType={mimeType}
           onCopyId={handleCopyId}
           onViewSelect={onViewSelect}
+          onOpenVersions={() => onOpenVersions?.(object)}
         />
+
+        {/* Version actions */}
+        <section className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {object.versionCount > 1 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => onOpenVersions?.(object)}
+              >
+                <Clock className="w-3 h-3 mr-1" />
+                {object.versionCount} Versionen
+              </Button>
+            )}
+            {isTextEditable(object.extension) && !object.isSealed && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => onOpenEditor?.(object)}
+              >
+                <Pencil className="w-3 h-3 mr-1" />
+                Bearbeiten
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={async () => {
+                try {
+                  await exportObjectVersion(object.id);
+                  toast.success("Exportiert");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Export fehlgeschlagen");
+                }
+              }}
+            >
+              <ArrowDownToLine className="w-3 h-3 mr-1" />
+              Exportieren
+            </Button>
+          </div>
+        </section>
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">

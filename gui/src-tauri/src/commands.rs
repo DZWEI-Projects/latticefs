@@ -4,14 +4,16 @@ use latticefs_base::config::Config;
 use latticefs_base::crypto::{Identity, KeyManager};
 use latticefs_base::error::LatticeError;
 use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
-use latticefs_base::model::{timestamp_now, ObjectID, Tag};
+use latticefs_base::model::{timestamp_now, ObjectID, Tag, Version};
 use latticefs_base::query::{parse, QueryEvaluator};
 use latticefs_base::views::{
     collect_descendants, resolve_dynamic_view_reference, resolve_effective_query,
     validate_parent_assignment, BuiltinView, BuiltinViews, DynamicView, Locale, View, ViewID,
 };
 use latticefs_base::LatticeRepo;
+use latticefs_base::{is_quarantined_executable, Permission, State, VersionID};
 use serde::{Deserialize, Serialize};
+use similar::TextDiff;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
@@ -259,6 +261,42 @@ fn parse_object_id(object_id: &str) -> Result<ObjectID, String> {
     Ok(ObjectID::from_uuid(uuid))
 }
 
+fn parse_version_id(version_id: &str) -> Result<VersionID, String> {
+    let uuid = Uuid::parse_str(version_id).map_err(|err| err.to_string())?;
+    Ok(VersionID::from_uuid(uuid))
+}
+
+async fn read_version_bytes(
+    repo: &LatticeRepo,
+    object_id: &ObjectID,
+    version_id: &VersionID,
+) -> Result<Vec<u8>, String> {
+    let object = repo
+        .metadata
+        .load_object(object_id)
+        .map_err(|err| err.to_string())?;
+    repo.authorize_object_permission(&object, Permission::Read, false)
+        .map_err(|err| err.to_string())?;
+    if is_quarantined_executable(&object.tags) {
+        return Err("Object is quarantined and executable".to_string());
+    }
+    let version = repo
+        .metadata
+        .load_version(version_id)
+        .map_err(|err| err.to_string())?;
+    if version.object_id != *object_id {
+        return Err("Version does not belong to object".to_string());
+    }
+    let manifest = repo
+        .metadata
+        .load_manifest(&version.manifest_ref)
+        .map_err(|err| err.to_string())?;
+    repo.chunks
+        .retrieve_object(&manifest)
+        .await
+        .map_err(|err| err.to_string())
+}
+
 fn open_with_default_app(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -428,6 +466,30 @@ pub struct ObjectInfo {
     pub tags: Vec<TagInfo>,
     pub views: Vec<String>,
     pub trust_level: Option<u8>,
+    pub version_count: usize,
+    pub current_version_state: String,
+    pub is_sealed: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VersionInfo {
+    pub id: String,
+    pub number: usize,
+    pub created_at: i64,
+    pub size_bytes: u64,
+    pub state: String,
+    pub parent_version: Option<String>,
+    pub commit_message: Option<String>,
+    pub is_current: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VersionDiffResult {
+    pub is_binary: bool,
+    pub unified_diff: Option<String>,
+    pub left_size: u64,
+    pub right_size: u64,
+    pub identical: bool,
 }
 
 fn builtin_view_icon(view: BuiltinView) -> Option<String> {
@@ -484,6 +546,16 @@ fn object_to_info(
         latticefs_base::model::ObjectType::Commit => "commit",
     };
 
+    let version_count = object.versions.len();
+    let current_state = version
+        .as_ref()
+        .map(|v| v.state.to_string())
+        .unwrap_or_else(|| "draft".to_string());
+    let is_sealed = version
+        .as_ref()
+        .map(|v| v.state == State::Sealed)
+        .unwrap_or(false);
+
     Some(ObjectInfo {
         id: object_id.to_string(),
         name,
@@ -495,6 +567,9 @@ fn object_to_info(
         tags,
         views: view_memberships.cloned().unwrap_or_default(),
         trust_level,
+        version_count,
+        current_version_state: current_state,
+        is_sealed,
     })
 }
 
@@ -722,13 +797,34 @@ pub async fn open_object(object_id: String) -> Result<(), String> {
     let name = display_name(&object.tags, &object_id);
     let safe_name = name.replace(['/', '\\'], "_");
 
-    let output_dir = std::env::temp_dir().join("latticefs-open");
+    let output_dir = repo.config.watch_dir();
     std::fs::create_dir_all(&output_dir).map_err(|err| err.to_string())?;
     let output_path = output_dir.join(format!("{}_{}", object_id, safe_name));
 
     export_object(&repo, &object_id, None, &output_path, ExportMode::Tree)
         .await
         .map_err(|err| err.to_string())?;
+
+    // Best-effort register with watcher daemon
+    let socket_path = repo.config.socket_path();
+    if latticefs_base::ipc::client::is_daemon_running(&socket_path) {
+        let content = std::fs::read(&output_path).unwrap_or_default();
+        let content_hash = latticefs_base::storage::compute_hash(&content);
+        let actor = load_or_create_identity()
+            .map(|id| id.public_bytes())
+            .unwrap_or([0u8; 32]);
+
+        let _ = latticefs_base::ipc::client::send_watch_register(
+            &socket_path,
+            &output_path,
+            &object_id.to_string(),
+            actor,
+            content_hash,
+            &name,
+        )
+        .await;
+    }
+
     open_with_default_app(&output_path)
 }
 
@@ -914,4 +1010,345 @@ pub fn delete_view(args: DeleteViewArgs) -> Result<(), String> {
         .map_err(|err| err.to_string())?;
 
     Ok(())
+}
+
+// ============================================================================
+// Version Management Commands
+// ============================================================================
+
+#[tauri::command]
+pub fn list_object_versions(object_id: String) -> Result<Vec<VersionInfo>, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+    repo.authorize_object_permission(&object, Permission::Read, false)
+        .map_err(|err| err.to_string())?;
+
+    let mut versions: Vec<Version> = Vec::new();
+    for vid in &object.versions {
+        versions.push(
+            repo.metadata
+                .load_version(vid)
+                .map_err(|err| err.to_string())?,
+        );
+    }
+    versions.sort_by_key(|v| v.created_at);
+
+    Ok(versions
+        .iter()
+        .enumerate()
+        .map(|(index, v)| VersionInfo {
+            id: v.id.to_string(),
+            number: index + 1,
+            created_at: v.created_at,
+            size_bytes: v.size_bytes,
+            state: v.state.to_string(),
+            parent_version: v.parent_version.map(|p| p.to_string()),
+            commit_message: v.commit_message.clone(),
+            is_current: v.id == object.current_version,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn get_object_version_text(
+    object_id: String,
+    version_id: String,
+) -> Result<Option<String>, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let version_id = parse_version_id(&version_id)?;
+    let data = read_version_bytes(&repo, &object_id, &version_id).await?;
+    match String::from_utf8(data) {
+        Ok(text) => Ok(Some(text)),
+        Err(_) => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub async fn diff_object_versions(
+    object_id: String,
+    left_version_id: String,
+    right_version_id: String,
+) -> Result<VersionDiffResult, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let left_version_id = parse_version_id(&left_version_id)?;
+    let right_version_id = parse_version_id(&right_version_id)?;
+
+    let left = read_version_bytes(&repo, &object_id, &left_version_id).await?;
+    let right = read_version_bytes(&repo, &object_id, &right_version_id).await?;
+
+    if left == right {
+        return Ok(VersionDiffResult {
+            is_binary: false,
+            unified_diff: None,
+            left_size: left.len() as u64,
+            right_size: right.len() as u64,
+            identical: true,
+        });
+    }
+
+    let left_text = String::from_utf8(left.clone());
+    let right_text = String::from_utf8(right.clone());
+
+    match (left_text, right_text) {
+        (Ok(l), Ok(r)) => {
+            let diff = TextDiff::from_lines(&l, &r);
+            Ok(VersionDiffResult {
+                is_binary: false,
+                unified_diff: Some(diff.unified_diff().header("left", "right").to_string()),
+                left_size: l.len() as u64,
+                right_size: r.len() as u64,
+                identical: false,
+            })
+        }
+        _ => Ok(VersionDiffResult {
+            is_binary: true,
+            unified_diff: None,
+            left_size: left.len() as u64,
+            right_size: right.len() as u64,
+            identical: false,
+        }),
+    }
+}
+
+#[tauri::command]
+pub async fn revise_object_from_text(
+    object_id: String,
+    content: String,
+    message: Option<String>,
+) -> Result<ObjectInfo, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let identity = load_or_create_identity()?;
+    let actor = identity.public_bytes();
+    let object_id = parse_object_id(&object_id)?;
+
+    repo.metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+
+    repo.add_version_from_bytes(&object_id, content.as_bytes(), actor, message)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    object_to_info(&repo, &object_id, None).ok_or_else(|| "Object not found".to_string())
+}
+
+#[tauri::command]
+pub async fn revise_object_from_file(
+    object_id: String,
+    path: String,
+    message: Option<String>,
+) -> Result<ObjectInfo, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let identity = load_or_create_identity()?;
+    let actor = identity.public_bytes();
+    let object_id = parse_object_id(&object_id)?;
+
+    repo.metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+
+    let data = std::fs::read(&path).map_err(|err| err.to_string())?;
+    repo.add_version_from_bytes(&object_id, &data, actor, message)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    object_to_info(&repo, &object_id, None).ok_or_else(|| "Object not found".to_string())
+}
+
+#[tauri::command]
+pub fn set_version_state(
+    object_id: String,
+    version_id: String,
+    state: String,
+) -> Result<VersionInfo, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let version_id = parse_version_id(&version_id)?;
+
+    let object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+    repo.authorize_object_permission(&object, Permission::Write, false)
+        .map_err(|err| err.to_string())?;
+    repo.enforce_rate_limit(1).map_err(|err| err.to_string())?;
+
+    let target_state: State = state.parse().map_err(|e: String| e)?;
+    let mut version = repo
+        .metadata
+        .load_version(&version_id)
+        .map_err(|err| err.to_string())?;
+    if version.object_id != object_id {
+        return Err("Version does not belong to object".to_string());
+    }
+    let from = version.state;
+    version
+        .transition_state(target_state)
+        .map_err(|_| LatticeError::InvalidStateTransition {
+            from: from.to_string(),
+            to: target_state.to_string(),
+        })
+        .map_err(|err| err.to_string())?;
+
+    repo.metadata
+        .store_version(&version)
+        .map_err(|err| err.to_string())?;
+
+    // Find version number
+    let mut all_versions: Vec<Version> = Vec::new();
+    for vid in &object.versions {
+        if let Ok(v) = repo.metadata.load_version(vid) {
+            all_versions.push(v);
+        }
+    }
+    all_versions.sort_by_key(|v| v.created_at);
+    let number = all_versions
+        .iter()
+        .position(|v| v.id == version.id)
+        .map(|i| i + 1)
+        .unwrap_or(1);
+
+    Ok(VersionInfo {
+        id: version.id.to_string(),
+        number,
+        created_at: version.created_at,
+        size_bytes: version.size_bytes,
+        state: version.state.to_string(),
+        parent_version: version.parent_version.map(|p| p.to_string()),
+        commit_message: version.commit_message.clone(),
+        is_current: version.id == object.current_version,
+    })
+}
+
+#[tauri::command]
+pub fn checkout_object_version(
+    object_id: String,
+    version_id: String,
+) -> Result<ObjectInfo, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let version_id = parse_version_id(&version_id)?;
+
+    let mut object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+    repo.authorize_object_permission(&object, Permission::Write, false)
+        .map_err(|err| err.to_string())?;
+    repo.enforce_rate_limit(1).map_err(|err| err.to_string())?;
+
+    let version = repo
+        .metadata
+        .load_version(&version_id)
+        .map_err(|err| err.to_string())?;
+    if version.object_id != object_id {
+        return Err("Version does not belong to object".to_string());
+    }
+
+    object.current_version = version_id;
+    repo.metadata
+        .store_object(&object)
+        .map_err(|err| err.to_string())?;
+
+    object_to_info(&repo, &object_id, None).ok_or_else(|| "Object not found".to_string())
+}
+
+#[tauri::command]
+pub async fn export_object_version(
+    object_id: String,
+    version_id: Option<String>,
+    output_path: String,
+) -> Result<(), String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let version_id = match version_id {
+        Some(vid) => Some(parse_version_id(&vid)?),
+        None => None,
+    };
+    let output_path = PathBuf::from(output_path);
+    if let Some(parent) = output_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    export_object(
+        &repo,
+        &object_id,
+        version_id,
+        &output_path,
+        ExportMode::Tree,
+    )
+    .await
+    .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct WatcherStatus {
+    pub running: bool,
+    pub watched_count: u64,
+    pub watch_dir: String,
+    pub pid: u64,
+}
+
+#[tauri::command]
+pub async fn get_watcher_status() -> Result<WatcherStatus, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let socket_path = repo.config.socket_path();
+
+    if !latticefs_base::ipc::client::is_daemon_running(&socket_path) {
+        return Ok(WatcherStatus {
+            running: false,
+            watched_count: 0,
+            watch_dir: repo.config.watcher.watch_dir.clone(),
+            pid: 0,
+        });
+    }
+
+    let status = latticefs_base::ipc::client::send_watch_status(&socket_path)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    Ok(WatcherStatus {
+        running: status.running,
+        watched_count: status.watched_count,
+        watch_dir: status.watch_dir,
+        pid: status.pid,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct WatchedFile {
+    pub temp_path: String,
+    pub object_id: String,
+    pub display_name: String,
+    pub registered_at: i64,
+}
+
+#[tauri::command]
+pub async fn list_watched_files() -> Result<Vec<WatchedFile>, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let socket_path = repo.config.socket_path();
+
+    if !latticefs_base::ipc::client::is_daemon_running(&socket_path) {
+        return Ok(vec![]);
+    }
+
+    let files = latticefs_base::ipc::client::send_watch_list(&socket_path)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    Ok(files
+        .into_iter()
+        .map(|f| WatchedFile {
+            temp_path: f.temp_path,
+            object_id: f.object_id,
+            display_name: f.display_name,
+            registered_at: f.registered_at,
+        })
+        .collect())
 }

@@ -26,6 +26,21 @@ pub enum EventKind {
         permission: String,
         reason: String,
     },
+    AutoVersionCreated {
+        object_id: String,
+        version_id: String,
+        temp_path: String,
+        actor: ActorID,
+    },
+    WatchFileRegistered {
+        object_id: String,
+        temp_path: String,
+    },
+    WatchFileRemoved {
+        object_id: String,
+        temp_path: String,
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +97,44 @@ impl Event {
             kind: EventKind::PolicyViolation {
                 object_id,
                 permission,
+                reason,
+            },
+        }
+    }
+
+    pub fn auto_version_created(
+        object_id: &ObjectID,
+        version_id: &VersionID,
+        temp_path: String,
+        actor: ActorID,
+    ) -> Self {
+        Self {
+            timestamp: crate::model::timestamp_now(),
+            kind: EventKind::AutoVersionCreated {
+                object_id: object_id.to_string(),
+                version_id: version_id.to_string(),
+                temp_path,
+                actor,
+            },
+        }
+    }
+
+    pub fn watch_file_registered(object_id: &ObjectID, temp_path: String) -> Self {
+        Self {
+            timestamp: crate::model::timestamp_now(),
+            kind: EventKind::WatchFileRegistered {
+                object_id: object_id.to_string(),
+                temp_path,
+            },
+        }
+    }
+
+    pub fn watch_file_removed(object_id: &ObjectID, temp_path: String, reason: String) -> Self {
+        Self {
+            timestamp: crate::model::timestamp_now(),
+            kind: EventKind::WatchFileRemoved {
+                object_id: object_id.to_string(),
+                temp_path,
                 reason,
             },
         }

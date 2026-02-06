@@ -26,10 +26,22 @@ Examples throughout this document show English output, but German systems will s
 - `-v`, `-vv` — increase verbosity
 - `--repo <path>` — override repository root
 - `--fuse` — enable FUSE operations (required for `mount`)
+- If `--repo` is omitted and the current directory contains `.latticefs.toml` with `repo.auto_load = true`, the CLI uses `.latticefs/` under the current directory as the repo root.
 
 Example:
 ```bash
 lfs --repo /tmp/latticefs -v status
+```
+
+Auto-load example:
+```bash
+cat > .latticefs.toml <<'EOF'
+[repo]
+auto_load = true
+EOF
+
+# Uses .latticefs under current directory as repo root (same as: lfs --repo "$PWD/.latticefs" status)
+lfs status
 ```
 
 Example output:
@@ -803,8 +815,9 @@ Arguments:
 Notes:
 - If you pass a view ID (UUID), the CLI will export that view and print its name and ID.
 - Built-in view names are accepted in both English and German.
+- Object references can include version specifiers (e.g., `@v1` or `@<version-id>`) to export a specific version.
 
-Example (single object):
+Example (single object, current version):
 ```bash
 lfs export <object-id> --output ~/Exports/out.bin
 ```
@@ -812,6 +825,17 @@ lfs export <object-id> --output ~/Exports/out.bin
 Example output:
 ```text
 Exported <object-id>
+```
+
+Example (single object, specific version):
+```bash
+lfs export <object-id>@v1 --output ~/Exports/out_v1.bin
+lfs export <object-id>@<version-id> --output ~/Exports/out_version.bin
+```
+
+Example output:
+```text
+Exported <object-id>@v1
 ```
 
 Example (view to directory, English):
@@ -866,4 +890,68 @@ lfs unmount ~/Lattice
 Example output:
 ```text
 (no output on success)
+```
+
+## File Watcher Commands
+
+### `lfs edit <reference> [--no-watch] [-m <message>]`
+Export an object to the watch directory and open it in the default editor. When the watcher daemon is running, saves are automatically versioned.
+
+Example:
+```bash
+lfs edit a1b2c3d4-5678-90ab-cdef-1234567890ab
+lfs edit my-alias
+lfs edit my-alias --no-watch
+```
+
+Example output:
+```text
+Exported to /tmp/latticefs-open/a1b2c3d4-..._report.pdf
+Registered with watcher daemon (auto-versioning enabled)
+```
+
+### `lfs watchd start [--foreground]`
+Start the watcher daemon. By default runs as a background process.
+
+Example:
+```bash
+lfs watchd start
+lfs watchd start --foreground
+lfs watchd --repo ./myrepo start --foreground  # Use a specific repo
+```
+
+Example output:
+```text
+Watcher daemon started (pid 12345)
+```
+
+### `lfs watchd stop`
+Stop the running watcher daemon.
+
+Example:
+```bash
+lfs watchd stop
+```
+
+Example output:
+```text
+Shutdown request sent to watcher daemon
+```
+
+### `lfs watchd status`
+Show watcher daemon status and list of watched files.
+
+Example:
+```bash
+lfs watchd status
+```
+
+Example output:
+```text
+Watcher daemon: running (pid 12345)
+Watch directory: /tmp/latticefs-open
+Watched files: 1
+
+OBJECT ID                              NAME                           PATH
+a1b2c3d4-...                           report.pdf                     /tmp/latticefs-open/a1b2c3d4-..._report.pdf
 ```
