@@ -284,8 +284,8 @@ export const ObjectDetailPanel = ({
                 nextTrust = priorTrustRef.current ?? DEFAULT_TRUST_LEVEL;
                 priorTrustRef.current = null;
               } else {
-                // Save current trust level before quarantining
-                priorTrustRef.current = clampedTrust;
+                // Save current committed trust level before quarantining
+                priorTrustRef.current = object.trustLevel ?? DEFAULT_TRUST_LEVEL;
                 nextTrust = QUARANTINE_TRUST_LEVEL;
               }
               setTrustValue(nextTrust);
