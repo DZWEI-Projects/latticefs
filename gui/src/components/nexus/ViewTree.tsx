@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, MoreVertical } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 interface ViewTreeProps {
   views: ViewInfo[];
@@ -48,41 +48,59 @@ const ViewActions = ({
   onEditView,
   onDeleteView,
   onCreateSubView,
+  onOpenChange,
 }: {
   view: ViewInfo;
   onEditView: (view: ViewInfo) => void;
   onDeleteView: (view: ViewInfo) => void;
   onCreateSubView: (parentId: string) => void;
+  onOpenChange: (open: boolean) => void;
 }) => {
+  const [open, setOpen] = useState(false);
+  
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    onOpenChange(newOpen);
+  };
+  
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground"
-          aria-label={`Optionen für ${view.name}`}
-        >
-          <MoreVertical className="w-3.5 h-3.5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onSelect={() => onCreateSubView(view.id)}>
-          Neue Teilperspektive
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onEditView(view)}>
-          Bearbeiten
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          onSelect={() => onDeleteView(view)}
-        >
-          Löschen
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div
+      className={cn(
+        "overflow-hidden transition-all duration-200 bg-transparent",
+        open ? "w-6" : "w-0 group-hover:w-6",
+      )}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            aria-label={`Optionen für ${view.name}`}
+          >
+            <MoreVertical className="w-3.5 h-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onSelect={() => onCreateSubView(view.id)}>
+            Neue Teilperspektive
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => onEditView(view)}>
+            Bearbeiten
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={() => onDeleteView(view)}
+          >
+            Löschen
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 };
 
@@ -101,9 +119,11 @@ const ViewTreeNode = ({
   const defaultOpenChildren = children
     .filter((child) => (childrenMap.get(child.id)?.length ?? 0) > 0)
     .map((child) => child.id);
+  
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const meta = (
-    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex items-center gap-1">
+    <div className="group absolute right-2 top-1/2 -translate-y-1/2 z-30 flex items-center gap-1">
       <span
         className={cn(
           "text-xs tabular-nums pointer-events-none",
@@ -113,6 +133,10 @@ const ViewTreeNode = ({
         {view.objectCount}
       </span>
       <div
+        className={cn(
+          "overflow-hidden transition-all duration-200",
+          menuOpen ? "w-6" : "w-0 group-hover:w-6",
+        )}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -121,6 +145,7 @@ const ViewTreeNode = ({
           onEditView={onEditView}
           onDeleteView={onDeleteView}
           onCreateSubView={onCreateSubView}
+          onOpenChange={setMenuOpen}
         />
       </div>
     </div>
