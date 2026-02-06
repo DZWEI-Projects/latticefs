@@ -299,6 +299,85 @@ fn cli_flow_basic() {
 }
 
 #[test]
+fn cli_message_set_and_clear() {
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    // init
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success();
+
+    // create a file and add it
+    let file_path = temp.path().join("test.txt");
+    fs::write(&file_path, b"test content\n").unwrap();
+    let output = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", file_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let object_id = stdout
+        .split_whitespace()
+        .last()
+        .expect("object id")
+        .to_string();
+    
+    // Set initial message
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["message", "set", &object_id, "-m", "initial message"])
+        .assert()
+        .success();
+
+    // Set a new message
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["message", "set", &object_id, "-m", "updated message"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Set message for"));
+
+    // Set message for a specific version
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([
+            "message",
+            "set",
+            &format!("{}@v1", object_id),
+            "-m",
+            "version-specific message",
+        ])
+        .assert()
+        .success();
+
+    // Clear the message
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["message", "set", &object_id, "--clear"])
+        .assert()
+        .success();
+
+    // Test error case: both --message and --clear
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([
+            "message",
+            "set",
+            &object_id,
+            "-m",
+            "test",
+            "--clear",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("either --message or --clear"));
+
+    // Test error case: missing message
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["message", "set", &object_id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Missing --message"));
+}
+
+#[test]
 fn cli_flow_nested_views() {
     let temp = TempDir::new().unwrap();
     let (lattice_home, xdg_home) = setup_env(&temp);

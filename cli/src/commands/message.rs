@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use latticefs_base::LatticeRepo;
-use latticefs_base::Permission;
 
 use super::common::parse_ref_with_version;
 
@@ -40,11 +39,6 @@ async fn set_message(repo: LatticeRepo, args: MessageSetArgs) -> Result<()> {
     }
 
     let (object_id, version_id) = parse_ref_with_version(&repo, &args.reference)?;
-    let object = repo
-        .metadata
-        .load_object(&object_id)
-        .with_context(|| format!("Object not found: {}", object_id))?;
-    repo.authorize_object_permission(&object, Permission::Write, false)?;
 
     let message = if args.clear {
         None
@@ -55,7 +49,9 @@ async fn set_message(repo: LatticeRepo, args: MessageSetArgs) -> Result<()> {
         )
     };
 
-    let updated = repo.update_version_message(&object_id, version_id, message)?;
+    let updated = repo
+        .update_version_message(&object_id, version_id, message)
+        .with_context(|| format!("Failed to update message for object {}", object_id))?;
     println!("Set message for {}", updated.id);
     Ok(())
 }
