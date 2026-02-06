@@ -256,7 +256,7 @@ pub fn default_repo_root() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Object, ObjectType, Version};
+    use crate::model::{Object, ObjectType, Version, VersionID};
     use tempfile::TempDir;
 
     #[test]
@@ -265,7 +265,8 @@ mod tests {
         let repo = LatticeRepo::open_at(temp.path()).unwrap();
         let actor: ActorID = [0u8; 32];
 
-        let object_id = ObjectID::new();
+        let mut object = Object::new(ObjectType::Blob, VersionID::new(), actor);
+        let object_id = object.id;
         let version = Version::new(
             object_id,
             None,
@@ -276,8 +277,8 @@ mod tests {
             0,
             Some("initial".to_string()),
         );
-        let mut object = Object::new(ObjectType::Blob, version.id, actor);
-        object.id = object_id;
+        object.current_version = version.id;
+        object.versions = vec![version.id];
 
         repo.metadata.store_object(&object).unwrap();
         repo.metadata.store_version(&version).unwrap();
