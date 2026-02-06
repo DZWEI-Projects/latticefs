@@ -113,7 +113,7 @@ export const VERSION_STATE_TRANSITIONS: Record<VersionState, VersionState[]> = {
 export const VERSION_STATE_LABELS: Record<VersionState, string> = {
   draft: "Entwurf",
   review: "In Prüfung",
-  approved: "Freigegeben",
+  approved: "Genehmigt",
   discarded: "Verworfen",
   sealed: "Versiegelt",
   archived: "Archiviert",
