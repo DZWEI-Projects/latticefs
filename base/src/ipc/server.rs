@@ -1,9 +1,11 @@
+use crate::config::Config;
 use crate::crypto::{Capability, Facts, Permission, PublicKey};
 use crate::error::{LatticeError, Result};
 use crate::events::Event;
 use crate::ipc::{bind_listener, recv_message, send_message, socket_path, MessageType};
 use crate::repo::LatticeRepo;
 use crate::security::is_quarantined_executable;
+use crate::watcher::WatchRegistry;
 use crate::KeyManager;
 use prost::Message;
 use std::collections::HashMap;
@@ -14,14 +16,29 @@ use tokio::sync::watch;
 
 use super::proto as pb;
 
-pub async fn run_ipc_server(repo: LatticeRepo) -> Result<()> {
-    let repo = Arc::new(repo);
-    let socket_path = socket_path(&repo);
-    let listener = bind_listener(&repo).await?;
+/// Open the repo briefly for a single operation.
+///
+/// Sled uses exclusive file-level locks, so we open the database on demand
+/// and drop it after each request. This allows CLI commands to access the
+/// same repo between daemon operations.
+fn open_repo(config: &Config) -> Result<LatticeRepo> {
+    LatticeRepo::open(config.clone())
+}
 
-    if repo.config.ipc.verbose {
+pub async fn run_ipc_server(config: Config) -> Result<()> {
+    run_ipc_server_with_watcher(config, None).await
+}
+
+pub async fn run_ipc_server_with_watcher(
+    config: Config,
+    watcher_registry: Option<Arc<WatchRegistry>>,
+) -> Result<()> {
+    let sock = socket_path(&config);
+    let listener = bind_listener(&config).await?;
+
+    if config.ipc.verbose {
         eprintln!("✓ IPC server started successfully");
-        eprintln!("  {:<18} {}", "Socket:", socket_path.display());
+        eprintln!("  {:<18} {}", "Socket:", sock.display());
         eprintln!("  {:<18} {}", "Protocol:", "Unix domain socket");
         eprintln!("  {:<18} {}", "Message types:", "ShareRequest, RevokeRequest, FetchRequest, StatusRequest, ShutdownRequest, SyncEvent");
         eprintln!(
@@ -43,10 +60,11 @@ pub async fn run_ipc_server(repo: LatticeRepo) -> Result<()> {
             }
             accept = listener.accept() => {
                 let (stream, _) = accept?;
-                let repo = Arc::clone(&repo);
+                let config = config.clone();
                 let shutdown_tx = shutdown_tx.clone();
+                let registry = watcher_registry.clone();
                 tokio::spawn(async move {
-                    let _ = handle_connection(repo, stream, shutdown_tx).await;
+                    let _ = handle_connection(config, stream, shutdown_tx, registry).await;
                 });
             }
         }
@@ -56,9 +74,10 @@ pub async fn run_ipc_server(repo: LatticeRepo) -> Result<()> {
 }
 
 async fn handle_connection(
-    repo: Arc<LatticeRepo>,
+    config: Config,
     mut stream: UnixStream,
     shutdown_tx: watch::Sender<bool>,
+    watcher_registry: Option<Arc<WatchRegistry>>,
 ) -> Result<()> {
     loop {
         let (msg_type, payload) = match recv_message(&mut stream).await {
@@ -69,22 +88,22 @@ async fn handle_connection(
         match msg_type {
             MessageType::ShareRequest => {
                 let request = pb::ShareRequest::decode(payload)?;
-                let response = handle_share_request(&repo, request).await;
+                let response = handle_share_request(&config, request).await;
                 send_message(&mut stream, MessageType::ShareResponse, &response).await?;
             }
             MessageType::RevokeRequest => {
                 let request = pb::RevokeRequest::decode(payload)?;
-                let response = handle_revoke_request(&repo, request).await;
+                let response = handle_revoke_request(&config, request).await;
                 send_message(&mut stream, MessageType::RevokeResponse, &response).await?;
             }
             MessageType::FetchRequest => {
                 let request = pb::FetchRequest::decode(payload)?;
-                let response = handle_fetch_request(&repo, request).await;
+                let response = handle_fetch_request(&config, request).await;
                 send_message(&mut stream, MessageType::FetchResponse, &response).await?;
             }
             MessageType::StatusRequest => {
                 let request = pb::StatusRequest::decode(payload)?;
-                let response = handle_status_request(&repo, request).await?;
+                let response = handle_status_request(&config, request).await;
                 send_message(&mut stream, MessageType::StatusResponse, &response).await?;
             }
             MessageType::ShutdownRequest => {
@@ -101,6 +120,26 @@ async fn handle_connection(
                     success: true,
                 };
                 send_message(&mut stream, MessageType::SyncAck, &ack).await?;
+            }
+            MessageType::WatchRegisterRequest => {
+                let request = pb::WatchRegisterRequest::decode(payload)?;
+                let response = handle_watch_register(&watcher_registry, request);
+                send_message(&mut stream, MessageType::WatchRegisterResponse, &response).await?;
+            }
+            MessageType::WatchUnregisterRequest => {
+                let request = pb::WatchUnregisterRequest::decode(payload)?;
+                let response = handle_watch_unregister(&watcher_registry, request);
+                send_message(&mut stream, MessageType::WatchUnregisterResponse, &response).await?;
+            }
+            MessageType::WatchListRequest => {
+                let _request = pb::WatchListRequest::decode(payload)?;
+                let response = handle_watch_list(&watcher_registry);
+                send_message(&mut stream, MessageType::WatchListResponse, &response).await?;
+            }
+            MessageType::WatchStatusRequest => {
+                let _request = pb::WatchStatusRequest::decode(payload)?;
+                let response = handle_watch_status(&config, &watcher_registry);
+                send_message(&mut stream, MessageType::WatchStatusResponse, &response).await?;
             }
             _ => {
                 let err = pb::Error {
@@ -119,8 +158,9 @@ async fn handle_connection(
     Ok(())
 }
 
-async fn handle_share_request(repo: &LatticeRepo, request: pb::ShareRequest) -> pb::ShareResponse {
+async fn handle_share_request(config: &Config, request: pb::ShareRequest) -> pb::ShareResponse {
     let result = (|| {
+        let repo = open_repo(config)?;
         repo.enforce_rate_limit(1)?;
         let object_id = object_id_from_bytes(
             &request
@@ -166,10 +206,11 @@ async fn handle_share_request(repo: &LatticeRepo, request: pb::ShareRequest) -> 
 }
 
 async fn handle_revoke_request(
-    repo: &LatticeRepo,
+    config: &Config,
     request: pb::RevokeRequest,
 ) -> pb::RevokeResponse {
     let result = (|| {
+        let repo = open_repo(config)?;
         repo.enforce_rate_limit(1)?;
         let cap = repo.metadata.load_capability(&request.ucan_cid)?;
         let identity = load_default_identity()?;
@@ -197,8 +238,9 @@ async fn handle_revoke_request(
     }
 }
 
-async fn handle_fetch_request(repo: &LatticeRepo, request: pb::FetchRequest) -> pb::FetchResponse {
+async fn handle_fetch_request(config: &Config, request: pb::FetchRequest) -> pb::FetchResponse {
     let result: Result<pb::ObjectData> = async {
+        let repo = open_repo(config)?;
         repo.enforce_rate_limit(1)?;
         let object_id = object_id_from_bytes(
             &request
@@ -278,20 +320,23 @@ async fn handle_fetch_request(repo: &LatticeRepo, request: pb::FetchRequest) -> 
 }
 
 async fn handle_status_request(
-    repo: &LatticeRepo,
+    config: &Config,
     request: pb::StatusRequest,
-) -> Result<pb::StatusResponse> {
+) -> pb::StatusResponse {
     let stats = if request.include_stats {
-        Some(build_stats(repo)?)
+        match open_repo(config) {
+            Ok(repo) => Some(build_stats(&repo).unwrap_or_default()),
+            Err(_) => None,
+        }
     } else {
         None
     };
 
-    Ok(pb::StatusResponse {
+    pb::StatusResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         running: true,
         stats,
-    })
+    }
 }
 
 fn build_stats(repo: &LatticeRepo) -> Result<pb::Stats> {
@@ -399,6 +444,144 @@ fn load_default_identity() -> Result<crate::crypto::Identity> {
     let identity = crate::crypto::Identity::generate("default");
     manager.store(&identity, std::env::var("LFS_KEY_PASSWORD").ok().as_deref())?;
     Ok(identity)
+}
+
+fn handle_watch_register(
+    registry: &Option<Arc<WatchRegistry>>,
+    request: pb::WatchRegisterRequest,
+) -> pb::WatchRegisterResponse {
+    let registry = match registry {
+        Some(r) => r,
+        None => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: "Watcher not enabled on this server".to_string(),
+            };
+        }
+    };
+
+    let object_id = match uuid::Uuid::parse_str(&request.object_id) {
+        Ok(uuid) => crate::model::ObjectID::from_uuid(uuid),
+        Err(e) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: format!("Invalid object ID: {}", e),
+            };
+        }
+    };
+
+    let actor_id: [u8; 32] = match request.actor_id.try_into() {
+        Ok(arr) => arr,
+        Err(_) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: "Invalid actor ID: expected 32 bytes".to_string(),
+            };
+        }
+    };
+
+    let content_hash: [u8; 32] = match request.content_hash.try_into() {
+        Ok(arr) => arr,
+        Err(_) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: "Invalid content hash: expected 32 bytes".to_string(),
+            };
+        }
+    };
+
+    // Canonicalize path to handle symlinks (e.g., /tmp -> /private/tmp on macOS).
+    // This ensures consistent HashMap lookups in the registry, since the OS may
+    // report file changes using the canonical path while registration uses the symlinked path.
+    let temp_path = std::path::PathBuf::from(&request.temp_path);
+    let canonical_path = match temp_path.canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: format!("Failed to canonicalize path {}: {}", temp_path.display(), e),
+            };
+        }
+    };
+
+    let entry = crate::watcher::WatchEntry {
+        temp_path: canonical_path,
+        object_id,
+        actor_id,
+        original_hash: content_hash,
+        last_known_hash: content_hash,
+        display_name: request.display_name,
+        registered_at: crate::model::timestamp_now(),
+    };
+
+    registry.register(entry);
+
+    pb::WatchRegisterResponse {
+        success: true,
+        message: format!("Registered {}", request.temp_path),
+    }
+}
+
+fn handle_watch_unregister(
+    registry: &Option<Arc<WatchRegistry>>,
+    request: pb::WatchUnregisterRequest,
+) -> pb::WatchUnregisterResponse {
+    let registry = match registry {
+        Some(r) => r,
+        None => {
+            return pb::WatchUnregisterResponse {
+                success: false,
+                message: "Watcher not enabled on this server".to_string(),
+            };
+        }
+    };
+
+    let path = std::path::PathBuf::from(&request.temp_path);
+    match registry.unregister(&path) {
+        Some(_) => pb::WatchUnregisterResponse {
+            success: true,
+            message: format!("Unregistered {}", request.temp_path),
+        },
+        None => pb::WatchUnregisterResponse {
+            success: false,
+            message: format!("File not registered: {}", request.temp_path),
+        },
+    }
+}
+
+fn handle_watch_list(registry: &Option<Arc<WatchRegistry>>) -> pb::WatchListResponse {
+    let files = match registry {
+        Some(r) => r
+            .list()
+            .into_iter()
+            .map(|e| pb::WatchedFileInfo {
+                temp_path: e.temp_path.display().to_string(),
+                object_id: e.object_id.to_string(),
+                display_name: e.display_name,
+                registered_at: e.registered_at,
+            })
+            .collect(),
+        None => vec![],
+    };
+
+    pb::WatchListResponse { files }
+}
+
+fn handle_watch_status(
+    config: &Config,
+    registry: &Option<Arc<WatchRegistry>>,
+) -> pb::WatchStatusResponse {
+    let (watched_count, watch_dir) = match registry {
+        Some(r) => (r.count() as u64, config.watcher.watch_dir.clone()),
+        None => (0, String::new()),
+    };
+
+    pb::WatchStatusResponse {
+        running: registry.is_some(),
+        watched_count,
+        watch_dir,
+        pid: std::process::id() as u64,
+    }
 }
 
 fn ipc_error(err: &LatticeError) -> pb::Error {

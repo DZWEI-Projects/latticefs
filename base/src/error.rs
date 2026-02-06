@@ -129,6 +129,19 @@ pub enum LatticeError {
 
     #[error("Proto decode error: {0}")]
     ProtoDecode(String),
+
+    // Watcher errors (Phase 4)
+    #[error("Watcher daemon is not running")]
+    WatcherNotRunning,
+
+    #[error("Watcher daemon is already running (pid {pid})")]
+    WatcherAlreadyRunning { pid: u32 },
+
+    #[error("File is not being watched: {path}")]
+    FileNotWatched { path: String },
+
+    #[error("Watcher error: {0}")]
+    WatcherError(String),
 }
 
 pub type Result<T> = std::result::Result<T, LatticeError>;
