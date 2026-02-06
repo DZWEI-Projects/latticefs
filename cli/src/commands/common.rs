@@ -2,16 +2,58 @@ use anyhow::{Result, anyhow};
 use latticefs_base::views::{BuiltinView, View};
 use latticefs_base::{Config, KeyManager, LatticeRepo};
 use latticefs_base::{Identity, ObjectID, VersionID};
+use serde::Deserialize;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+const LOCAL_REPO_CONFIG_FILE: &str = ".latticefs.toml";
+
+#[derive(Debug, Deserialize)]
+struct LocalRepoConfig {
+    repo: Option<LocalRepoSection>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LocalRepoSection {
+    auto_load: Option<bool>,
+}
+
 pub fn open_repo(repo_path: Option<PathBuf>) -> Result<LatticeRepo> {
-    if let Some(path) = repo_path {
+    let cwd = std::env::current_dir().map_err(|err| anyhow!("Failed to read current directory: {}", err))?;
+    if let Some(path) = resolve_repo_override(repo_path, &cwd)? {
         return Ok(LatticeRepo::open_at(&path)?);
     }
 
     let config = Config::load_or_default()?;
     Ok(LatticeRepo::open(config)?)
+}
+
+fn resolve_repo_override(repo_path: Option<PathBuf>, cwd: &Path) -> Result<Option<PathBuf>> {
+    if let Some(path) = repo_path {
+        return Ok(Some(path));
+    }
+
+    if should_auto_load_repo(cwd)? {
+        return Ok(Some(cwd.to_path_buf()));
+    }
+
+    Ok(None)
+}
+
+fn should_auto_load_repo(cwd: &Path) -> Result<bool> {
+    let marker_path = cwd.join(LOCAL_REPO_CONFIG_FILE);
+    if !marker_path.exists() {
+        return Ok(false);
+    }
+
+    let contents = fs::read_to_string(&marker_path)?;
+    let config: LocalRepoConfig = toml::from_str(&contents)
+        .map_err(|err| anyhow!("Failed to parse {}: {}", marker_path.display(), err))?;
+    Ok(config
+        .repo
+        .and_then(|repo| repo.auto_load)
+        .unwrap_or(false))
 }
 
 pub fn ensure_identity(name: &str, password: Option<&str>) -> Result<Identity> {
@@ -178,4 +220,93 @@ pub fn expand_path(path: &Path) -> PathBuf {
 
 pub fn resolve_identity_password(explicit: Option<String>) -> Option<String> {
     explicit.or_else(|| std::env::var("LFS_KEY_PASSWORD").ok())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn marker_missing_does_not_auto_load() {
+        let temp = TempDir::new().unwrap();
+        let auto = should_auto_load_repo(temp.path()).unwrap();
+        assert!(!auto);
+    }
+
+    #[test]
+    fn marker_requires_auto_load_true() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join(LOCAL_REPO_CONFIG_FILE),
+            "[repo]\nauto_load = false\n",
+        )
+        .unwrap();
+
+        let auto = should_auto_load_repo(temp.path()).unwrap();
+        assert!(!auto);
+    }
+
+    #[test]
+    fn marker_auto_load_true_enables_current_dir_repo() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join(LOCAL_REPO_CONFIG_FILE),
+            "[repo]\nauto_load = true\n",
+        )
+        .unwrap();
+
+        let auto = should_auto_load_repo(temp.path()).unwrap();
+        assert!(auto);
+    }
+
+    #[test]
+    fn marker_parse_errors_are_reported() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join(LOCAL_REPO_CONFIG_FILE),
+            "[repo]\nauto_load = tru\n",
+        )
+        .unwrap();
+
+        let err = should_auto_load_repo(temp.path()).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains(&format!("Failed to parse {}", temp.path().join(LOCAL_REPO_CONFIG_FILE).display())));
+    }
+
+    #[test]
+    fn explicit_repo_override_has_highest_precedence() {
+        let cwd = TempDir::new().unwrap();
+        fs::write(
+            cwd.path().join(LOCAL_REPO_CONFIG_FILE),
+            "[repo]\nauto_load = true\n",
+        )
+        .unwrap();
+        let explicit = PathBuf::from("/tmp/lattice-explicit");
+
+        let resolved = resolve_repo_override(Some(explicit.clone()), cwd.path()).unwrap();
+        assert_eq!(resolved, Some(explicit));
+    }
+
+    #[test]
+    fn marker_auto_load_sets_repo_to_cwd() {
+        let cwd = TempDir::new().unwrap();
+        fs::write(
+            cwd.path().join(LOCAL_REPO_CONFIG_FILE),
+            "[repo]\nauto_load = true\n",
+        )
+        .unwrap();
+
+        let resolved = resolve_repo_override(None, cwd.path()).unwrap();
+        assert_eq!(resolved, Some(cwd.path().to_path_buf()));
+    }
+
+    #[test]
+    fn without_explicit_or_marker_falls_back_to_global_config() {
+        let cwd = TempDir::new().unwrap();
+
+        let resolved = resolve_repo_override(None, cwd.path()).unwrap();
+        assert_eq!(resolved, None);
+    }
 }
