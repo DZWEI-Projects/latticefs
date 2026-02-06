@@ -5,6 +5,7 @@ pub mod common;
 pub mod cat;
 pub mod checkout;
 pub mod diff;
+pub mod edit;
 pub mod export;
 pub mod get;
 pub mod import;
@@ -26,6 +27,7 @@ pub mod trust;
 pub mod untag;
 pub mod versions;
 pub mod view;
+pub mod watchd;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
@@ -53,6 +55,8 @@ pub enum Command {
     Stats(stats::StatsArgs),
     Import(import::ImportArgs),
     Export(export::ExportArgs),
+    Edit(edit::EditArgs),
+    Watchd(watchd::WatchdArgs),
     Mount(mount::MountArgs),
     Unmount(mount::UnmountArgs),
     Init(system::InitArgs),
