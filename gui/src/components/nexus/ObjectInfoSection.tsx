@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { ObjectInfo } from "@/lib/lfs";
+import { VERSION_STATE_LABELS, type VersionState } from "@/lib/lfs";
 import { cn } from "@/lib/utils";
 import { formatMimeType } from "@/lib/metadataDisplay";
 import { useState } from "react";
@@ -17,6 +18,7 @@ interface ObjectInfoSectionProps {
   mimeType?: string | null;
   onCopyId: () => void;
   onViewSelect: (viewId: string) => void;
+  onOpenVersions?: () => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -59,25 +61,34 @@ function formatObjectType(type: ObjectInfo["objectType"]): string {
   }
 }
 
+function stateColor(state: string): string {
+  switch (state) {
+    case "draft": return "text-blue-500";
+    case "review": return "text-yellow-500";
+    case "approved": return "text-green-500";
+    case "discarded": return "text-muted-foreground";
+    case "sealed": return "text-red-500";
+    case "archived": return "text-muted-foreground";
+    default: return "";
+  }
+}
+
 export const ObjectInfoSection = ({
   object,
   currentViewId,
   mimeType,
   onCopyId,
   onViewSelect,
+  onOpenVersions,
 }: ObjectInfoSectionProps) => {
+  const stateLabel = VERSION_STATE_LABELS[object.currentVersionState as VersionState] ?? object.currentVersionState;
+
   return (
     <section className="space-y-2">
       <h3 className="text-xs font-semibold text-foreground/75 uppercase tracking-wider">
         Informationen
       </h3>
       <div className="space-y-2 text-xs">
-        {/* <div className="flex items-center justify-between">
-          <span className="text-foreground/75">Dateiendung</span>
-          <span className="font-medium uppercase">
-            {object.extension || "—"}
-          </span>
-        </div> */}
         <div className="flex items-center justify-between">
           <span className="text-foreground/75">Objekttyp</span>
           <span className="font-medium">{formatMimeType(mimeType)}</span>
@@ -92,6 +103,25 @@ export const ObjectInfoSection = ({
             {formatBytes(object.sizeBytes)}
           </span>
         </div>
+        <div className="flex items-center justify-between">
+          <span className="text-foreground/75">Status</span>
+          <span className={cn("font-medium", stateColor(object.currentVersionState))}>
+            {stateLabel}
+            {object.isSealed && " (gesperrt)"}
+          </span>
+        </div>
+        {object.versionCount > 1 && (
+          <div className="flex items-center justify-between">
+            <span className="text-foreground/75">Versionen</span>
+            <button
+              type="button"
+              className="font-medium hover:text-primary hover:underline transition-colors"
+              onClick={onOpenVersions}
+            >
+              {object.versionCount} Versionen
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span className="text-foreground/75">Erstellt</span>
           <span className="font-medium">

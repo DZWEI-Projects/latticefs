@@ -145,6 +145,5 @@ site/
 dist/
 build/
 node_modules/
-latticedemosurface/
 .latticefs/
 .latticefs.toml

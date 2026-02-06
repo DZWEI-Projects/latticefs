@@ -69,7 +69,64 @@ export interface ObjectInfo {
   tags: TagInfo[];
   views: string[];
   trustLevel?: number | null;
+  versionCount: number;
+  currentVersionState: string;
+  isSealed: boolean;
 }
+
+export interface VersionInfo {
+  id: string;
+  number: number;
+  parentVersion?: string | null;
+  state: string;
+  sizeBytes: number;
+  createdAt: number;
+  commitMessage?: string | null;
+  isCurrent: boolean;
+}
+
+export interface DiffResult {
+  isBinary: boolean;
+  unifiedDiff?: string | null;
+  leftSize: number;
+  rightSize: number;
+  identical: boolean;
+}
+
+export type VersionState =
+  | "draft"
+  | "review"
+  | "approved"
+  | "discarded"
+  | "sealed"
+  | "archived";
+
+export const VERSION_STATE_TRANSITIONS: Record<VersionState, VersionState[]> = {
+  draft: ["review", "discarded", "sealed", "archived"],
+  review: ["draft", "approved", "discarded", "sealed", "archived"],
+  approved: ["sealed", "archived"],
+  discarded: ["archived"],
+  sealed: [],
+  archived: [],
+};
+
+export const VERSION_STATE_LABELS: Record<VersionState, string> = {
+  draft: "Entwurf",
+  review: "In Prüfung",
+  approved: "Final",
+  discarded: "Verworfen",
+  sealed: "Versiegelt",
+  archived: "Archiviert",
+};
+
+/** File extensions that can be edited as text */
+export const TEXT_EDITABLE_EXTENSIONS = new Set([
+  "txt", "md", "markdown", "json", "xml", "yaml", "yml", "toml",
+  "csv", "tsv", "html", "htm", "css", "js", "ts", "jsx", "tsx",
+  "py", "rb", "rs", "go", "java", "c", "cpp", "h", "hpp",
+  "sh", "bash", "zsh", "fish", "bat", "ps1", "sql", "ini", "cfg",
+  "conf", "log", "env", "gitignore", "dockerfile", "makefile",
+]);
 
 export const isTauriApp = () => {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -191,6 +248,9 @@ export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
         tags: Array<{ key: string; value: string }>;
         views: string[];
         trust_level: number | null;
+        version_count: number;
+        current_version_state: string;
+        is_sealed: boolean;
       }>
     >("get_view_objects", { viewId });
     // Transform snake_case to camelCase
@@ -205,6 +265,9 @@ export const getViewObjects = async (viewId: string): Promise<ObjectInfo[]> => {
       tags: o.tags,
       views: o.views,
       trustLevel: o.trust_level,
+      versionCount: o.version_count,
+      currentVersionState: o.current_version_state,
+      isSealed: o.is_sealed,
     }));
   }
   return (await getMocks()).mockGetViewObjects(viewId);
@@ -224,6 +287,9 @@ export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {
         tags: Array<{ key: string; value: string }>;
         views: string[];
         trust_level: number | null;
+        version_count: number;
+        current_version_state: string;
+        is_sealed: boolean;
       }>
     >("evaluate_query", { query });
     // Transform snake_case to camelCase
@@ -238,6 +304,9 @@ export const evaluateQuery = async (query: string): Promise<ObjectInfo[]> => {
       tags: o.tags,
       views: o.views,
       trustLevel: o.trust_level,
+      versionCount: o.version_count,
+      currentVersionState: o.current_version_state,
+      isSealed: o.is_sealed,
     }));
   }
   return (await getMocks()).mockEvaluateQuery(query);
@@ -386,3 +455,215 @@ export const pickFolders = async (): Promise<string[] | null> => {
   }
   return (await getMocks()).mockPickFolders();
 };
+
+// --- Version Operations ---
+
+export const getObjectVersions = async (
+  objectId: string,
+): Promise<VersionInfo[]> => {
+  if (isTauriApp()) {
+    const versions = await invoke<
+      Array<{
+        id: string;
+        number: number;
+        parent_version: string | null;
+        state: string;
+        size_bytes: number;
+        created_at: number;
+        commit_message: string | null;
+        is_current: boolean;
+      }>
+    >("list_object_versions", { objectId });
+    return versions.map((v) => ({
+      id: v.id,
+      number: v.number,
+      parentVersion: v.parent_version,
+      state: v.state,
+      sizeBytes: v.size_bytes,
+      createdAt: v.created_at,
+      commitMessage: v.commit_message,
+      isCurrent: v.is_current,
+    }));
+  }
+  return (await getMocks()).mockGetObjectVersions(objectId);
+};
+
+export const getVersionContent = async (
+  objectId: string,
+  versionId: string,
+): Promise<string | null> => {
+  if (isTauriApp()) {
+    return invoke<string | null>("get_object_version_text", {
+      objectId,
+      versionId,
+    });
+  }
+  return (await getMocks()).mockGetVersionContent(objectId, versionId);
+};
+
+export const setVersionState = async (
+  objectId: string,
+  versionId: string,
+  state: VersionState,
+): Promise<VersionInfo> => {
+  if (isTauriApp()) {
+    const v = await invoke<{
+      id: string;
+      number: number;
+      parent_version: string | null;
+      state: string;
+      size_bytes: number;
+      created_at: number;
+      commit_message: string | null;
+      is_current: boolean;
+    }>("set_version_state", { objectId, versionId, state });
+    return {
+      id: v.id,
+      number: v.number,
+      parentVersion: v.parent_version,
+      state: v.state,
+      sizeBytes: v.size_bytes,
+      createdAt: v.created_at,
+      commitMessage: v.commit_message,
+      isCurrent: v.is_current,
+    };
+  }
+  return (await getMocks()).mockSetVersionState(objectId, versionId, state);
+};
+
+export const reviseObject = async (
+  objectId: string,
+  content: string,
+  message?: string,
+): Promise<ObjectInfo> => {
+  if (isTauriApp()) {
+    const o = await invoke<{
+      id: string;
+      name: string;
+      extension: string | null;
+      object_type: string;
+      size_bytes: number;
+      created_at: number;
+      modified_at: number;
+      tags: Array<{ key: string; value: string }>;
+      views: string[];
+      trust_level: number | null;
+      version_count: number;
+      current_version_state: string;
+      is_sealed: boolean;
+    }>("revise_object_from_text", { objectId, content, message: message ?? null });
+    return {
+      id: o.id,
+      name: o.name,
+      extension: o.extension,
+      objectType: o.object_type as "blob" | "tree" | "commit",
+      sizeBytes: o.size_bytes,
+      createdAt: o.created_at,
+      modifiedAt: o.modified_at,
+      tags: o.tags,
+      views: o.views,
+      trustLevel: o.trust_level,
+      versionCount: o.version_count,
+      currentVersionState: o.current_version_state,
+      isSealed: o.is_sealed,
+    };
+  }
+  return (await getMocks()).mockReviseObject(objectId, content, message);
+};
+
+export const diffVersions = async (
+  objectId: string,
+  versionIdA: string,
+  versionIdB: string,
+): Promise<DiffResult> => {
+  if (isTauriApp()) {
+    const d = await invoke<{
+      is_binary: boolean;
+      unified_diff: string | null;
+      left_size: number;
+      right_size: number;
+      identical: boolean;
+    }>("diff_object_versions", {
+      objectId,
+      leftVersionId: versionIdA,
+      rightVersionId: versionIdB,
+    });
+    return {
+      isBinary: d.is_binary,
+      unifiedDiff: d.unified_diff,
+      leftSize: d.left_size,
+      rightSize: d.right_size,
+      identical: d.identical,
+    };
+  }
+  return (await getMocks()).mockDiffVersions(objectId, versionIdA, versionIdB);
+};
+
+export const checkoutObjectVersion = async (
+  objectId: string,
+  versionId: string,
+): Promise<ObjectInfo> => {
+  if (isTauriApp()) {
+    const o = await invoke<{
+      id: string;
+      name: string;
+      extension: string | null;
+      object_type: string;
+      size_bytes: number;
+      created_at: number;
+      modified_at: number;
+      tags: Array<{ key: string; value: string }>;
+      views: string[];
+      trust_level: number | null;
+      version_count: number;
+      current_version_state: string;
+      is_sealed: boolean;
+    }>("checkout_object_version", { objectId, versionId });
+    return {
+      id: o.id,
+      name: o.name,
+      extension: o.extension,
+      objectType: o.object_type as "blob" | "tree" | "commit",
+      sizeBytes: o.size_bytes,
+      createdAt: o.created_at,
+      modifiedAt: o.modified_at,
+      tags: o.tags,
+      views: o.views,
+      trustLevel: o.trust_level,
+      versionCount: o.version_count,
+      currentVersionState: o.current_version_state,
+      isSealed: o.is_sealed,
+    };
+  }
+  return (await getMocks()).mockCheckoutObjectVersion(objectId, versionId);
+};
+
+export const exportObjectVersion = async (
+  objectId: string,
+  versionId?: string,
+  outputPath?: string,
+): Promise<void> => {
+  if (isTauriApp()) {
+    if (!outputPath) {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selected = await save({
+        title: "Version exportieren",
+      });
+      if (!selected) return;
+      outputPath = selected;
+    }
+    await invoke("export_object_version", {
+      objectId,
+      versionId: versionId ?? null,
+      outputPath,
+    });
+    return;
+  }
+  return (await getMocks()).mockExportObjectVersion(objectId, versionId);
+};
+
+/** Check whether an extension indicates a text-editable file */
+export function isTextEditable(extension?: string | null): boolean {
+  if (!extension) return false;
+  return TEXT_EDITABLE_EXTENSIONS.has(extension.toLowerCase());
+}
