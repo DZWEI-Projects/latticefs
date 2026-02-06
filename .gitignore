@@ -145,3 +145,5 @@ site/
 dist/
 build/
 node_modules/
+.latticefs/
+.latticefs.toml
