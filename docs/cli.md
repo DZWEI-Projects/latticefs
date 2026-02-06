@@ -893,6 +893,7 @@ Example:
 ```bash
 lfs watchd start
 lfs watchd start --foreground
+lfs watchd --repo ./myrepo start --foreground  # Use a specific repo
 ```
 
 Example output:

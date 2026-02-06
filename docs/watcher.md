@@ -137,6 +137,10 @@ The GUI's "Open" action (`open_object`) automatically registers files with the w
 - Remove stale PID file: `rm ~/.latticefs/watchd.pid`
 - Remove stale socket: `rm ~/.latticefs/latticefs.sock`
 
+### Database lock error ("Resource temporarily unavailable")
+
+This error was caused by the daemon opening the Sled database twice (once for the file watcher and once for the IPC server). Sled uses exclusive file-level locks, so the second open would fail. This was fixed by sharing a single `Arc<LatticeRepo>` between both components. If you see this error on an older version, upgrade to the latest build.
+
 ### Changes not detected
 
 - Verify the daemon is running: `lfs watchd status`

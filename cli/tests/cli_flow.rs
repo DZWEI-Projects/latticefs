@@ -2,6 +2,7 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 use tempfile::TempDir;
 
 fn setup_env(temp: &TempDir) -> (PathBuf, PathBuf) {
@@ -231,4 +232,143 @@ fn cli_flow_basic() {
         .assert()
         .success()
         .stdout(predicate::str::contains("---"));
+}
+
+#[test]
+fn watchd_start_foreground_no_db_lock() {
+    // Regression test: `watchd start --foreground` used to fail with a database
+    // lock error because it opened the Sled database twice (once for the main
+    // repo and once for the IPC server). The fix shares a single Arc<LatticeRepo>.
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    // Initialize a repository first
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success();
+
+    // Start watchd in foreground as a child process.
+    // It should start successfully (not crash with a lock error).
+    let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin!("lfs"))
+        .env("LATTICE_HOME", &lattice_home)
+        .env("XDG_CONFIG_HOME", &xdg_home)
+        .env("LFS_KEY_PASSWORD", "test-password")
+        .args(["watchd", "start", "--foreground"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn watchd");
+
+    // Give the daemon a moment to start (or fail)
+    std::thread::sleep(Duration::from_secs(2));
+
+    // The process should still be running (not crashed with a lock error)
+    match child.try_wait() {
+        Ok(None) => {
+            // Still running — success! Clean up.
+            child.kill().ok();
+            child.wait().ok();
+        }
+        Ok(Some(status)) => {
+            let stderr = child.stderr.take().map(|mut s| {
+                let mut buf = String::new();
+                std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                buf
+            }).unwrap_or_default();
+            panic!(
+                "watchd exited prematurely with status {:?}.\nStderr: {}",
+                status, stderr,
+            );
+        }
+        Err(e) => panic!("Error checking watchd status: {}", e),
+    }
+}
+
+#[test]
+fn watchd_status_when_not_running() {
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success();
+
+    // Status should report "not running" without error
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["watchd", "status"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("not running"));
+}
+
+#[test]
+fn watchd_stop_when_not_running() {
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success();
+
+    // Stop should fail gracefully when daemon is not running
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["watchd", "stop"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not running"));
+}
+
+#[test]
+fn watchd_stale_pid_cleanup() {
+    // If a PID file exists but the process is dead, watchd should clean up
+    // the stale PID file and start successfully.
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success();
+
+    // Write a stale PID file (PID 1 is init and won't match, use a very high PID)
+    let pid_path = lattice_home.join("watchd.pid");
+    fs::write(&pid_path, "99999999").unwrap();
+
+    // Starting should succeed (stale PID gets cleaned up)
+    let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin!("lfs"))
+        .env("LATTICE_HOME", &lattice_home)
+        .env("XDG_CONFIG_HOME", &xdg_home)
+        .env("LFS_KEY_PASSWORD", "test-password")
+        .args(["watchd", "start", "--foreground"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn watchd");
+
+    std::thread::sleep(Duration::from_secs(2));
+
+    match child.try_wait() {
+        Ok(None) => {
+            // Still running — stale PID was cleaned up successfully
+            child.kill().ok();
+            child.wait().ok();
+        }
+        Ok(Some(status)) => {
+            let stderr = child.stderr.take().map(|mut s| {
+                let mut buf = String::new();
+                std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                buf
+            }).unwrap_or_default();
+            panic!(
+                "watchd exited prematurely with status {:?}.\nStderr: {}",
+                status, stderr,
+            );
+        }
+        Err(e) => panic!("Error checking watchd status: {}", e),
+    }
 }

@@ -109,7 +109,7 @@ pub async fn recv_message(stream: &mut UnixStream) -> Result<(MessageType, Bytes
 
 /// Start the IPC server.
 pub async fn start_ipc_server(repo: LatticeRepo) -> Result<()> {
-    server::run_ipc_server(repo).await
+    server::run_ipc_server(std::sync::Arc::new(repo)).await
 }
 
 /// Get IPC socket path for the current repo config.

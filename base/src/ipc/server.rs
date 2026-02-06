@@ -15,15 +15,14 @@ use tokio::sync::watch;
 
 use super::proto as pb;
 
-pub async fn run_ipc_server(repo: LatticeRepo) -> Result<()> {
+pub async fn run_ipc_server(repo: Arc<LatticeRepo>) -> Result<()> {
     run_ipc_server_with_watcher(repo, None).await
 }
 
 pub async fn run_ipc_server_with_watcher(
-    repo: LatticeRepo,
+    repo: Arc<LatticeRepo>,
     watcher_registry: Option<Arc<WatchRegistry>>,
 ) -> Result<()> {
-    let repo = Arc::new(repo);
     let socket_path = socket_path(&repo);
     let listener = bind_listener(&repo).await?;
 

@@ -86,8 +86,12 @@ async fn start(repo: LatticeRepo, foreground: bool) -> Result<()> {
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
+    // Share a single repo instance between IPC server and file watcher
+    // (Sled uses exclusive file locks, so we cannot open the database twice)
+    let repo_arc = Arc::new(repo);
+
     // Start IPC server in a separate task
-    let ipc_repo = LatticeRepo::open(repo.config.clone())?;
+    let ipc_repo = Arc::clone(&repo_arc);
     let ipc_registry = registry_arc.clone();
     let ipc_shutdown_tx = shutdown_tx.clone();
     let ipc_handle = tokio::spawn(async move {
@@ -105,11 +109,10 @@ async fn start(repo: LatticeRepo, foreground: bool) -> Result<()> {
 
     eprintln!("Watcher daemon started (pid {})", pid);
     eprintln!("Socket: {}", socket_path.display());
-    eprintln!("Watch dir: {}", repo.config.watcher.watch_dir);
+    eprintln!("Watch dir: {}", repo_arc.config.watcher.watch_dir);
     eprintln!("Press Ctrl+C to stop\n");
 
     // Start the file watcher
-    let repo_arc = Arc::new(repo);
     let config = repo_arc.config.watcher.clone();
     let mut watcher = FileWatcher::new(registry, persist, config, repo_arc.clone(), shutdown_rx);
 
