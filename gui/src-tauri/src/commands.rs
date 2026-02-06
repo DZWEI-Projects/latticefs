@@ -1180,9 +1180,11 @@ pub fn set_version_message(
     // Find version number
     let mut all_versions: Vec<Version> = Vec::new();
     for vid in &object.versions {
-        if let Ok(v) = repo.metadata.load_version(vid) {
-            all_versions.push(v);
-        }
+        let v = repo
+            .metadata
+            .load_version(vid)
+            .map_err(|err| err.to_string())?;
+        all_versions.push(v);
     }
     all_versions.sort_by_key(|v| v.created_at);
     let number = all_versions
