@@ -99,7 +99,7 @@ assert_eq!(BuiltinView::by_name("projekte"), Some(BuiltinView::Projects));
 1. **base/Cargo.toml**: Added `sys-locale = "0.3"` dependency
 2. **base/src/views/builtin.rs**: Added `Locale` enum and localized methods
 3. **base/src/views/mod.rs**: Exported `Locale` type
-4. **cli/src/commands/stats.rs**: Updated to use localized names
+4. **cli/src/commands/info.rs**: Updated to use localized names
 5. **cli/src/commands/view.rs**: Updated to use localized names
 6. **gui/src-tauri/src/commands.rs**: Updated to use localized names
 

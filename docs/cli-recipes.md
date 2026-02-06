@@ -125,13 +125,13 @@ lfs meta <object-id> --tags --all-tags
 Goal: list objects in a view and see decoded `auto:filename_b64` / `auto:relpath_b64` tags.
 
 ```bash
-lfs stats view-objects "All" --all-tags
+lfs info view-objects "All" --all-tags
 ```
 
 Goal: show encoded + decoded values (debugging).
 
 ```bash
-lfs stats view-objects "All" --all-tags --raw-tags
+lfs info view-objects "All" --all-tags --raw-tags
 ```
 
 ## Get an object checksum
@@ -142,13 +142,13 @@ LatticeFS way: ask the CLI for the object checksum directly.
 Goal: get the content hash for the current version.
 
 ```bash
-lfs stats checksum <object-id>
+lfs info checksum <object-id>
 ```
 
 Goal: get the checksum for a specific version.
 
 ```bash
-lfs stats checksum <object-id>@v2
+lfs info checksum <object-id>@v2
 ```
 
 ## See object versions

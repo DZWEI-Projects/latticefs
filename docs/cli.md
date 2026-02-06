@@ -137,9 +137,9 @@ Example output:
 Verified <object-id>
 ```
 
-## Stats commands
+## Info commands
 
-### `lfs stats checksum <ref>`
+### `lfs info checksum <ref>`
 Show the content checksum for an object (BLAKE3 merkle root).
 
 Arguments:
@@ -147,7 +147,7 @@ Arguments:
 
 Example:
 ```bash
-lfs stats checksum <object-id>
+lfs info checksum <object-id>
 ```
 
 Example output:
@@ -161,7 +161,7 @@ Size bytes: 12345
 Chunks: 12
 ```
 
-### `lfs stats object <ref> [--all-versions]`
+### `lfs info object <ref> [--all-versions]`
 Show summary statistics for a single object.
 
 Arguments:
@@ -170,19 +170,19 @@ Arguments:
 
 Example:
 ```bash
-lfs stats object <object-id> --all-versions
+lfs info object <object-id> --all-versions
 ```
 
-### `lfs stats view <name|id>`
+### `lfs info view <name|id>`
 Show statistics for a built-in or dynamic view. Built-in view names can be provided in English or German.
 
 Examples:
 ```bash
-lfs stats view recent
-lfs stats view neueste  # German equivalent
+lfs info view recent
+lfs info view neueste  # German equivalent
 ```
 
-### `lfs stats view-objects <name|id> [--all-tags] [--raw-tags]`
+### `lfs info view-objects <name|id> [--all-tags] [--raw-tags]`
 List objects for a view with minimal tag output.
 
 Notes:
@@ -192,17 +192,17 @@ Notes:
 
 Example:
 ```bash
-lfs stats view-objects recent --all-tags
+lfs info view-objects recent --all-tags
 # or in German:
-lfs stats view-objects neueste --all-tags
+lfs info view-objects neueste --all-tags
 ```
 
-### `lfs stats views`
+### `lfs info views`
 Summarize all built-in and dynamic views. Built-in views are displayed in the system locale (English or German).
 
 Example:
 ```bash
-lfs stats views
+lfs info views
 ```
 
 Example output (German locale):
@@ -216,28 +216,28 @@ Built-in views:
 - Alle Objekte: 15 objects
 ```
 
-### `lfs stats policy <name>`
+### `lfs info policy <name>`
 Show policy details and how many objects reference it.
 
 Example:
 ```bash
-lfs stats policy compliance
+lfs info policy compliance
 ```
 
-### `lfs stats policies`
+### `lfs info policies`
 Summarize policy counts and list names.
 
 Example:
 ```bash
-lfs stats policies
+lfs info policies
 ```
 
-### `lfs stats shares`
+### `lfs info shares`
 Summarize shared capabilities (total, active/expired, permissions).
 
 Example:
 ```bash
-lfs stats shares
+lfs info shares
 ```
 
 ## Object management
@@ -598,7 +598,7 @@ Dynamic views:
 
 Notes:
 - Dynamic view IDs are UUIDs and can be used anywhere a view name is accepted.
-- Built-in view names can be referenced in either English or German (e.g., `lfs stats view recent` or `lfs stats view neueste`).
+- Built-in view names can be referenced in either English or German (e.g., `lfs info view recent` or `lfs info view neueste`).
 
 ### `lfs view delete <name|id>`
 Delete a dynamic view.
