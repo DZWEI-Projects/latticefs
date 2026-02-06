@@ -19,6 +19,7 @@ pub struct Config {
     pub logging: LoggingConfig,
     pub ipc: IpcConfig,
     pub watcher: WatcherConfig,
+    pub experimental: ExperimentalConfig,
 }
 
 impl Default for Config {
@@ -33,6 +34,7 @@ impl Default for Config {
             logging: LoggingConfig::default(),
             ipc: IpcConfig::default(),
             watcher: WatcherConfig::default(),
+            experimental: ExperimentalConfig::default(),
         }
     }
 }
@@ -173,9 +175,7 @@ pub struct IpcConfig {
 
 impl Default for IpcConfig {
     fn default() -> Self {
-        Self {
-            verbose: false,
-        }
+        Self { verbose: false }
     }
 }
 
@@ -205,6 +205,34 @@ impl Default for WatcherConfig {
                 "*.bak".to_string(),
                 ".~lock.*".to_string(),
             ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ExperimentalConfig {
+    pub nested_views: NestedViewsExperimentalConfig,
+}
+
+impl Default for ExperimentalConfig {
+    fn default() -> Self {
+        Self {
+            nested_views: NestedViewsExperimentalConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NestedViewsExperimentalConfig {
+    pub max_parent_depth: u32,
+}
+
+impl Default for NestedViewsExperimentalConfig {
+    fn default() -> Self {
+        Self {
+            max_parent_depth: 16,
         }
     }
 }

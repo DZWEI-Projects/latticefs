@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
-use latticefs_base::model::{Policy, PolicyTemplate};
 use latticefs_base::LatticeRepo;
 use latticefs_base::Permission;
+use latticefs_base::model::{Policy, PolicyTemplate};
 
 use super::common::resolve_object_id;
 

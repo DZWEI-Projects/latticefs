@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
-use latticefs_base::model::State;
 use latticefs_base::LatticeRepo;
 use latticefs_base::Permission;
+use latticefs_base::model::State;
 
 use super::common::parse_ref_with_version;
 
@@ -49,12 +49,12 @@ async fn set_state(repo: LatticeRepo, args: StateSetArgs) -> Result<()> {
     }
 
     let from = version.state;
-    version
-        .transition_state(target_state)
-        .map_err(|_| latticefs_base::LatticeError::InvalidStateTransition {
+    version.transition_state(target_state).map_err(|_| {
+        latticefs_base::LatticeError::InvalidStateTransition {
             from: from.to_string(),
             to: target_state.to_string(),
-        })?;
+        }
+    })?;
 
     repo.metadata.store_version(&version)?;
     println!("Set state {} -> {} for {}", from, version.state, version.id);

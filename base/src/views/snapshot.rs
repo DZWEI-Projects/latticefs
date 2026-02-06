@@ -306,12 +306,8 @@ mod tests {
             objects.clone(),
             test_actor(),
         );
-        let snapshot_b = ViewSnapshot::new(
-            "B".to_string(),
-            "tag:b".to_string(),
-            objects,
-            test_actor(),
-        );
+        let snapshot_b =
+            ViewSnapshot::new("B".to_string(), "tag:b".to_string(), objects, test_actor());
 
         let diff = snapshot_a.diff(&snapshot_b);
 

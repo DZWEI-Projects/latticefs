@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::model::Version;
 use latticefs_base::LatticeRepo;
 use latticefs_base::Permission;
+use latticefs_base::model::Version;
 
 use super::common::{ensure_identity, identity_actor, parse_ref_with_version, resolve_object_id};
 
@@ -43,11 +43,24 @@ pub async fn run(repo: LatticeRepo, args: VersionsArgs) -> Result<()> {
                 .parent_version
                 .map(|p| p.to_string())
                 .unwrap_or_else(|| "none".to_string());
-            println!("v{} {} parent={} size={} state={}", idx + 1, v.id, parent, v.size_bytes, v.state);
+            println!(
+                "v{} {} parent={} size={} state={}",
+                idx + 1,
+                v.id,
+                parent,
+                v.size_bytes,
+                v.state
+            );
         }
     } else {
         for (idx, v) in versions.iter().enumerate() {
-            println!("v{} {} size={} state={}", idx + 1, v.id, v.size_bytes, v.state);
+            println!(
+                "v{} {} size={} state={}",
+                idx + 1,
+                v.id,
+                v.size_bytes,
+                v.state
+            );
         }
     }
 
@@ -66,8 +79,7 @@ pub async fn restore(repo: LatticeRepo, args: RestoreArgs) -> Result<()> {
         Err(_) => [0u8; 32],
     };
 
-    repo
-        .metadata
+    repo.metadata
         .load_object(&object_id)
         .with_context(|| format!("Object not found: {}", object_id))?;
     let target = repo.metadata.load_version(&version_id)?;

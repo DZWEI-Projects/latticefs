@@ -21,11 +21,11 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/animate-ui/components/radix/dropdown-menu";
 import type { ViewMode } from "./NexusLayout";
 import { ImportDialog } from "./ImportDialog";
 import type { FilterState, SortField, SortState } from "./NexusLayout";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/animate-ui/components/radix/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -198,9 +198,9 @@ export const Toolbar = ({
                 {filters.trustMin === null ? "Beliebig" : `${filters.trustMin}% oder höher`}
               </div>
               <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
+                variant="link"
+                size="xs"
+                className="text-xs text-foreground/70"
                 onClick={() => onFiltersChange({ ...filters, trustMin: null })}
               >
                 Sicherheitsfilter zurücksetzen

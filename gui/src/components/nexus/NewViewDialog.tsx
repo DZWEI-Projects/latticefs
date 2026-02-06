@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -13,25 +13,40 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createView } from "@/lib/lfs";
+import { useViews } from "@/hooks/useViews";
 import { Loader2 } from "lucide-react";
 
 interface NewViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onViewCreated?: (viewId: string) => void;
+  parentId?: string | null;
 }
 
 export const NewViewDialog = ({
   open,
   onOpenChange,
   onViewCreated,
+  parentId,
 }: NewViewDialogProps) => {
   const queryClient = useQueryClient();
+  const { data: views } = useViews();
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const parentView = parentId ? views?.find((v) => v.id === parentId) : null;
+
+  useEffect(() => {
+    if (!open) {
+      setName("");
+      setQuery("");
+      setDescription("");
+      setError(null);
+    }
+  }, [open]);
 
   const handleCreate = async () => {
     if (!name.trim() || !query.trim()) {
@@ -47,6 +62,7 @@ export const NewViewDialog = ({
         name: name.trim(),
         query: query.trim(),
         description: description.trim() || undefined,
+        parentId: parentId || undefined,
       });
 
       // Invalidate the views query to refresh the sidebar
@@ -79,15 +95,35 @@ export const NewViewDialog = ({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Neue Perspektive erstellen</DialogTitle>
+          <DialogTitle>
+            {parentView ? `Neue Teilperspektive von: ${parentView.name}` : "Neue Perspektive erstellen"}
+          </DialogTitle>
           <DialogDescription>
-            Perspektiven sind gespeicherte Filterausdrücke, die deine Objekte
-            organisieren. Nutze die LQL-Filtersyntax, um festzulegen, welche
-            Objekte in dieser Perspektive erscheinen.
+            {parentView
+              ? `Diese Teilperspektive wird die Filter der übergeordneten Perspektive "${parentView.name}" weiter einschränken.`
+              : "Perspektiven sind gespeicherte Filterausdrücke, die deine Objekte organisieren. Nutze die LQL-Filtersyntax, um festzulegen, welche Objekte in dieser Perspektive erscheinen."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
+          {parentView && (
+            <div className="grid gap-2">
+              <Label>Übergeordnete Perspektive</Label>
+              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+                {parentView.name}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Basisfilter:</span>
+                <div className="mt-1 font-mono bg-muted/40 px-2 py-1 rounded break-all">
+                  {parentView.query}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Die Filter dieser Teilperspektive werden mit der übergeordneten Perspektive kombiniert.
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
             <Input

@@ -96,7 +96,9 @@ impl RateLimiter {
             } else {
                 60
             };
-            return Err(LatticeError::RateLimited { retry_after_secs: retry_after });
+            return Err(LatticeError::RateLimited {
+                retry_after_secs: retry_after,
+            });
         }
 
         state.tokens -= ops_f;

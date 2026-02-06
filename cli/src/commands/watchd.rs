@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
-use latticefs_base::ipc::client;
-use latticefs_base::ipc::{send_message, MessageType};
-use latticefs_base::watcher::{FileWatcher, PersistentRegistry, WatchRegistry};
 use latticefs_base::LatticeRepo;
+use latticefs_base::ipc::client;
+use latticefs_base::ipc::{MessageType, send_message};
+use latticefs_base::watcher::{FileWatcher, PersistentRegistry, WatchRegistry};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -96,11 +96,9 @@ async fn start(repo: LatticeRepo, foreground: bool) -> Result<()> {
     let ipc_registry = registry_arc.clone();
     let ipc_shutdown_tx = shutdown_tx.clone();
     let ipc_handle = tokio::spawn(async move {
-        if let Err(e) = latticefs_base::ipc::server::run_ipc_server_with_watcher(
-            ipc_config,
-            Some(ipc_registry),
-        )
-        .await
+        if let Err(e) =
+            latticefs_base::ipc::server::run_ipc_server_with_watcher(ipc_config, Some(ipc_registry))
+                .await
         {
             eprintln!("IPC server error: {}", e);
         }

@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use latticefs_base::model::{Link, LinkType};
 use latticefs_base::LatticeRepo;
 use latticefs_base::Permission;
+use latticefs_base::model::{Link, LinkType};
 
 use super::common::{ensure_identity, identity_actor, resolve_object_id};
 

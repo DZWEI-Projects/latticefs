@@ -305,7 +305,10 @@ impl<'a> Parser<'a> {
             _ => {
                 return Err(LatticeError::ParseError {
                     position: self.lexer.position(),
-                    message: format!("Expected time field (updated|created), got {:?}", self.current),
+                    message: format!(
+                        "Expected time field (updated|created), got {:?}",
+                        self.current
+                    ),
                 })
             }
         };
@@ -636,22 +639,24 @@ fn parse_timestamp_to_micros(raw: &str) -> Result<i64> {
     }
 
     // YYYY-MM-DD
-    if raw.len() == 10 && raw.as_bytes().get(4) == Some(&b'-') && raw.as_bytes().get(7) == Some(&b'-') {
-        let year: i32 = raw[0..4].parse().map_err(|_| {
-            LatticeError::Serialization("Invalid year in date".to_string())
-        })?;
-        let month: u8 = raw[5..7].parse().map_err(|_| {
-            LatticeError::Serialization("Invalid month in date".to_string())
-        })?;
-        let day: u8 = raw[8..10].parse().map_err(|_| {
-            LatticeError::Serialization("Invalid day in date".to_string())
-        })?;
+    if raw.len() == 10
+        && raw.as_bytes().get(4) == Some(&b'-')
+        && raw.as_bytes().get(7) == Some(&b'-')
+    {
+        let year: i32 = raw[0..4]
+            .parse()
+            .map_err(|_| LatticeError::Serialization("Invalid year in date".to_string()))?;
+        let month: u8 = raw[5..7]
+            .parse()
+            .map_err(|_| LatticeError::Serialization("Invalid month in date".to_string()))?;
+        let day: u8 = raw[8..10]
+            .parse()
+            .map_err(|_| LatticeError::Serialization("Invalid day in date".to_string()))?;
 
         let date = Date::from_calendar_date(
             year,
-            Month::try_from(month).map_err(|_| {
-                LatticeError::Serialization("Invalid month in date".to_string())
-            })?,
+            Month::try_from(month)
+                .map_err(|_| LatticeError::Serialization("Invalid month in date".to_string()))?,
             day,
         )
         .map_err(|e| LatticeError::Serialization(format!("Invalid date: {}", e)))?;
@@ -662,18 +667,17 @@ fn parse_timestamp_to_micros(raw: &str) -> Result<i64> {
 
     // YYYY-MM (start of month)
     if raw.len() == 7 && raw.as_bytes().get(4) == Some(&b'-') {
-        let year: i32 = raw[0..4].parse().map_err(|_| {
-            LatticeError::Serialization("Invalid year in date".to_string())
-        })?;
-        let month: u8 = raw[5..7].parse().map_err(|_| {
-            LatticeError::Serialization("Invalid month in date".to_string())
-        })?;
+        let year: i32 = raw[0..4]
+            .parse()
+            .map_err(|_| LatticeError::Serialization("Invalid year in date".to_string()))?;
+        let month: u8 = raw[5..7]
+            .parse()
+            .map_err(|_| LatticeError::Serialization("Invalid month in date".to_string()))?;
 
         let date = Date::from_calendar_date(
             year,
-            Month::try_from(month).map_err(|_| {
-                LatticeError::Serialization("Invalid month in date".to_string())
-            })?,
+            Month::try_from(month)
+                .map_err(|_| LatticeError::Serialization("Invalid month in date".to_string()))?,
             1,
         )
         .map_err(|e| LatticeError::Serialization(format!("Invalid date: {}", e)))?;

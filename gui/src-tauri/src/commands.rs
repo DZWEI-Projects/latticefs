@@ -6,7 +6,9 @@ use latticefs_base::error::LatticeError;
 use latticefs_base::import::{export_object, import_file, scanner, ExportMode, ImportOptions};
 use latticefs_base::model::{timestamp_now, ObjectID, Tag, Version};
 use latticefs_base::query::{parse, QueryEvaluator};
-use latticefs_base::views::{BuiltinView, BuiltinViews, Locale};
+use latticefs_base::views::{
+    BuiltinView, BuiltinViews, EffectiveQueryOptions, Locale, ViewID, ViewJoinOperator,
+};
 use latticefs_base::{is_quarantined_executable, LatticeRepo, Permission, State, VersionID};
 use serde::{Deserialize, Serialize};
 use similar::TextDiff;
@@ -68,6 +70,25 @@ fn repo_info() -> Result<RepoInfo, String> {
         root: root.to_string_lossy().to_string(),
         config_path: config_path.to_string_lossy().to_string(),
     })
+}
+
+fn nested_view_query(
+    repo: &LatticeRepo,
+    view: &latticefs_base::views::View,
+) -> Result<String, String> {
+    if view.parent_id.is_none() {
+        return Ok(view.query.clone());
+    }
+
+    latticefs_base::views::effective_query_with_options(
+        &repo.metadata,
+        view,
+        EffectiveQueryOptions {
+            max_parent_depth: repo.config.experimental.nested_views.max_parent_depth,
+            join_operator: ViewJoinOperator::And,
+        },
+    )
+    .map_err(|err| err.to_string())
 }
 
 fn load_or_create_identity() -> Result<Identity, String> {
@@ -425,6 +446,7 @@ pub struct ViewInfo {
     pub view_type: String, // "builtin" | "dynamic"
     pub icon: Option<String>,
     pub object_count: usize,
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -565,14 +587,17 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
             view_type: "builtin".to_string(),
             icon: builtin_view_icon(*bv),
             object_count: count,
+            parent_id: None,
         });
     }
 
     // Add dynamic views from metadata store
     if let Ok(dynamic_views) = repo.metadata.list_views() {
         for view in dynamic_views {
-            // Count objects for this view
-            let count = eval_query(&repo, &view.query)
+            // Count objects for this view (use effective query for nested views)
+            let effective_q =
+                nested_view_query(&repo, &view).unwrap_or_else(|_| view.query.clone());
+            let count = eval_query(&repo, &effective_q)
                 .map(|ids| ids.len())
                 .unwrap_or(0);
             views.push(ViewInfo {
@@ -583,6 +608,7 @@ pub fn list_views() -> Result<Vec<ViewInfo>, String> {
                 view_type: "dynamic".to_string(),
                 icon: None,
                 object_count: count,
+                parent_id: view.parent_id.map(|id| id.to_string()),
             });
         }
     }
@@ -599,16 +625,21 @@ pub fn get_view_objects(view_id: String) -> Result<Vec<ObjectInfo>, String> {
         BuiltinView::by_name(&view_id).or_else(|| BuiltinView::by_name(&view_id.replace('-', " ")))
     {
         bv.query().to_string()
-    } else if let Ok(view) = repo.metadata.load_view(&view_id) {
-        view.query.clone()
-    } else if let Ok(views) = repo.metadata.list_views() {
-        views
-            .into_iter()
-            .find(|view| view.id.to_string() == view_id)
-            .map(|view| view.query)
-            .ok_or_else(|| format!("View not found: {}", view_id))?
     } else {
-        return Err(format!("View not found: {}", view_id));
+        let view = if let Ok(v) = repo.metadata.load_view(&view_id) {
+            v
+        } else if let Ok(views) = repo.metadata.list_views() {
+            views
+                .into_iter()
+                .find(|v| v.id.to_string() == view_id)
+                .ok_or_else(|| format!("View not found: {}", view_id))?
+        } else {
+            return Err(format!("View not found: {}", view_id));
+        };
+
+        // Use effective query for nested views
+        nested_view_query(&repo, &view)
+            .map_err(|e| format!("Failed to compute effective query: {}", e))?
     };
 
     let object_ids = eval_query(&repo, &query)?;
@@ -809,18 +840,37 @@ pub async fn open_object(object_id: String) -> Result<(), String> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateViewArgs {
     pub name: String,
     pub query: String,
     pub description: Option<String>,
+    #[serde(alias = "parent_id")]
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateViewArgs {
     pub id: String,
     pub name: String,
     pub query: String,
     pub description: Option<String>,
+    #[serde(
+        default,
+        alias = "parent_id",
+        deserialize_with = "deserialize_optional_parent_id"
+    )]
+    pub parent_id: Option<Option<String>>,
+}
+
+fn deserialize_optional_parent_id<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(Option::<String>::deserialize(deserializer)?))
 }
 
 fn validate_view_name(name: &str) -> Result<(), String> {
@@ -852,13 +902,30 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
     if let Some(desc) = args.description {
         view = view.with_description(desc);
     }
+    if let Some(parent_id_str) = args.parent_id {
+        // Resolve parent view by ID or name
+        let parent = if let Ok(uuid) = uuid::Uuid::parse_str(&parent_id_str) {
+            repo.metadata
+                .load_view_by_id(&ViewID::from_uuid(uuid))
+                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+        } else {
+            repo.metadata
+                .load_view(&parent_id_str)
+                .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+        };
+        view = view.with_parent(parent.id);
+    }
 
     repo.metadata
-        .store_view(&view)
+        .store_view_with_max_depth(
+            &view,
+            repo.config.experimental.nested_views.max_parent_depth,
+        )
         .map_err(|err| err.to_string())?;
 
-    // Return the created view info
-    let count = eval_query(&repo, &args.query)
+    // Return the created view info (use effective query for nested views)
+    let effective_q = nested_view_query(&repo, &view).unwrap_or_else(|_| view.query.clone());
+    let count = eval_query(&repo, &effective_q)
         .map(|ids| ids.len())
         .unwrap_or(0);
 
@@ -870,6 +937,7 @@ pub fn create_view(args: CreateViewArgs) -> Result<ViewInfo, String> {
         view_type: "dynamic".to_string(),
         icon: None,
         object_count: count,
+        parent_id: view.parent_id.map(|id| id.to_string()),
     })
 }
 
@@ -904,8 +972,31 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
     view.description = args.description;
     view.modified_at = timestamp_now();
 
+    // Update parent_id if provided
+    match args.parent_id {
+        Some(Some(parent_id_str)) => {
+            let parent = if let Ok(uuid) = uuid::Uuid::parse_str(&parent_id_str) {
+                repo.metadata
+                    .load_view_by_id(&ViewID::from_uuid(uuid))
+                    .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+            } else {
+                repo.metadata
+                    .load_view(&parent_id_str)
+                    .map_err(|_| format!("Parent view not found: {}", parent_id_str))?
+            };
+            view.parent_id = Some(parent.id);
+        }
+        Some(None) => {
+            view.parent_id = None;
+        }
+        None => {}
+    }
+
     repo.metadata
-        .store_view(&view)
+        .store_view_with_max_depth(
+            &view,
+            repo.config.experimental.nested_views.max_parent_depth,
+        )
         .map_err(|err| err.to_string())?;
 
     if previous_name != view.name {
@@ -914,7 +1005,9 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
             .map_err(|err| err.to_string())?;
     }
 
-    let count = eval_query(&repo, &view.query)
+    // Use effective query for nested views
+    let effective_q = nested_view_query(&repo, &view).unwrap_or_else(|_| view.query.clone());
+    let count = eval_query(&repo, &effective_q)
         .map(|ids| ids.len())
         .unwrap_or(0);
 
@@ -926,6 +1019,7 @@ pub fn update_view(args: UpdateViewArgs) -> Result<ViewInfo, String> {
         view_type: "dynamic".to_string(),
         icon: None,
         object_count: count,
+        parent_id: view.parent_id.map(|id| id.to_string()),
     })
 }
 
@@ -1283,4 +1377,76 @@ pub async fn list_watched_files() -> Result<Vec<WatchedFile>, String> {
             registered_at: f.registered_at,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CreateViewArgs, UpdateViewArgs};
+    use serde_json::json;
+
+    #[test]
+    fn create_view_args_accepts_parent_id_aliases() {
+        let camel: CreateViewArgs = serde_json::from_value(json!({
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parentId": "parent-123"
+        }))
+        .expect("camelCase args should deserialize");
+        assert_eq!(camel.parent_id.as_deref(), Some("parent-123"));
+
+        let snake: CreateViewArgs = serde_json::from_value(json!({
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parent_id": "parent-456"
+        }))
+        .expect("snake_case args should deserialize");
+        assert_eq!(snake.parent_id.as_deref(), Some("parent-456"));
+    }
+
+    #[test]
+    fn update_view_args_accepts_parent_id_aliases() {
+        let camel: UpdateViewArgs = serde_json::from_value(json!({
+            "id": "view-1",
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parentId": "parent-123"
+        }))
+        .expect("camelCase args should deserialize");
+        assert_eq!(
+            camel
+                .parent_id
+                .as_ref()
+                .and_then(|parent| parent.as_deref()),
+            Some("parent-123")
+        );
+
+        let snake: UpdateViewArgs = serde_json::from_value(json!({
+            "id": "view-1",
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parent_id": "parent-456"
+        }))
+        .expect("snake_case args should deserialize");
+        assert_eq!(
+            snake
+                .parent_id
+                .as_ref()
+                .and_then(|parent| parent.as_deref()),
+            Some("parent-456")
+        );
+
+        let clear_parent: UpdateViewArgs = serde_json::from_value(json!({
+            "id": "view-1",
+            "name": "Child",
+            "query": "tag:kind:doc",
+            "description": "desc",
+            "parentId": null
+        }))
+        .expect("null parentId should deserialize for explicit clear");
+        assert!(matches!(clear_parent.parent_id, Some(None)));
+    }
 }

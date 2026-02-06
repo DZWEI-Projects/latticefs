@@ -29,7 +29,11 @@ impl MetadataOptions {
     }
 }
 
-pub fn extract_metadata(path: &Path, actor: ActorID, options: &MetadataOptions) -> Result<ExtractedMetadata> {
+pub fn extract_metadata(
+    path: &Path,
+    actor: ActorID,
+    options: &MetadataOptions,
+) -> Result<ExtractedMetadata> {
     let mut tags: Vec<Tag> = Vec::new();
 
     // MIME type tag
@@ -41,7 +45,11 @@ pub fn extract_metadata(path: &Path, actor: ActorID, options: &MetadataOptions) 
 
     // Executable flag (Unix only)
     if is_executable(path)? {
-        tags.push(Tag::new("auto:executable".to_string(), "true".to_string(), actor));
+        tags.push(Tag::new(
+            "auto:executable".to_string(),
+            "true".to_string(),
+            actor,
+        ));
     }
 
     // EXIF metadata
@@ -62,22 +70,46 @@ pub fn extract_metadata(path: &Path, actor: ActorID, options: &MetadataOptions) 
     if options.extract_id3 && mime.starts_with("audio/") {
         if let Ok(tag) = id3::Tag::read_from_path(path) {
             if let Some(title) = tag.title() {
-                tags.push(Tag::new("auto:id3:title".to_string(), title.to_string(), actor));
+                tags.push(Tag::new(
+                    "auto:id3:title".to_string(),
+                    title.to_string(),
+                    actor,
+                ));
             }
             if let Some(artist) = tag.artist() {
-                tags.push(Tag::new("auto:id3:artist".to_string(), artist.to_string(), actor));
+                tags.push(Tag::new(
+                    "auto:id3:artist".to_string(),
+                    artist.to_string(),
+                    actor,
+                ));
             }
             if let Some(album) = tag.album() {
-                tags.push(Tag::new("auto:id3:album".to_string(), album.to_string(), actor));
+                tags.push(Tag::new(
+                    "auto:id3:album".to_string(),
+                    album.to_string(),
+                    actor,
+                ));
             }
             if let Some(genre) = tag.genre() {
-                tags.push(Tag::new("auto:id3:genre".to_string(), genre.to_string(), actor));
+                tags.push(Tag::new(
+                    "auto:id3:genre".to_string(),
+                    genre.to_string(),
+                    actor,
+                ));
             }
             if let Some(year) = tag.year() {
-                tags.push(Tag::new("auto:id3:year".to_string(), year.to_string(), actor));
+                tags.push(Tag::new(
+                    "auto:id3:year".to_string(),
+                    year.to_string(),
+                    actor,
+                ));
             }
             if let Some(track) = tag.track() {
-                tags.push(Tag::new("auto:id3:track".to_string(), track.to_string(), actor));
+                tags.push(Tag::new(
+                    "auto:id3:track".to_string(),
+                    track.to_string(),
+                    actor,
+                ));
             }
         }
     }

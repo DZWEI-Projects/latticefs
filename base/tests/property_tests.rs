@@ -26,8 +26,8 @@ fn permission_strategy() -> impl Strategy<Value = Permission> {
 }
 
 fn requirement_strategy() -> impl Strategy<Value = Requirement> {
-    let approval = proptest::collection::vec("[a-z]{1,8}", 0..3)
-        .prop_map(Requirement::ApprovalFrom);
+    let approval =
+        proptest::collection::vec("[a-z]{1,8}", 0..3).prop_map(Requirement::ApprovalFrom);
     let min_trust = (0u8..=100).prop_map(Requirement::MinTrust);
     let required_tag = "[a-z]{1,8}".prop_map(Requirement::RequireTag);
     prop_oneof![approval, min_trust, required_tag]

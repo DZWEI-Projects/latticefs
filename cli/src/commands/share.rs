@@ -5,13 +5,8 @@ use latticefs_base::crypto::{Capability, Permission, PublicKey};
 use latticefs_base::views::ViewSnapshot;
 
 use super::common::{
-    ensure_identity,
-    identity_actor,
-    parse_duration,
-    resolve_identity_password,
-    resolve_object_id,
-    resolve_view_reference,
-    ResolvedView,
+    ResolvedView, ensure_identity, identity_actor, parse_duration, resolve_identity_password,
+    resolve_object_id, resolve_view_reference,
 };
 
 #[derive(Args, Debug)]

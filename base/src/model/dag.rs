@@ -99,7 +99,11 @@ impl<'a> VersionDAG<'a> {
     ///
     /// This requires scanning all versions to find those that have the given version
     /// in their ancestry chain. Note: This is O(n) where n is the number of versions.
-    pub fn descendants(&self, version_id: VersionID, object_id: ObjectID) -> Result<Vec<VersionID>> {
+    pub fn descendants(
+        &self,
+        version_id: VersionID,
+        object_id: ObjectID,
+    ) -> Result<Vec<VersionID>> {
         let mut descendants = Vec::new();
 
         // Get all version IDs for this object
@@ -126,7 +130,11 @@ impl<'a> VersionDAG<'a> {
     ///
     /// This should be called before creating a new version to ensure DAG integrity.
     /// Per LFS-004, the DAG must be acyclic: no version can be its own ancestor.
-    pub fn verify_acyclic(&self, new_version_id: VersionID, parent_id: Option<VersionID>) -> Result<()> {
+    pub fn verify_acyclic(
+        &self,
+        new_version_id: VersionID,
+        parent_id: Option<VersionID>,
+    ) -> Result<()> {
         // If no parent, it's a root version - always acyclic
         let Some(parent) = parent_id else {
             return Ok(());
@@ -275,10 +283,7 @@ mod tests {
         [1u8; 32]
     }
 
-    fn create_test_version(
-        object_id: ObjectID,
-        parent: Option<VersionID>,
-    ) -> Version {
+    fn create_test_version(object_id: ObjectID, parent: Option<VersionID>) -> Version {
         Version::new(
             object_id,
             parent,
@@ -308,9 +313,15 @@ mod tests {
         let v2_bytes = bincode::serialize(&v2).unwrap();
         let v3_bytes = bincode::serialize(&v3).unwrap();
 
-        store.store_version_bytes(v1.id.as_bytes(), &v1_bytes).unwrap();
-        store.store_version_bytes(v2.id.as_bytes(), &v2_bytes).unwrap();
-        store.store_version_bytes(v3.id.as_bytes(), &v3_bytes).unwrap();
+        store
+            .store_version_bytes(v1.id.as_bytes(), &v1_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v2.id.as_bytes(), &v2_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v3.id.as_bytes(), &v3_bytes)
+            .unwrap();
 
         let dag = VersionDAG::new(&store);
 
@@ -347,9 +358,15 @@ mod tests {
         let v2_bytes = bincode::serialize(&v2).unwrap();
         let v3_bytes = bincode::serialize(&v3).unwrap();
 
-        store.store_version_bytes(v1.id.as_bytes(), &v1_bytes).unwrap();
-        store.store_version_bytes(v2.id.as_bytes(), &v2_bytes).unwrap();
-        store.store_version_bytes(v3.id.as_bytes(), &v3_bytes).unwrap();
+        store
+            .store_version_bytes(v1.id.as_bytes(), &v1_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v2.id.as_bytes(), &v2_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v3.id.as_bytes(), &v3_bytes)
+            .unwrap();
 
         let dag = VersionDAG::new(&store);
 
@@ -376,7 +393,9 @@ mod tests {
         // Create version v1
         let v1 = create_test_version(object_id, None);
         let v1_bytes = bincode::serialize(&v1).unwrap();
-        store.store_version_bytes(v1.id.as_bytes(), &v1_bytes).unwrap();
+        store
+            .store_version_bytes(v1.id.as_bytes(), &v1_bytes)
+            .unwrap();
 
         let dag = VersionDAG::new(&store);
 
@@ -418,9 +437,15 @@ mod tests {
         let v2_bytes = bincode::serialize(&v2).unwrap();
         let v3_bytes = bincode::serialize(&v3).unwrap();
 
-        store.store_version_bytes(v1.id.as_bytes(), &v1_bytes).unwrap();
-        store.store_version_bytes(v2.id.as_bytes(), &v2_bytes).unwrap();
-        store.store_version_bytes(v3.id.as_bytes(), &v3_bytes).unwrap();
+        store
+            .store_version_bytes(v1.id.as_bytes(), &v1_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v2.id.as_bytes(), &v2_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v3.id.as_bytes(), &v3_bytes)
+            .unwrap();
 
         let dag = VersionDAG::new(&store);
 
@@ -460,10 +485,18 @@ mod tests {
         let v3_bytes = bincode::serialize(&v3).unwrap();
         let v4_bytes = bincode::serialize(&v4).unwrap();
 
-        store.store_version_bytes(v1.id.as_bytes(), &v1_bytes).unwrap();
-        store.store_version_bytes(v2.id.as_bytes(), &v2_bytes).unwrap();
-        store.store_version_bytes(v3.id.as_bytes(), &v3_bytes).unwrap();
-        store.store_version_bytes(v4.id.as_bytes(), &v4_bytes).unwrap();
+        store
+            .store_version_bytes(v1.id.as_bytes(), &v1_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v2.id.as_bytes(), &v2_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v3.id.as_bytes(), &v3_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v4.id.as_bytes(), &v4_bytes)
+            .unwrap();
 
         let dag = VersionDAG::new(&store);
 
@@ -497,9 +530,15 @@ mod tests {
         let v2_bytes = bincode::serialize(&v2).unwrap();
         let v3_bytes = bincode::serialize(&v3).unwrap();
 
-        store.store_version_bytes(v1.id.as_bytes(), &v1_bytes).unwrap();
-        store.store_version_bytes(v2.id.as_bytes(), &v2_bytes).unwrap();
-        store.store_version_bytes(v3.id.as_bytes(), &v3_bytes).unwrap();
+        store
+            .store_version_bytes(v1.id.as_bytes(), &v1_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v2.id.as_bytes(), &v2_bytes)
+            .unwrap();
+        store
+            .store_version_bytes(v3.id.as_bytes(), &v3_bytes)
+            .unwrap();
 
         let dag = VersionDAG::new(&store);
 

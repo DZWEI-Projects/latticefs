@@ -98,8 +98,7 @@ pub async fn send_watch_status(socket_path: &Path) -> Result<pb::WatchStatusResp
 }
 
 pub fn is_daemon_running(socket_path: &Path) -> bool {
-    socket_path.exists()
-        && std::os::unix::net::UnixStream::connect(socket_path).is_ok()
+    socket_path.exists() && std::os::unix::net::UnixStream::connect(socket_path).is_ok()
 }
 
 async fn connect(socket_path: &Path) -> Result<UnixStream> {

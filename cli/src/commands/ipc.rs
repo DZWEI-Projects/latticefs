@@ -1,11 +1,10 @@
 use anyhow::Result;
 use clap::Args;
-use latticefs_base::ipc::start_ipc_server;
 use latticefs_base::LatticeRepo;
+use latticefs_base::ipc::start_ipc_server;
 
 #[derive(Args, Debug)]
-pub struct IpcArgs {
-}
+pub struct IpcArgs {}
 
 pub async fn run(repo: LatticeRepo, _args: IpcArgs) -> Result<()> {
     let mut config = repo.config.clone();

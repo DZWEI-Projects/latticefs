@@ -10,7 +10,6 @@ import {
   Plus,
   Settings,
   ChevronDown,
-  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,18 +18,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { deleteView, type ViewInfo } from "@/lib/lfs";
 import { NewViewDialog } from "./NewViewDialog";
 import { EditViewDialog } from "./EditViewDialog";
+import { ViewTree } from "./ViewTree";
 import { useConfirmDialog } from "@/lib/confirm-dialog";
 import { toast } from "sonner";
 
@@ -53,10 +46,9 @@ interface ViewItemProps {
   view: ViewInfo;
   isActive: boolean;
   onClick: () => void;
-  actions?: React.ReactNode;
 }
 
-const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
+const ViewItem = ({ view, isActive, onClick }: ViewItemProps) => {
   const Icon = view.icon ? iconMap[view.icon] || Folder : Folder;
 
   return (
@@ -71,7 +63,7 @@ const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
         }
       }}
       className={cn(
-        "group w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm",
+        "w-full flex items-center gap-2.5 py-1.5 px-3 rounded-md text-sm",
         "transition-colors duration-150",
         "hover:bg-muted/60",
         isActive && "bg-primary/10 text-primary hover:bg-primary/15"
@@ -87,20 +79,6 @@ const ViewItem = ({ view, isActive, onClick, actions }: ViewItemProps) => {
       >
         {view.objectCount}
       </span>
-      {actions && (
-        <div
-          className={cn(
-            "flex items-center overflow-hidden w-0 opacity-0 ml-0 pointer-events-none",
-            "transition-[width,opacity,margin] duration-150 ease-out",
-            "group-hover:w-6 group-hover:opacity-100 group-hover:ml-1 group-hover:pointer-events-auto",
-            "group-focus-within:w-6 group-focus-within:opacity-100 group-focus-within:ml-1 group-focus-within:pointer-events-auto"
-          )}
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          {actions}
-        </div>
-      )}
     </div>
   );
 };
@@ -110,12 +88,20 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   const queryClient = useQueryClient();
   const [builtinOpen, setBuiltinOpen] = useState(true);
   const [dynamicOpen, setDynamicOpen] = useState(true);
+  const [viewTreeKey, setViewTreeKey] = useState(0);
   const [newViewDialogOpen, setNewViewDialogOpen] = useState(false);
+  const [newSubViewParentId, setNewSubViewParentId] = useState<string | null>(null);
   const [editingView, setEditingView] = useState<ViewInfo | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ViewInfo | null>(null);
 
-  const builtinViews = views?.filter((v) => v.viewType === "builtin") || [];
-  const dynamicViews = views?.filter((v) => v.viewType === "dynamic") || [];
+  const builtinViews = useMemo(
+    () => views?.filter((view) => view.viewType === "builtin") ?? [],
+    [views]
+  );
+  const dynamicViews = useMemo(
+    () => views?.filter((view) => view.viewType === "dynamic") ?? [],
+    [views]
+  );
 
   const { confirm, DialogComponent } = useConfirmDialog({
     title: "Perspektive löschen",
@@ -129,47 +115,62 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   const handleViewCreated = (viewId: string) => {
     onViewSelect(viewId);
     setDynamicOpen(true);
+    // Re-mount tree so nested folders expand immediately for the new selection.
+    setViewTreeKey((current) => current + 1);
+    setNewSubViewParentId(null);
+  };
+
+  const handleCreateSubView = (parentId: string) => {
+    setNewSubViewParentId(parentId);
+    setNewViewDialogOpen(true);
   };
 
   useEffect(() => {
     if (!pendingDelete) return;
-    
+
     let isMounted = true;
-    
+
     const run = async () => {
       const confirmed = await confirm();
       if (!isMounted || !confirmed) {
         if (isMounted) setPendingDelete(null);
         return;
       }
+
       try {
         await deleteView(pendingDelete.name);
         if (!isMounted) return;
-        
+
         await queryClient.invalidateQueries({ queryKey: ["views"] });
-        await queryClient.invalidateQueries({ queryKey: ["view-objects", pendingDelete.id] });
+        await queryClient.invalidateQueries({
+          queryKey: ["view-objects", pendingDelete.id],
+        });
         if (currentViewId === pendingDelete.id) {
           onViewSelect("recent");
         }
         toast.success("Perspektive gelöscht");
       } catch (err) {
         if (!isMounted) return;
-        toast.error(err instanceof Error ? err.message : "Perspektive konnte nicht gelöscht werden");
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Perspektive konnte nicht gelöscht werden"
+        );
       } finally {
         if (isMounted) setPendingDelete(null);
       }
     };
+
     run();
-    
+
     return () => {
       isMounted = false;
     };
   }, [pendingDelete, confirm, queryClient, currentViewId, onViewSelect]);
 
   return (
-    <div className="w-60 flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
+    <div className="w-60 xl:w-72 2xl:w-[21rem] transition-width duration-200 flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
       <ScrollArea className="flex-1 py-2">
-        {/* Built-in Views */}
         <Collapsible open={builtinOpen} onOpenChange={setBuiltinOpen}>
           <CollapsibleTrigger className="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
             <ChevronDown
@@ -198,7 +199,6 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
           </CollapsibleContent>
         </Collapsible>
 
-        {/* Dynamic Views */}
         {dynamicViews.length > 0 && (
           <Collapsible open={dynamicOpen} onOpenChange={setDynamicOpen} className="mt-4">
             <CollapsibleTrigger className="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
@@ -210,47 +210,21 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
               />
               Eigene Perspektiven
             </CollapsibleTrigger>
-            <CollapsibleContent className="px-2 space-y-0.5 overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-              {dynamicViews.map((view) => (
-                <ViewItem
-                  key={view.id}
-                  view={view}
-                  isActive={currentViewId === view.id}
-                  onClick={() => onViewSelect(view.id)}
-                  actions={(
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                          aria-label={`Optionen für ${view.name}`}
-                        >
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem onSelect={() => setEditingView(view)}>
-                          Bearbeiten
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() => setPendingDelete(view)}
-                        >
-                          Löschen
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                />
-              ))}
+            <CollapsibleContent className="px-2 overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+              <ViewTree
+                key={viewTreeKey}
+                views={dynamicViews}
+                currentViewId={currentViewId}
+                onViewSelect={onViewSelect}
+                onEditView={setEditingView}
+                onDeleteView={setPendingDelete}
+                onCreateSubView={handleCreateSubView}
+              />
             </CollapsibleContent>
           </Collapsible>
         )}
       </ScrollArea>
 
-      {/* Sidebar footer */}
       <div className="p-2 border-t border-border/50 flex items-center gap-1">
         <Button
           variant="ghost"
@@ -271,11 +245,14 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
         </Button>
       </div>
 
-      {/* New View Dialog */}
       <NewViewDialog
         open={newViewDialogOpen}
-        onOpenChange={setNewViewDialogOpen}
+        onOpenChange={(open) => {
+          setNewViewDialogOpen(open);
+          if (!open) setNewSubViewParentId(null);
+        }}
         onViewCreated={handleViewCreated}
+        parentId={newSubViewParentId ?? undefined}
       />
 
       <EditViewDialog
