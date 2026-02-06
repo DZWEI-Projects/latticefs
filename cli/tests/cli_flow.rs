@@ -143,6 +143,34 @@ fn cli_flow_basic() {
         .success()
         .stdout(predicate::str::contains("Revised"));
 
+    // export specific version (v1)
+    let export_path_v1 = temp.path().join("out_v1.txt");
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([
+            "export",
+            &format!("{}@v1", object_id),
+            "--output",
+            export_path_v1.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let exported_v1 = fs::read(&export_path_v1).unwrap();
+    assert_eq!(exported_v1, b"hello latticefs\n");
+
+    // export specific version (v2)
+    let export_path_v2 = temp.path().join("out_v2.txt");
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args([
+            "export",
+            &format!("{}@v2", object_id),
+            "--output",
+            export_path_v2.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let exported_v2 = fs::read(&export_path_v2).unwrap();
+    assert_eq!(exported_v2, b"hello latticefs v2\n");
+
     // set state to review (v2)
     lfs_cmd(&lattice_home, &xdg_home)
         .args(["state", "set", &format!("{}@v2", object_id), "review"])

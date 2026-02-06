@@ -803,8 +803,9 @@ Arguments:
 Notes:
 - If you pass a view ID (UUID), the CLI will export that view and print its name and ID.
 - Built-in view names are accepted in both English and German.
+- Object references can include version specifiers (e.g., `@v1` or `@<version-id>`) to export a specific version.
 
-Example (single object):
+Example (single object, current version):
 ```bash
 lfs export <object-id> --output ~/Exports/out.bin
 ```
@@ -812,6 +813,17 @@ lfs export <object-id> --output ~/Exports/out.bin
 Example output:
 ```text
 Exported <object-id>
+```
+
+Example (single object, specific version):
+```bash
+lfs export <object-id>@v1 --output ~/Exports/out_v1.bin
+lfs export <object-id>@<version-id> --output ~/Exports/out_version.bin
+```
+
+Example output:
+```text
+Exported <object-id>@v1
 ```
 
 Example (view to directory, English):
