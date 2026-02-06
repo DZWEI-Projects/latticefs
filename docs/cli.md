@@ -476,6 +476,24 @@ Example output:
 Set state draft -> sealed for <version-id>
 ```
 
+### `lfs message set <ref>[@version] (--clear | -m <message>)`
+Update (or clear) the commit message for a version. You must provide either `--clear` or `-m/--message`. By default the current version is used when no `@version` is provided.
+
+Example (explicit version):
+```bash
+lfs message set <object-id>@v2 -m "add summary"
+```
+
+Example output:
+```text
+Set message for <version-id>
+```
+
+Example (clear message):
+```bash
+lfs message set <object-id> --clear
+```
+
 ### `lfs diff <ref@v1> <ref@v2>` or `lfs diff <ref> <v1> <v2>`
 Diff two versions (text or binary). The versions can be from the **same object** or **different objects**.
 

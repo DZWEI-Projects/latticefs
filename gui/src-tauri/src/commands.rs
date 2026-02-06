@@ -1258,6 +1258,54 @@ pub fn set_version_state(
 }
 
 #[tauri::command]
+pub fn set_version_message(
+    object_id: String,
+    version_id: String,
+    message: Option<String>,
+) -> Result<VersionInfo, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let object_id = parse_object_id(&object_id)?;
+    let version_id = parse_version_id(&version_id)?;
+
+    let version = repo
+        .update_version_message(&object_id, Some(version_id), message)
+        .map_err(|err| err.to_string())?;
+
+    // Load the object after update for version numbering display
+    let object = repo
+        .metadata
+        .load_object(&object_id)
+        .map_err(|err| err.to_string())?;
+
+    // Find version number
+    let mut all_versions: Vec<Version> = Vec::new();
+    for vid in &object.versions {
+        let v = repo
+            .metadata
+            .load_version(vid)
+            .map_err(|err| err.to_string())?;
+        all_versions.push(v);
+    }
+    all_versions.sort_by_key(|v| v.created_at);
+    let number = all_versions
+        .iter()
+        .position(|v| v.id == version.id)
+        .map(|i| i + 1)
+        .unwrap_or(1);
+
+    Ok(VersionInfo {
+        id: version.id.to_string(),
+        number,
+        created_at: version.created_at,
+        size_bytes: version.size_bytes,
+        state: version.state.to_string(),
+        parent_version: version.parent_version.map(|p| p.to_string()),
+        commit_message: version.commit_message.clone(),
+        is_current: version.id == object.current_version,
+    })
+}
+
+#[tauri::command]
 pub fn checkout_object_version(
     object_id: String,
     version_id: String,
@@ -1388,6 +1436,8 @@ pub async fn list_watched_files() -> Result<Vec<WatchedFile>, String> {
 mod tests {
     use super::{CreateViewArgs, UpdateViewArgs};
     use serde_json::json;
+    use std::env;
+    use tempfile::TempDir;
 
     #[test]
     fn create_view_args_accepts_parent_id_aliases() {
@@ -1453,5 +1503,90 @@ mod tests {
         }))
         .expect("null parentId should deserialize for explicit clear");
         assert!(matches!(clear_parent.parent_id, Some(None)));
+    }
+
+    #[test]
+    fn test_set_version_message() {
+        use latticefs_base::model::{ActorID, Object, ObjectID, ObjectType, Version, VersionID};
+        use latticefs_base::LatticeRepo;
+
+        // Set up a temporary directory for the test repo
+        let temp_dir = TempDir::new().expect("should create temp dir");
+        let temp_path = temp_dir.path();
+
+        // Set environment variables to use the temp directory
+        env::set_var("LATTICE_HOME", temp_path);
+        env::set_var("XDG_CONFIG_HOME", temp_path.join("config"));
+        env::set_var("LFS_KEY_PASSWORD", "test-password");
+
+        // Create a test object and version manually using open_at to avoid lock conflicts
+        let (object_id, version_id) = {
+            let repo = LatticeRepo::open_at(temp_path).expect("should open repo");
+            let actor: ActorID = [0u8; 32];
+            let mut object = Object::new(ObjectType::Blob, VersionID::new(), actor);
+            let object_id = object.id;
+            let version = Version::new(
+                object_id,
+                None,
+                [0u8; 32],
+                [1u8; 32],
+                actor,
+                0,
+                0,
+                Some("initial message".to_string()),
+            );
+            let version_id = version.id;
+            object.current_version = version_id;
+            object.versions = vec![version_id];
+
+            repo.metadata
+                .store_object(&object)
+                .expect("should store object");
+            repo.metadata
+                .store_version(&version)
+                .expect("should store version");
+            (object_id, version_id)
+        }; // Drop repo to release database lock
+
+        // Test setting a new message
+        let result = super::set_version_message(
+            object_id.to_string(),
+            version_id.to_string(),
+            Some("updated message".to_string()),
+        );
+        if let Err(e) = &result {
+            panic!("set_version_message failed: {}", e);
+        }
+        assert!(result.is_ok());
+        let version_info = result.unwrap();
+        assert_eq!(
+            version_info.commit_message.as_deref(),
+            Some("updated message")
+        );
+        assert_eq!(version_info.id, version_id.to_string());
+        assert_eq!(version_info.number, 1);
+        assert!(version_info.is_current);
+
+        // Test clearing the message (setting to None)
+        let result =
+            super::set_version_message(object_id.to_string(), version_id.to_string(), None);
+        assert!(result.is_ok());
+        let version_info = result.unwrap();
+        assert!(version_info.commit_message.is_none());
+
+        // Test error case: nonexistent object
+        let fake_object_id = ObjectID::new();
+        let result = super::set_version_message(
+            fake_object_id.to_string(),
+            version_id.to_string(),
+            Some("test".to_string()),
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+
+        // Clean up
+        env::remove_var("LATTICE_HOME");
+        env::remove_var("XDG_CONFIG_HOME");
+        env::remove_var("LFS_KEY_PASSWORD");
     }
 }

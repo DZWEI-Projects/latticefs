@@ -9,8 +9,10 @@ pub mod edit;
 pub mod export;
 pub mod get;
 pub mod import;
+pub mod info;
 pub mod ipc;
 pub mod link;
+pub mod message;
 pub mod meta;
 pub mod mount;
 pub mod policy;
@@ -19,7 +21,6 @@ pub mod revoke;
 pub mod share;
 pub mod shares;
 pub mod state;
-pub mod info;
 pub mod system;
 pub mod tag;
 pub mod tags;
@@ -45,6 +46,7 @@ pub enum Command {
     Checkout(checkout::CheckoutArgs),
     Revise(revise::ReviseArgs),
     State(state::StateArgs),
+    Message(message::MessageArgs),
     View(view::ViewArgs),
     Share(share::ShareCommand),
     Revoke(revoke::RevokeArgs),

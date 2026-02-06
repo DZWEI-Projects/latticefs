@@ -161,6 +161,30 @@ impl LatticeRepo {
         Ok(version)
     }
 
+    /// Update the commit message for any version on an object.
+    pub fn update_version_message(
+        &self,
+        object_id: &ObjectID,
+        version_id: Option<crate::model::VersionID>,
+        message: Option<String>,
+    ) -> Result<Version> {
+        self.enforce_rate_limit(1)?;
+        let object = self.metadata.load_object(object_id)?;
+        self.authorize_object_permission(&object, crate::crypto::Permission::Write, false)?;
+
+        let target_version = version_id.unwrap_or(object.current_version);
+        let mut version = self.metadata.load_version(&target_version)?;
+        if version.object_id != *object_id {
+            return Err(LatticeError::InvalidPredicate(
+                "Version does not belong to object".to_string(),
+            ));
+        }
+
+        version.commit_message = message;
+        self.metadata.store_version(&version)?;
+        Ok(version)
+    }
+
     pub fn authorize_object_permission(
         &self,
         object: &Object,
@@ -227,4 +251,237 @@ fn ensure_layout(root: &Path) -> Result<()> {
 /// Get the default LatticeFS root path.
 pub fn default_repo_root() -> PathBuf {
     default_home()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{Object, ObjectType, Version, VersionID};
+    use hex;
+    use tempfile::TempDir;
+
+    #[test]
+    fn update_version_message_allows_empty_and_clear() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+        let actor: ActorID = [0u8; 32];
+
+        let mut object = Object::new(ObjectType::Blob, VersionID::new(), actor);
+        let object_id = object.id;
+        let version = Version::new(
+            object_id,
+            None,
+            [0u8; 32],
+            [1u8; 32],
+            actor,
+            0,
+            0,
+            Some("initial".to_string()),
+        );
+        object.current_version = version.id;
+        object.versions = vec![version.id];
+
+        repo.metadata.store_object(&object).unwrap();
+        repo.metadata.store_version(&version).unwrap();
+
+        let updated = repo
+            .update_version_message(&object_id, Some(version.id), Some("new".to_string()))
+            .unwrap();
+        assert_eq!(updated.commit_message.as_deref(), Some("new"));
+
+        let updated = repo
+            .update_version_message(&object_id, Some(version.id), Some(String::new()))
+            .unwrap();
+        assert_eq!(updated.commit_message.as_deref(), Some(""));
+
+        let updated = repo
+            .update_version_message(&object_id, Some(version.id), None)
+            .unwrap();
+        assert!(updated.commit_message.is_none());
+
+        let stored = repo.metadata.load_version(&version.id).unwrap();
+        assert!(stored.commit_message.is_none());
+    }
+
+    #[test]
+    fn update_version_message_uses_current_version_when_none_specified() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+        let actor: ActorID = [0u8; 32];
+
+        let mut object = Object::new(ObjectType::Blob, VersionID::new(), actor);
+        let object_id = object.id;
+        let version = Version::new(
+            object_id,
+            None,
+            [0u8; 32],
+            [1u8; 32],
+            actor,
+            0,
+            0,
+            Some("initial".to_string()),
+        );
+        object.current_version = version.id;
+        object.versions = vec![version.id];
+
+        repo.metadata.store_object(&object).unwrap();
+        repo.metadata.store_version(&version).unwrap();
+
+        // Update without specifying version_id should use current_version
+        let updated = repo
+            .update_version_message(&object_id, None, Some("updated".to_string()))
+            .unwrap();
+        assert_eq!(updated.commit_message.as_deref(), Some("updated"));
+        assert_eq!(updated.id, version.id);
+    }
+
+    #[test]
+    fn update_version_message_fails_for_nonexistent_object() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+        let fake_object_id = ObjectID::new();
+        let fake_version_id = VersionID::new();
+
+        let result = repo.update_version_message(&fake_object_id, Some(fake_version_id), Some("test".to_string()));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            LatticeError::ObjectNotFound { id } => {
+                // Error uses hex-encoded bytes, not UUID string format
+                assert_eq!(id, hex::encode(fake_object_id.as_bytes()));
+            }
+            err => panic!("Expected ObjectNotFound, got {:?}", err),
+        }
+    }
+
+    #[test]
+    fn update_version_message_fails_for_nonexistent_version() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+        let actor: ActorID = [0u8; 32];
+
+        let mut object = Object::new(ObjectType::Blob, VersionID::new(), actor);
+        let object_id = object.id;
+        let version = Version::new(
+            object_id,
+            None,
+            [0u8; 32],
+            [1u8; 32],
+            actor,
+            0,
+            0,
+            None,
+        );
+        object.current_version = version.id;
+        object.versions = vec![version.id];
+
+        repo.metadata.store_object(&object).unwrap();
+        repo.metadata.store_version(&version).unwrap();
+
+        let fake_version_id = VersionID::new();
+        let result = repo.update_version_message(&object_id, Some(fake_version_id), Some("test".to_string()));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            LatticeError::VersionNotFound { id } => {
+                // Error uses hex-encoded bytes, not UUID string format
+                assert_eq!(id, hex::encode(fake_version_id.as_bytes()));
+            }
+            err => panic!("Expected VersionNotFound, got {:?}", err),
+        }
+    }
+
+    #[test]
+    fn update_version_message_fails_when_version_belongs_to_different_object() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+        let actor: ActorID = [0u8; 32];
+
+        // Create first object
+        let mut object1 = Object::new(ObjectType::Blob, VersionID::new(), actor);
+        let object1_id = object1.id;
+        let version1 = Version::new(
+            object1_id,
+            None,
+            [0u8; 32],
+            [1u8; 32],
+            actor,
+            0,
+            0,
+            None,
+        );
+        object1.current_version = version1.id;
+        object1.versions = vec![version1.id];
+        repo.metadata.store_object(&object1).unwrap();
+        repo.metadata.store_version(&version1).unwrap();
+
+        // Create second object
+        let mut object2 = Object::new(ObjectType::Blob, VersionID::new(), actor);
+        let object2_id = object2.id;
+        let version2 = Version::new(
+            object2_id,
+            None,
+            [0u8; 32],
+            [2u8; 32],
+            actor,
+            0,
+            0,
+            None,
+        );
+        object2.current_version = version2.id;
+        object2.versions = vec![version2.id];
+        repo.metadata.store_object(&object2).unwrap();
+        repo.metadata.store_version(&version2).unwrap();
+
+        // Try to update object1 using version2 (belongs to object2)
+        let result = repo.update_version_message(&object1_id, Some(version2.id), Some("test".to_string()));
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            LatticeError::InvalidPredicate(msg) => {
+                assert!(msg.contains("Version does not belong to object"));
+            }
+            err => panic!("Expected InvalidPredicate, got {:?}", err),
+        }
+    }
+
+    #[test]
+    fn update_version_message_enforces_rate_limiting() {
+        let temp = TempDir::new().unwrap();
+        let mut config = crate::config::Config::default();
+        config.quota.max_operations_per_minute = 1; // Very low limit
+        config.quota.burst_allowance = 0; // No burst allowance to ensure rate limit hits
+        config.storage.path = temp.path().to_string_lossy().to_string();
+        let repo = LatticeRepo::open(config).unwrap();
+        let actor: ActorID = [0u8; 32];
+
+        let mut object = Object::new(ObjectType::Blob, VersionID::new(), actor);
+        let object_id = object.id;
+        let version = Version::new(
+            object_id,
+            None,
+            [0u8; 32],
+            [1u8; 32],
+            actor,
+            0,
+            0,
+            None,
+        );
+        object.current_version = version.id;
+        object.versions = vec![version.id];
+
+        repo.metadata.store_object(&object).unwrap();
+        repo.metadata.store_version(&version).unwrap();
+
+        // First call should succeed (consumes 1 token, leaving 0)
+        let result1 = repo.update_version_message(&object_id, None, Some("first".to_string()));
+        assert!(result1.is_ok());
+
+        // Second call immediately after should hit rate limit (0 tokens available)
+        let result2 = repo.update_version_message(&object_id, None, Some("second".to_string()));
+        assert!(result2.is_err());
+        match result2.unwrap_err() {
+            LatticeError::RateLimited { .. } => {
+                // Expected
+            }
+            err => panic!("Expected RateLimited, got {:?}", err),
+        }
+    }
 }

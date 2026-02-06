@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
   VERSION_STATE_LABELS,
   VERSION_STATE_TRANSITIONS,
   getObjectVersions,
+  setVersionMessage,
   setVersionState,
   exportObjectVersion,
   checkoutObjectVersion,
@@ -25,11 +27,14 @@ import {
 import { cn } from "@/lib/utils";
 import {
   ArrowDownToLine,
+  Check,
   Clock,
   GitCompareArrows,
   Lock,
+  MessageSquareText,
   Pencil,
   RotateCcw,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -85,6 +90,9 @@ export const VersionHistoryDialog = ({
   const [loading, setLoading] = useState(false);
   const [diffSelectMode, setDiffSelectMode] = useState(false);
   const [diffSelection, setDiffSelection] = useState<VersionInfo[]>([]);
+  const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
+  const [messageDraft, setMessageDraft] = useState("");
+  const [messageSaving, setMessageSaving] = useState(false);
 
   const loadVersions = useCallback(async () => {
     setLoading(true);
@@ -105,6 +113,8 @@ export const VersionHistoryDialog = ({
       loadVersions();
       setDiffSelectMode(false);
       setDiffSelection([]);
+      setEditingVersionId(null);
+      setMessageDraft("");
     }
   }, [open, loadVersions]);
 
@@ -161,6 +171,39 @@ export const VersionHistoryDialog = ({
       }
       return [...prev, version];
     });
+  };
+
+  const startMessageEdit = (version: VersionInfo) => {
+    setEditingVersionId(version.id);
+    setMessageDraft(version.commitMessage ?? "");
+  };
+
+  const cancelMessageEdit = () => {
+    setEditingVersionId(null);
+    setMessageDraft("");
+  };
+
+  const handleMessageSave = async (version: VersionInfo, clear: boolean) => {
+    setMessageSaving(true);
+    try {
+      const updated = await setVersionMessage(
+        object.id,
+        version.id,
+        clear ? null : messageDraft,
+      );
+      setVersions((prev) =>
+        prev.map((v) => (v.id === updated.id ? updated : v)),
+      );
+      onObjectUpdated();
+      setEditingVersionId(null);
+      toast.success("Nachricht aktualisiert");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Nachricht konnte nicht geändert werden",
+      );
+    } finally {
+      setMessageSaving(false);
+    }
   };
 
   const handleStartDiff = () => {
@@ -251,6 +294,13 @@ export const VersionHistoryDialog = ({
                 const validTransitions = VERSION_STATE_TRANSITIONS[
                   version.state as VersionState
                 ]?.filter((s) => s !== version.state) ?? [];
+                const isEditing = editingVersionId === version.id;
+                const messageLabel =
+                  version.commitMessage === null || version.commitMessage === undefined
+                    ? "Keine Nachricht"
+                    : version.commitMessage === ""
+                      ? "Leere Nachricht"
+                      : version.commitMessage;
 
                 return (
                   <div
@@ -332,6 +382,15 @@ export const VersionHistoryDialog = ({
                           >
                             <ArrowDownToLine className="w-3.5 h-3.5" />
                           </Button>
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            title="Nachricht bearbeiten"
+                            onClick={() => startMessageEdit(version)}
+                          >
+                            <MessageSquareText className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -339,9 +398,47 @@ export const VersionHistoryDialog = ({
                       <span>{formatDate(version.createdAt)}</span>
                       <span>{formatBytes(version.sizeBytes)}</span>
                     </div>
-                    {version.commitMessage && (
+                    {isEditing ? (
+                      <div className="mt-2 space-y-2">
+                        <Textarea
+                          value={messageDraft}
+                          onChange={(event) => setMessageDraft(event.target.value)}
+                          placeholder="Neue Nachricht (optional)"
+                          className="text-xs"
+                          rows={3}
+                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => handleMessageSave(version, false)}
+                            disabled={messageSaving}
+                          >
+                            <Check className="w-3.5 h-3.5 mr-1" />
+                            Speichern
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleMessageSave(version, true)}
+                            disabled={messageSaving}
+                          >
+                            Nachricht löschen
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={cancelMessageEdit}
+                            disabled={messageSaving}
+                          >
+                            <X className="w-3.5 h-3.5 mr-1" />
+                            Abbrechen
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
                       <p className="mt-1 text-xs text-foreground/75 italic truncate">
-                        {version.commitMessage}
+                        {messageLabel}
                       </p>
                     )}
                   </div>
