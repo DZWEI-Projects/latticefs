@@ -157,3 +157,68 @@ fn open_with_default_app(path: &std::path::Path) -> Result<()> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine as _;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use latticefs_base::model::{ObjectID, Tag};
+
+    fn test_actor() -> [u8; 32] {
+        [0u8; 32]
+    }
+
+    #[test]
+    fn display_name_prefers_auto_filename_b64() {
+        let encoded = URL_SAFE_NO_PAD.encode("photo.png".as_bytes());
+        let tags = vec![
+            Tag::new("name".to_string(), "fallback".to_string(), test_actor()),
+            Tag::new("auto:filename_b64".to_string(), encoded, test_actor()),
+        ];
+        let object_id = ObjectID::new();
+
+        let display = display_name_from_tags(&tags, &object_id);
+        assert_eq!(display, "photo.png");
+    }
+
+    #[test]
+    fn display_name_uses_relpath_basename() {
+        let encoded = URL_SAFE_NO_PAD.encode("nested/path/report.pdf".as_bytes());
+        let tags = vec![Tag::new(
+            "auto:relpath_b64".to_string(),
+            encoded,
+            test_actor(),
+        )];
+        let object_id = ObjectID::new();
+
+        let display = display_name_from_tags(&tags, &object_id);
+        assert_eq!(display, "report.pdf");
+    }
+
+    #[test]
+    fn display_name_falls_back_to_plain_name_tag() {
+        let tags = vec![Tag::new(
+            "name".to_string(),
+            "project-notes.md".to_string(),
+            test_actor(),
+        )];
+        let object_id = ObjectID::new();
+
+        let display = display_name_from_tags(&tags, &object_id);
+        assert_eq!(display, "project-notes.md");
+    }
+
+    #[test]
+    fn display_name_falls_back_to_object_id() {
+        let tags = vec![Tag::new(
+            "auto:filename_b64".to_string(),
+            "not-valid-base64".to_string(),
+            test_actor(),
+        )];
+        let object_id = ObjectID::new();
+
+        let display = display_name_from_tags(&tags, &object_id);
+        assert_eq!(display, object_id.to_string());
+    }
+}

@@ -153,3 +153,78 @@ fn count_chunks(path: &PathBuf) -> Result<(u64, u64)> {
     }
     Ok((count, bytes))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use latticefs_base::model::{Object, ObjectID, ObjectType, Version};
+    use tempfile::TempDir;
+
+    fn test_actor() -> [u8; 32] {
+        [0u8; 32]
+    }
+
+    #[test]
+    fn count_chunks_missing_directory_returns_zeroes() {
+        let temp = TempDir::new().unwrap();
+        let missing = temp.path().join("does-not-exist");
+        let (count, bytes) = count_chunks(&missing).unwrap();
+        assert_eq!(count, 0);
+        assert_eq!(bytes, 0);
+    }
+
+    #[test]
+    fn count_chunks_counts_recursive_files() {
+        let temp = TempDir::new().unwrap();
+        let chunks_dir = temp.path().join("chunks");
+        std::fs::create_dir_all(chunks_dir.join("aa")).unwrap();
+        std::fs::write(chunks_dir.join("aa").join("file1"), b"abc").unwrap();
+        std::fs::write(chunks_dir.join("file2"), b"hello").unwrap();
+
+        let (count, bytes) = count_chunks(&chunks_dir).unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(bytes, 8);
+    }
+
+    #[test]
+    fn collect_referenced_chunks_empty_repo() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+
+        let referenced = collect_referenced_chunks(&repo).unwrap();
+        assert!(referenced.is_empty());
+    }
+
+    #[tokio::test]
+    async fn collect_referenced_chunks_includes_manifest_hashes() {
+        let temp = TempDir::new().unwrap();
+        let repo = LatticeRepo::open_at(temp.path()).unwrap();
+
+        let data = b"chunked payload";
+        let manifest = repo.store_object_data(data).await.unwrap();
+        let manifest_ref = repo.metadata.store_manifest(&manifest).unwrap();
+
+        let object_id = ObjectID::new();
+        let version = Version::new(
+            object_id,
+            None,
+            manifest.merkle_root,
+            manifest_ref,
+            test_actor(),
+            data.len() as u64,
+            manifest.chunks.len() as u32,
+            None,
+        );
+
+        let mut object = Object::new(ObjectType::Blob, version.id, test_actor());
+        object.id = object_id;
+        repo.metadata.store_version(&version).unwrap();
+        repo.metadata.store_object(&object).unwrap();
+
+        let referenced = collect_referenced_chunks(&repo).unwrap();
+        assert_eq!(referenced.len(), manifest.chunks.len());
+        for chunk in &manifest.chunks {
+            assert!(referenced.contains(&hash_to_hex(&chunk.hash)));
+        }
+    }
+}

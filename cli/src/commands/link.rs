@@ -69,3 +69,29 @@ pub async fn run(repo: LatticeRepo, args: LinkArgs) -> Result<()> {
     println!("Linked {} -> {} ({})", source_id, target_id, link_type);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: LinkArgs,
+    }
+
+    #[test]
+    fn parses_link_positional_args() {
+        let cli = Cli::parse_from(["link", "source-id", "references", "target-id"]);
+        assert_eq!(cli.args.source, "source-id");
+        assert_eq!(cli.args.link_type, "references");
+        assert_eq!(cli.args.target, "target-id");
+    }
+
+    #[test]
+    fn link_requires_target_arg() {
+        let err = Cli::try_parse_from(["link", "source-id", "references"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    }
+}

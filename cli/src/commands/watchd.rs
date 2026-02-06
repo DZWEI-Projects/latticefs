@@ -204,3 +204,37 @@ fn is_process_running(pid: u32) -> bool {
     // On Unix, send signal 0 to check if process exists
     unsafe { libc::kill(pid as i32, 0) == 0 }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: WatchdArgs,
+    }
+
+    #[test]
+    fn parses_start_foreground_flag() {
+        let cli = Cli::parse_from(["watchd", "start", "--foreground"]);
+        match cli.args.command {
+            WatchdCommand::Start { foreground } => assert!(foreground),
+            _ => panic!("expected start subcommand"),
+        }
+    }
+
+    #[test]
+    fn parses_status_subcommand() {
+        let cli = Cli::parse_from(["watchd", "status"]);
+        assert!(matches!(cli.args.command, WatchdCommand::Status));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn current_process_is_reported_as_running() {
+        let pid = std::process::id();
+        assert!(is_process_running(pid));
+    }
+}

@@ -22,3 +22,27 @@ pub async fn run(repo: LatticeRepo, _args: IpcArgs) -> Result<()> {
     start_ipc_server(config).await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: IpcArgs,
+    }
+
+    #[test]
+    fn parses_without_flags() {
+        let cli = Cli::parse_from(["ipc"]);
+        let _ = cli.args;
+    }
+
+    #[test]
+    fn rejects_unknown_flag() {
+        let err = Cli::try_parse_from(["ipc", "--verbose"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
+}

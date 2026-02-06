@@ -527,4 +527,31 @@ mod tests {
         let tag = Tag::new("project".to_string(), "phoenix".to_string(), test_actor());
         assert_eq!(format_tag(&tag, false), "project:phoenix");
     }
+
+    #[test]
+    fn test_decode_b64_tag_requires_suffix() {
+        let encoded = URL_SAFE_NO_PAD.encode("value".as_bytes());
+        let tag = Tag::new("name".to_string(), encoded, test_actor());
+        assert_eq!(decode_b64_tag(&tag), None);
+    }
+
+    #[test]
+    fn test_decode_b64_tag_invalid_value_returns_none() {
+        let tag = Tag::new(
+            "auto:filename_b64".to_string(),
+            "not-base64".to_string(),
+            test_actor(),
+        );
+        assert_eq!(decode_b64_tag(&tag), None);
+    }
+
+    #[test]
+    fn test_format_tag_invalid_b64_falls_back_to_full_path() {
+        let tag = Tag::new(
+            "auto:filename_b64".to_string(),
+            "not-base64".to_string(),
+            test_actor(),
+        );
+        assert_eq!(format_tag(&tag, false), "auto:filename_b64:not-base64");
+    }
 }

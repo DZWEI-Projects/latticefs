@@ -65,3 +65,40 @@ pub async fn run(repo: LatticeRepo, args: ImportArgs) -> Result<()> {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: ImportArgs,
+    }
+
+    #[test]
+    fn parses_import_path_only() {
+        let cli = Cli::parse_from(["import", "/tmp/input.txt"]);
+        assert_eq!(cli.args.path, PathBuf::from("/tmp/input.txt"));
+        assert!(cli.args.tags.is_empty());
+    }
+
+    #[test]
+    fn parses_multiple_tags() {
+        let cli = Cli::parse_from([
+            "import",
+            "assets",
+            "--tag",
+            "kind:image",
+            "-t",
+            "project:lattice",
+        ]);
+
+        assert_eq!(cli.args.path, PathBuf::from("assets"));
+        assert_eq!(
+            cli.args.tags,
+            vec!["kind:image".to_string(), "project:lattice".to_string()]
+        );
+    }
+}

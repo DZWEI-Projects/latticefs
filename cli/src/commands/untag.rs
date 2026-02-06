@@ -38,3 +38,28 @@ pub async fn run(repo: LatticeRepo, args: UntagArgs) -> Result<()> {
     println!("Untagged {}", object_id);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: UntagArgs,
+    }
+
+    #[test]
+    fn parses_reference_and_key() {
+        let cli = Cli::parse_from(["untag", "obj-ref", "project"]);
+        assert_eq!(cli.args.reference, "obj-ref");
+        assert_eq!(cli.args.key, "project");
+    }
+
+    #[test]
+    fn untag_requires_tag_key() {
+        let err = Cli::try_parse_from(["untag", "obj-ref"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    }
+}

@@ -88,3 +88,31 @@ async fn list(repo: LatticeRepo) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: SharesArgs,
+    }
+
+    #[test]
+    fn parses_list_subcommand() {
+        let cli = Cli::parse_from(["shares", "list"]);
+        assert!(matches!(cli.args.command, SharesCommand::List));
+    }
+
+    #[test]
+    fn shares_requires_subcommand() {
+        let err = Cli::try_parse_from(["shares"]).unwrap_err();
+        assert!(matches!(
+            err.kind(),
+            clap::error::ErrorKind::MissingSubcommand
+                | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        ));
+    }
+}

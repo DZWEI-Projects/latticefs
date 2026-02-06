@@ -91,3 +91,49 @@ async fn remove(repo: LatticeRepo, args: RemoveArgs) -> Result<()> {
     println!("Removed policy {} from {}", policy.name, object_id);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: PolicyArgs,
+    }
+
+    #[test]
+    fn parses_create_subcommand() {
+        let cli = Cli::parse_from(["policy", "create", "strict", "--template", "archive"]);
+        match cli.args.command {
+            PolicyCommand::Create(args) => {
+                assert_eq!(args.name, "strict");
+                assert_eq!(args.template, "archive");
+            }
+            _ => panic!("expected create subcommand"),
+        }
+    }
+
+    #[test]
+    fn parses_apply_subcommand() {
+        let cli = Cli::parse_from(["policy", "apply", "obj-ref", "strict"]);
+        match cli.args.command {
+            PolicyCommand::Apply(args) => {
+                assert_eq!(args.reference, "obj-ref");
+                assert_eq!(args.policy, "strict");
+            }
+            _ => panic!("expected apply subcommand"),
+        }
+    }
+
+    #[test]
+    fn policy_requires_subcommand() {
+        let err = Cli::try_parse_from(["policy"]).unwrap_err();
+        assert!(matches!(
+            err.kind(),
+            clap::error::ErrorKind::MissingSubcommand
+                | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        ));
+    }
+}

@@ -68,3 +68,33 @@ fn unmount_path(path: &PathBuf) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct MountCli {
+        #[command(flatten)]
+        args: MountArgs,
+    }
+
+    #[derive(Debug, Parser)]
+    struct UnmountCli {
+        #[command(flatten)]
+        args: UnmountArgs,
+    }
+
+    #[test]
+    fn parses_mount_with_optional_path() {
+        let cli = MountCli::parse_from(["mount", "/tmp/lfs-mount"]);
+        assert_eq!(cli.args.mount_point, Some(PathBuf::from("/tmp/lfs-mount")));
+    }
+
+    #[test]
+    fn parses_unmount_without_path() {
+        let cli = UnmountCli::parse_from(["unmount"]);
+        assert_eq!(cli.args.mount_point, None);
+    }
+}

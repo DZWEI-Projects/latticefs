@@ -39,3 +39,31 @@ pub async fn run(repo: LatticeRepo, args: TagArgs) -> Result<()> {
     println!("Tagged {}", object_id);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct Cli {
+        #[command(flatten)]
+        args: TagArgs,
+    }
+
+    #[test]
+    fn parses_reference_and_tags() {
+        let cli = Cli::parse_from(["tag", "obj-ref", "kind:image", "project:lattice"]);
+        assert_eq!(cli.args.reference, "obj-ref");
+        assert_eq!(
+            cli.args.tags,
+            vec!["kind:image".to_string(), "project:lattice".to_string()]
+        );
+    }
+
+    #[test]
+    fn tag_requires_reference() {
+        let err = Cli::try_parse_from(["tag"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    }
+}
