@@ -14,6 +14,9 @@ import type {
   CreateViewArgs,
   UpdateViewArgs,
   TagInfo,
+  VersionInfo,
+  VersionState,
+  DiffResult,
 } from "./lfs";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -161,6 +164,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent", "projects"],
     trustLevel: 100,
+    versionCount: 3,
+    currentVersionState: "approved",
+    isSealed: false,
   },
   {
     id: "obj-002",
@@ -176,6 +182,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent"],
     trustLevel: 100,
+    versionCount: 1,
+    currentVersionState: "draft",
+    isSealed: false,
   },
   {
     id: "obj-003",
@@ -188,6 +197,9 @@ const mockObjectsData: ObjectInfo[] = [
     tags: [{ key: "quelle", value: "downloads" }],
     views: ["recent"],
     trustLevel: 45,
+    versionCount: 1,
+    currentVersionState: "draft",
+    isSealed: false,
   },
   {
     id: "obj-004",
@@ -203,6 +215,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: [],
     trustLevel: 100,
+    versionCount: 1,
+    currentVersionState: "sealed",
+    isSealed: true,
   },
   {
     id: "obj-005",
@@ -218,6 +233,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent", "projects", "drafts"],
     trustLevel: 100,
+    versionCount: 2,
+    currentVersionState: "draft",
+    isSealed: false,
   },
   {
     id: "obj-006",
@@ -233,6 +251,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent"],
     trustLevel: 100,
+    versionCount: 1,
+    currentVersionState: "review",
+    isSealed: false,
   },
   {
     id: "obj-007",
@@ -248,6 +269,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent", "projects"],
     trustLevel: 100,
+    versionCount: 1,
+    currentVersionState: "draft",
+    isSealed: false,
   },
   {
     id: "obj-008",
@@ -263,6 +287,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent", "projects", "drafts"],
     trustLevel: 100,
+    versionCount: 4,
+    currentVersionState: "draft",
+    isSealed: false,
   },
   {
     id: "obj-009",
@@ -275,6 +302,9 @@ const mockObjectsData: ObjectInfo[] = [
     tags: [{ key: "typ", value: "dokument" }],
     views: [],
     trustLevel: 100,
+    versionCount: 2,
+    currentVersionState: "approved",
+    isSealed: false,
   },
   {
     id: "obj-010",
@@ -287,6 +317,9 @@ const mockObjectsData: ObjectInfo[] = [
     tags: [{ key: "quelle", value: "downloads" }],
     views: ["recent"],
     trustLevel: 30,
+    versionCount: 1,
+    currentVersionState: "draft",
+    isSealed: false,
   },
   {
     id: "obj-011",
@@ -302,6 +335,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent", "projects", "pending-review"],
     trustLevel: 100,
+    versionCount: 2,
+    currentVersionState: "review",
+    isSealed: false,
   },
   {
     id: "obj-012",
@@ -317,6 +353,9 @@ const mockObjectsData: ObjectInfo[] = [
     ],
     views: ["recent", "projects", "approved"],
     trustLevel: 100,
+    versionCount: 3,
+    currentVersionState: "approved",
+    isSealed: false,
   },
 ];
 
@@ -443,4 +482,138 @@ export const mockPickFolders = async (): Promise<string[] | null> => {
   await delay(100);
   // In browser mode, return mock paths
   return ["~/Documents/Projects"];
+};
+
+// --- Version Operations Mocks ---
+
+const mockVersionsStore: Record<string, VersionInfo[]> = {
+  "obj-001": [
+    { id: "ver-001a", number: 1, parentVersion: null, state: "discarded", sizeBytes: 2200000, createdAt: Date.now() - 86400000 * 5, commitMessage: "Erster Entwurf", isCurrent: false },
+    { id: "ver-001b", number: 2, parentVersion: "ver-001a", state: "discarded", sizeBytes: 2350000, createdAt: Date.now() - 86400000 * 3, commitMessage: "Abschnitt Zeitplan ergänzt", isCurrent: false },
+    { id: "ver-001c", number: 3, parentVersion: "ver-001b", state: "approved", sizeBytes: 2456000, createdAt: Date.now() - 86400000 * 2, commitMessage: "Finale Version", isCurrent: true },
+  ],
+  "obj-005": [
+    { id: "ver-005a", number: 1, parentVersion: null, state: "discarded", sizeBytes: 12000, createdAt: Date.now() - 86400000 * 4, commitMessage: null, isCurrent: false },
+    { id: "ver-005b", number: 2, parentVersion: "ver-005a", state: "draft", sizeBytes: 15000, createdAt: Date.now() - 86400000 * 1, commitMessage: "Notizen aktualisiert", isCurrent: true },
+  ],
+  "obj-008": [
+    { id: "ver-008a", number: 1, parentVersion: null, state: "discarded", sizeBytes: 3000, createdAt: Date.now() - 86400000 * 4, commitMessage: null, isCurrent: false },
+    { id: "ver-008b", number: 2, parentVersion: "ver-008a", state: "discarded", sizeBytes: 3500, createdAt: Date.now() - 86400000 * 3, commitMessage: "Funktion hinzugefügt", isCurrent: false },
+    { id: "ver-008c", number: 3, parentVersion: "ver-008b", state: "discarded", sizeBytes: 4200, createdAt: Date.now() - 86400000 * 2, commitMessage: "Bug behoben", isCurrent: false },
+    { id: "ver-008d", number: 4, parentVersion: "ver-008c", state: "draft", sizeBytes: 4500, createdAt: Date.now() - 86400000 * 1, commitMessage: "Tests hinzugefügt", isCurrent: true },
+  ],
+  "obj-012": [
+    { id: "ver-012a", number: 1, parentVersion: null, state: "discarded", sizeBytes: 20000, createdAt: Date.now() - 86400000 * 10, commitMessage: "API v1 Doku", isCurrent: false },
+    { id: "ver-012b", number: 2, parentVersion: "ver-012a", state: "discarded", sizeBytes: 28000, createdAt: Date.now() - 86400000 * 5, commitMessage: "Endpunkte ergänzt", isCurrent: false },
+    { id: "ver-012c", number: 3, parentVersion: "ver-012b", state: "approved", sizeBytes: 32000, createdAt: Date.now() - 86400000 * 2, commitMessage: "Authentifizierung dokumentiert", isCurrent: true },
+  ],
+};
+
+export const mockGetObjectVersions = async (objectId: string): Promise<VersionInfo[]> => {
+  await delay(120);
+  if (mockVersionsStore[objectId]) {
+    return mockVersionsStore[objectId];
+  }
+  const obj = findObject(objectId);
+  if (!obj) return [];
+  return [{
+    id: `ver-${objectId}-1`,
+    number: 1,
+    parentVersion: null,
+    state: obj.currentVersionState,
+    sizeBytes: obj.sizeBytes,
+    createdAt: obj.createdAt,
+    commitMessage: null,
+    isCurrent: true,
+  }];
+};
+
+export const mockGetVersionContent = async (
+  _objectId: string,
+  _versionId: string,
+): Promise<string | null> => {
+  await delay(150);
+  return "# Beispielinhalt\n\nDies ist der Inhalt der ausgewählten Version.\n\n## Abschnitt 1\n\nLorem ipsum dolor sit amet.\n";
+};
+
+export const mockSetVersionState = async (
+  objectId: string,
+  versionId: string,
+  state: VersionState,
+): Promise<VersionInfo> => {
+  await delay(120);
+  const versions = mockVersionsStore[objectId];
+  if (versions) {
+    const v = versions.find((ver) => ver.id === versionId);
+    if (v) {
+      v.state = state;
+      return v;
+    }
+  }
+  return {
+    id: versionId,
+    number: 1,
+    parentVersion: null,
+    state,
+    sizeBytes: 0,
+    createdAt: Date.now(),
+    commitMessage: null,
+    isCurrent: true,
+  };
+};
+
+export const mockReviseObject = async (
+  objectId: string,
+  _content: string,
+  _message?: string,
+): Promise<ObjectInfo> => {
+  await delay(200);
+  const obj = findObject(objectId);
+  if (!obj) throw new Error("Objekt nicht gefunden");
+  obj.versionCount += 1;
+  obj.modifiedAt = Date.now();
+  return obj;
+};
+
+export const mockDiffVersions = async (
+  _objectId: string,
+  _versionIdA: string,
+  _versionIdB: string,
+): Promise<DiffResult> => {
+  await delay(200);
+  return {
+    isBinary: false,
+    unifiedDiff: `--- v1
++++ v2
+@@ -1,5 +1,7 @@
+ # Beispielinhalt
+
+-Dies ist der alte Inhalt.
++Dies ist der neue Inhalt.
++
++## Neuer Abschnitt
+
+ ## Abschnitt 1
+`,
+    leftSize: 120,
+    rightSize: 155,
+    identical: false,
+  };
+};
+
+export const mockCheckoutObjectVersion = async (
+  objectId: string,
+  _versionId: string,
+): Promise<ObjectInfo> => {
+  await delay(150);
+  const obj = findObject(objectId);
+  if (!obj) throw new Error("Objekt nicht gefunden");
+  return obj;
+};
+
+export const mockExportObjectVersion = async (
+  _objectId: string,
+  _versionId?: string,
+): Promise<void> => {
+  await delay(200);
 };
