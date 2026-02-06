@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ObjectRow } from "./ObjectRow";
 import { ArrowUp, ArrowDown } from "lucide-react";
-import type { ObjectInfo, TagInfo } from "@/lib/lfs";
+import type { ObjectInfo, TagInfo, ViewInfo } from "@/lib/lfs";
 import { ObjectContextMenu } from "./ObjectContextMenu";
 import type { SortState, SortField } from "./NexusLayout";
 
@@ -17,6 +17,11 @@ interface ListViewProps {
   onRemoveTag: (object: ObjectInfo, tag: TagInfo) => void;
   onSetTrust: (object: ObjectInfo, trust: number | null) => void;
   onShowDetails: (object: ObjectInfo) => void;
+  onOpenVersions: (object: ObjectInfo) => void;
+  onOpenEditor: (object: ObjectInfo) => void;
+  onRenameObject: (object: ObjectInfo) => void;
+  views: ViewInfo[];
+  onViewSelect: (viewId: string) => void;
   sort: SortState;
   onSortChange: (next: SortState) => void;
 }
@@ -31,6 +36,11 @@ export const ListView = ({
   onRemoveTag,
   onSetTrust,
   onShowDetails,
+  onOpenVersions,
+  onOpenEditor,
+  onRenameObject,
+  views,
+  onViewSelect,
   sort,
   onSortChange,
 }: ListViewProps) => {
@@ -130,8 +140,13 @@ export const ListView = ({
             <ObjectContextMenu
               key={obj.id}
               object={obj}
+              views={views}
+              onViewSelect={onViewSelect}
               onOpen={onObjectOpen}
               onShowDetails={onShowDetails}
+              onOpenVersions={onOpenVersions}
+              onOpenEditor={onOpenEditor}
+              onRename={onRenameObject}
               onRequestAddTag={onRequestAddTag}
               onRemoveTag={onRemoveTag}
               onSetTrust={onSetTrust}

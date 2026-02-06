@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ObjectInfo } from "@/lib/lfs";
+import type { ObjectInfo, ViewInfo } from "@/lib/lfs";
 import { FolderOpen, Loader2 } from "lucide-react";
 import { GraphView } from "./GraphView";
 import { GridView } from "./GridView";
@@ -20,6 +20,11 @@ interface ContentAreaProps {
   onRemoveTag: (object: ObjectInfo, tag: TagInfo) => void;
   onSetTrust: (object: ObjectInfo, trust: number | null) => void;
   onShowDetails: (object: ObjectInfo) => void;
+  onOpenVersions: (object: ObjectInfo) => void;
+  onOpenEditor: (object: ObjectInfo) => void;
+  onRenameObject: (object: ObjectInfo) => void;
+  views: ViewInfo[];
+  onViewSelect: (viewId: string) => void;
   sort: SortState;
   onSortChange: (next: SortState) => void;
   filters: FilterState;
@@ -39,6 +44,11 @@ export const ContentArea = ({
   onRemoveTag,
   onSetTrust,
   onShowDetails,
+  onOpenVersions,
+  onOpenEditor,
+  onRenameObject,
+  views,
+  onViewSelect,
   sort,
   onSortChange,
   filters,
@@ -179,6 +189,11 @@ export const ContentArea = ({
     onRemoveTag,
     onSetTrust,
     onShowDetails,
+    onOpenVersions,
+    onOpenEditor,
+    onRenameObject,
+    views,
+    onViewSelect,
   };
 
   return (

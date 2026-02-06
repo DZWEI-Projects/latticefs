@@ -20,6 +20,11 @@ import type {
 } from "./lfs";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const decodeBase64Url = (value: string) => {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  return atob(padded);
+};
 
 // Event handlers for simulated progress
 let progressHandlers: ((p: ImportProgress) => void)[] = [];
@@ -395,6 +400,13 @@ export const mockAddObjectTag = async (
   );
   if (!exists) {
     object.tags.push(tag);
+  }
+  if (tag.key === "auto:filename_b64") {
+    try {
+      object.name = decodeBase64Url(tag.value);
+    } catch {
+      // ignore decode errors in mock
+    }
   }
   return object;
 };

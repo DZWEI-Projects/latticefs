@@ -14,6 +14,7 @@ pub mod link;
 pub mod meta;
 pub mod mount;
 pub mod policy;
+pub mod rename;
 pub mod revise;
 pub mod revoke;
 pub mod share;
@@ -35,6 +36,7 @@ pub enum Command {
     Tag(tag::TagArgs),
     Tags(tags::TagsArgs),
     Untag(untag::UntagArgs),
+    Rename(rename::RenameArgs),
     Link(link::LinkArgs),
     Meta(meta::MetaArgs),
     Get(get::GetArgs),
