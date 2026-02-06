@@ -1,5 +1,5 @@
+use crate::config::Config;
 use crate::error::{LatticeError, Result};
-use crate::repo::LatticeRepo;
 use bytes::BytesMut;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
@@ -108,18 +108,19 @@ pub async fn recv_message(stream: &mut UnixStream) -> Result<(MessageType, Bytes
 }
 
 /// Start the IPC server.
-pub async fn start_ipc_server(repo: LatticeRepo) -> Result<()> {
-    server::run_ipc_server(std::sync::Arc::new(repo)).await
+pub async fn start_ipc_server(mut config: Config) -> Result<()> {
+    config.ipc.verbose = true;
+    server::run_ipc_server(config).await
 }
 
-/// Get IPC socket path for the current repo config.
-pub fn socket_path(repo: &LatticeRepo) -> std::path::PathBuf {
-    repo.config.socket_path()
+/// Get IPC socket path for the given config.
+pub fn socket_path(config: &Config) -> std::path::PathBuf {
+    config.socket_path()
 }
 
 /// Bind and start a UnixListener on the IPC socket.
-pub async fn bind_listener(repo: &LatticeRepo) -> Result<UnixListener> {
-    let socket_path = socket_path(repo);
+pub async fn bind_listener(config: &Config) -> Result<UnixListener> {
+    let socket_path = socket_path(config);
 
     if socket_path.exists() {
         tokio::fs::remove_file(&socket_path).await?;

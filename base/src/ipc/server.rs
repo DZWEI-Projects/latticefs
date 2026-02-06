@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::crypto::{Capability, Facts, Permission, PublicKey};
 use crate::error::{LatticeError, Result};
 use crate::events::Event;
@@ -15,20 +16,29 @@ use tokio::sync::watch;
 
 use super::proto as pb;
 
-pub async fn run_ipc_server(repo: Arc<LatticeRepo>) -> Result<()> {
-    run_ipc_server_with_watcher(repo, None).await
+/// Open the repo briefly for a single operation.
+///
+/// Sled uses exclusive file-level locks, so we open the database on demand
+/// and drop it after each request. This allows CLI commands to access the
+/// same repo between daemon operations.
+fn open_repo(config: &Config) -> Result<LatticeRepo> {
+    LatticeRepo::open(config.clone())
+}
+
+pub async fn run_ipc_server(config: Config) -> Result<()> {
+    run_ipc_server_with_watcher(config, None).await
 }
 
 pub async fn run_ipc_server_with_watcher(
-    repo: Arc<LatticeRepo>,
+    config: Config,
     watcher_registry: Option<Arc<WatchRegistry>>,
 ) -> Result<()> {
-    let socket_path = socket_path(&repo);
-    let listener = bind_listener(&repo).await?;
+    let sock = socket_path(&config);
+    let listener = bind_listener(&config).await?;
 
-    if repo.config.ipc.verbose {
+    if config.ipc.verbose {
         eprintln!("✓ IPC server started successfully");
-        eprintln!("  {:<18} {}", "Socket:", socket_path.display());
+        eprintln!("  {:<18} {}", "Socket:", sock.display());
         eprintln!("  {:<18} {}", "Protocol:", "Unix domain socket");
         eprintln!("  {:<18} {}", "Message types:", "ShareRequest, RevokeRequest, FetchRequest, StatusRequest, ShutdownRequest, SyncEvent");
         eprintln!(
@@ -50,11 +60,11 @@ pub async fn run_ipc_server_with_watcher(
             }
             accept = listener.accept() => {
                 let (stream, _) = accept?;
-                let repo = Arc::clone(&repo);
+                let config = config.clone();
                 let shutdown_tx = shutdown_tx.clone();
                 let registry = watcher_registry.clone();
                 tokio::spawn(async move {
-                    let _ = handle_connection(repo, stream, shutdown_tx, registry).await;
+                    let _ = handle_connection(config, stream, shutdown_tx, registry).await;
                 });
             }
         }
@@ -64,7 +74,7 @@ pub async fn run_ipc_server_with_watcher(
 }
 
 async fn handle_connection(
-    repo: Arc<LatticeRepo>,
+    config: Config,
     mut stream: UnixStream,
     shutdown_tx: watch::Sender<bool>,
     watcher_registry: Option<Arc<WatchRegistry>>,
@@ -78,22 +88,22 @@ async fn handle_connection(
         match msg_type {
             MessageType::ShareRequest => {
                 let request = pb::ShareRequest::decode(payload)?;
-                let response = handle_share_request(&repo, request).await;
+                let response = handle_share_request(&config, request).await;
                 send_message(&mut stream, MessageType::ShareResponse, &response).await?;
             }
             MessageType::RevokeRequest => {
                 let request = pb::RevokeRequest::decode(payload)?;
-                let response = handle_revoke_request(&repo, request).await;
+                let response = handle_revoke_request(&config, request).await;
                 send_message(&mut stream, MessageType::RevokeResponse, &response).await?;
             }
             MessageType::FetchRequest => {
                 let request = pb::FetchRequest::decode(payload)?;
-                let response = handle_fetch_request(&repo, request).await;
+                let response = handle_fetch_request(&config, request).await;
                 send_message(&mut stream, MessageType::FetchResponse, &response).await?;
             }
             MessageType::StatusRequest => {
                 let request = pb::StatusRequest::decode(payload)?;
-                let response = handle_status_request(&repo, request).await?;
+                let response = handle_status_request(&config, request).await;
                 send_message(&mut stream, MessageType::StatusResponse, &response).await?;
             }
             MessageType::ShutdownRequest => {
@@ -128,7 +138,7 @@ async fn handle_connection(
             }
             MessageType::WatchStatusRequest => {
                 let _request = pb::WatchStatusRequest::decode(payload)?;
-                let response = handle_watch_status(&repo, &watcher_registry);
+                let response = handle_watch_status(&config, &watcher_registry);
                 send_message(&mut stream, MessageType::WatchStatusResponse, &response).await?;
             }
             _ => {
@@ -148,8 +158,9 @@ async fn handle_connection(
     Ok(())
 }
 
-async fn handle_share_request(repo: &LatticeRepo, request: pb::ShareRequest) -> pb::ShareResponse {
+async fn handle_share_request(config: &Config, request: pb::ShareRequest) -> pb::ShareResponse {
     let result = (|| {
+        let repo = open_repo(config)?;
         repo.enforce_rate_limit(1)?;
         let object_id = object_id_from_bytes(
             &request
@@ -195,10 +206,11 @@ async fn handle_share_request(repo: &LatticeRepo, request: pb::ShareRequest) -> 
 }
 
 async fn handle_revoke_request(
-    repo: &LatticeRepo,
+    config: &Config,
     request: pb::RevokeRequest,
 ) -> pb::RevokeResponse {
     let result = (|| {
+        let repo = open_repo(config)?;
         repo.enforce_rate_limit(1)?;
         let cap = repo.metadata.load_capability(&request.ucan_cid)?;
         let identity = load_default_identity()?;
@@ -226,8 +238,9 @@ async fn handle_revoke_request(
     }
 }
 
-async fn handle_fetch_request(repo: &LatticeRepo, request: pb::FetchRequest) -> pb::FetchResponse {
+async fn handle_fetch_request(config: &Config, request: pb::FetchRequest) -> pb::FetchResponse {
     let result: Result<pb::ObjectData> = async {
+        let repo = open_repo(config)?;
         repo.enforce_rate_limit(1)?;
         let object_id = object_id_from_bytes(
             &request
@@ -307,20 +320,23 @@ async fn handle_fetch_request(repo: &LatticeRepo, request: pb::FetchRequest) -> 
 }
 
 async fn handle_status_request(
-    repo: &LatticeRepo,
+    config: &Config,
     request: pb::StatusRequest,
-) -> Result<pb::StatusResponse> {
+) -> pb::StatusResponse {
     let stats = if request.include_stats {
-        Some(build_stats(repo)?)
+        match open_repo(config) {
+            Ok(repo) => Some(build_stats(&repo).unwrap_or_default()),
+            Err(_) => None,
+        }
     } else {
         None
     };
 
-    Ok(pb::StatusResponse {
+    pb::StatusResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         running: true,
         stats,
-    })
+    }
 }
 
 fn build_stats(repo: &LatticeRepo) -> Result<pb::Stats> {
@@ -538,11 +554,11 @@ fn handle_watch_list(registry: &Option<Arc<WatchRegistry>>) -> pb::WatchListResp
 }
 
 fn handle_watch_status(
-    repo: &LatticeRepo,
+    config: &Config,
     registry: &Option<Arc<WatchRegistry>>,
 ) -> pb::WatchStatusResponse {
     let (watched_count, watch_dir) = match registry {
-        Some(r) => (r.count() as u64, repo.config.watcher.watch_dir.clone()),
+        Some(r) => (r.count() as u64, config.watcher.watch_dir.clone()),
         None => (0, String::new()),
     };
 

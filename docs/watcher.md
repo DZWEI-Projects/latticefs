@@ -41,6 +41,10 @@ The watcher lives in the **base library** so both the CLI and GUI can use it:
 
 Communication uses the existing IPC protocol (Unix domain socket) with message types in the 400-range.
 
+### On-demand database access
+
+The daemon does **not** hold the Sled database open permanently. Instead, both the file watcher and the IPC server store a `Config` and open `LatticeRepo` on demand for each operation (file change event, IPC request). The database handle is dropped after each operation, releasing the exclusive Sled file lock. This allows other CLI commands to access the same repository concurrently.
+
 ## Change Detection
 
 The watcher uses a two-level deduplication strategy:
@@ -139,7 +143,9 @@ The GUI's "Open" action (`open_object`) automatically registers files with the w
 
 ### Database lock error ("Resource temporarily unavailable")
 
-This error was caused by the daemon opening the Sled database twice (once for the file watcher and once for the IPC server). Sled uses exclusive file-level locks, so the second open would fail. This was fixed by sharing a single `Arc<LatticeRepo>` between both components. If you see this error on an older version, upgrade to the latest build.
+Sled uses exclusive file-level locks, which means only one process can hold the database open at a time. The daemon avoids this by **opening the database on demand** for each operation (file change or IPC request) and releasing it immediately after. This allows CLI commands like `lfs edit`, `lfs add`, and `lfs tags` to access the same repository while the daemon is running.
+
+If you see this error, it most likely means an older version of the daemon is running that holds the lock permanently. Stop it with `lfs watchd stop` (or kill the process) and upgrade to the latest build.
 
 ### Changes not detected
 

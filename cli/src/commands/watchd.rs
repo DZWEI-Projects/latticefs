@@ -36,8 +36,13 @@ pub async fn run(repo: LatticeRepo, args: WatchdArgs) -> Result<()> {
 }
 
 async fn start(repo: LatticeRepo, foreground: bool) -> Result<()> {
-    let pid_path = repo.config.watchd_pid_path();
-    let socket_path = repo.config.socket_path();
+    // Extract config and drop the repo immediately so the Sled file lock
+    // is released. The daemon will open the database on demand for each
+    // operation, allowing CLI commands to access the repo in between.
+    let config = repo.config.clone();
+    let pid_path = config.watchd_pid_path();
+    let socket_path = config.socket_path();
+    drop(repo);
 
     // Check if already running
     if pid_path.exists() {
@@ -79,24 +84,20 @@ async fn start(repo: LatticeRepo, foreground: bool) -> Result<()> {
     std::fs::write(&pid_path, pid.to_string())?;
 
     // Load or create persistent registry
-    let registry_path = repo.config.watch_registry_path();
+    let registry_path = config.watch_registry_path();
     let persist = PersistentRegistry::new(registry_path);
     let registry = persist.load().unwrap_or_else(|_| WatchRegistry::new());
     let registry_arc = Arc::new(registry.clone());
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
-    // Share a single repo instance between IPC server and file watcher
-    // (Sled uses exclusive file locks, so we cannot open the database twice)
-    let repo_arc = Arc::new(repo);
-
-    // Start IPC server in a separate task
-    let ipc_repo = Arc::clone(&repo_arc);
+    // Start IPC server in a separate task (uses Config, opens DB on demand)
+    let ipc_config = config.clone();
     let ipc_registry = registry_arc.clone();
     let ipc_shutdown_tx = shutdown_tx.clone();
     let ipc_handle = tokio::spawn(async move {
         if let Err(e) = latticefs_base::ipc::server::run_ipc_server_with_watcher(
-            ipc_repo,
+            ipc_config,
             Some(ipc_registry),
         )
         .await
@@ -109,12 +110,11 @@ async fn start(repo: LatticeRepo, foreground: bool) -> Result<()> {
 
     eprintln!("Watcher daemon started (pid {})", pid);
     eprintln!("Socket: {}", socket_path.display());
-    eprintln!("Watch dir: {}", repo_arc.config.watcher.watch_dir);
+    eprintln!("Watch dir: {}", config.watcher.watch_dir);
     eprintln!("Press Ctrl+C to stop\n");
 
-    // Start the file watcher
-    let config = repo_arc.config.watcher.clone();
-    let mut watcher = FileWatcher::new(registry, persist, config, repo_arc.clone(), shutdown_rx);
+    // Start the file watcher (uses Config, opens DB on demand per file change)
+    let mut watcher = FileWatcher::new(registry, persist, config.clone(), shutdown_rx);
 
     // Handle Ctrl+C
     let ctrl_c_shutdown = shutdown_tx.clone();
@@ -131,7 +131,7 @@ async fn start(repo: LatticeRepo, foreground: bool) -> Result<()> {
     // Clean up PID file
     let _ = std::fs::remove_file(&pid_path);
     // Clean up socket
-    let sock = repo_arc.config.socket_path();
+    let sock = config.socket_path();
     let _ = std::fs::remove_file(&sock);
 
     // Wait for IPC to finish

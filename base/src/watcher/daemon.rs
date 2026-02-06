@@ -1,4 +1,4 @@
-use crate::config::WatcherConfig;
+use crate::config::Config;
 use crate::error::{LatticeError, Result};
 use crate::events::Event;
 use crate::repo::LatticeRepo;
@@ -7,7 +7,6 @@ use crate::watcher::persist::PersistentRegistry;
 use crate::watcher::registry::WatchRegistry;
 use notify_debouncer_full::{new_debouncer, DebounceEventResult};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tracing::{debug, error, info, warn};
@@ -15,8 +14,7 @@ use tracing::{debug, error, info, warn};
 pub struct FileWatcher {
     registry: WatchRegistry,
     persist: PersistentRegistry,
-    config: WatcherConfig,
-    repo: Arc<LatticeRepo>,
+    config: Config,
     shutdown_rx: watch::Receiver<bool>,
 }
 
@@ -24,15 +22,13 @@ impl FileWatcher {
     pub fn new(
         registry: WatchRegistry,
         persist: PersistentRegistry,
-        config: WatcherConfig,
-        repo: Arc<LatticeRepo>,
+        config: Config,
         shutdown_rx: watch::Receiver<bool>,
     ) -> Self {
         Self {
             registry,
             persist,
             config,
-            repo,
             shutdown_rx,
         }
     }
@@ -42,14 +38,14 @@ impl FileWatcher {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let watch_dir = PathBuf::from(&self.config.watch_dir);
+        let watch_dir = PathBuf::from(&self.config.watcher.watch_dir);
         if !watch_dir.exists() {
             std::fs::create_dir_all(&watch_dir)?;
         }
 
         let (tx, mut rx) = mpsc::channel::<Vec<PathBuf>>(256);
 
-        let debounce_duration = Duration::from_millis(self.config.debounce_ms);
+        let debounce_duration = Duration::from_millis(self.config.watcher.debounce_ms);
         let mut debouncer = new_debouncer(
             debounce_duration,
             None,
@@ -130,11 +126,14 @@ impl FileWatcher {
                 info!("Watched file deleted, unregistering: {}", path.display());
                 self.registry.unregister(path);
                 self.persist.save(&self.registry)?;
-                self.repo.events.emit_sync(Event::watch_file_removed(
-                    &entry.object_id,
-                    path.display().to_string(),
-                    "file_deleted".to_string(),
-                ));
+                // Open repo briefly to emit event
+                if let Ok(repo) = LatticeRepo::open(self.config.clone()) {
+                    repo.events.emit_sync(Event::watch_file_removed(
+                        &entry.object_id,
+                        path.display().to_string(),
+                        "file_deleted".to_string(),
+                    ));
+                }
                 return Ok(());
             }
             Err(e) => return Err(e.into()),
@@ -150,9 +149,12 @@ impl FileWatcher {
         // Format commit message
         let message = self.format_commit_message(path, &entry.object_id);
 
+        // Open repo on demand for the database operation, then drop it to
+        // release the Sled file lock so CLI commands can access the repo.
+        let repo = LatticeRepo::open(self.config.clone())?;
+
         // Create new version
-        match self
-            .repo
+        match repo
             .add_version_from_bytes(&entry.object_id, &data, entry.actor_id, Some(message))
             .await
         {
@@ -163,7 +165,7 @@ impl FileWatcher {
                 );
                 self.registry.update_hash(path, new_hash);
                 self.persist.save(&self.registry)?;
-                self.repo.events.emit_sync(Event::auto_version_created(
+                repo.events.emit_sync(Event::auto_version_created(
                     &entry.object_id,
                     &version.id,
                     path.display().to_string(),
@@ -174,7 +176,7 @@ impl FileWatcher {
                 warn!("Object {} is sealed, unregistering watcher for {}", id, path.display());
                 self.registry.unregister(path);
                 self.persist.save(&self.registry)?;
-                self.repo.events.emit_sync(Event::watch_file_removed(
+                repo.events.emit_sync(Event::watch_file_removed(
                     &entry.object_id,
                     path.display().to_string(),
                     "object_sealed".to_string(),
@@ -194,7 +196,7 @@ impl FileWatcher {
             None => return false,
         };
 
-        for pattern in &self.config.ignored_patterns {
+        for pattern in &self.config.watcher.ignored_patterns {
             if let Ok(pat) = glob::Pattern::new(pattern) {
                 if pat.matches(filename) {
                     return true;
@@ -213,6 +215,7 @@ impl FileWatcher {
         let timestamp = chrono_like_timestamp();
 
         self.config
+            .watcher
             .commit_message_template
             .replace("{timestamp}", &timestamp)
             .replace("{filename}", filename)

@@ -237,8 +237,8 @@ fn cli_flow_basic() {
 #[test]
 fn watchd_start_foreground_no_db_lock() {
     // Regression test: `watchd start --foreground` used to fail with a database
-    // lock error because it opened the Sled database twice (once for the main
-    // repo and once for the IPC server). The fix shares a single Arc<LatticeRepo>.
+    // lock error because the daemon kept the Sled database open permanently.
+    // The fix makes the daemon open/close the DB on demand per operation.
     let temp = TempDir::new().unwrap();
     let (lattice_home, xdg_home) = setup_env(&temp);
 
@@ -371,4 +371,72 @@ fn watchd_stale_pid_cleanup() {
         }
         Err(e) => panic!("Error checking watchd status: {}", e),
     }
+}
+
+#[test]
+fn watchd_concurrent_cli_access() {
+    // Regression test: CLI commands like `add`, `tags`, `meta` must succeed
+    // while the watchd daemon is running. The daemon releases the Sled file
+    // lock between operations so other processes can access the database.
+    let temp = TempDir::new().unwrap();
+    let (lattice_home, xdg_home) = setup_env(&temp);
+
+    // Initialize repo and add a file
+    lfs_cmd(&lattice_home, &xdg_home)
+        .arg("init")
+        .assert()
+        .success();
+
+    let file_path = temp.path().join("concurrent.txt");
+    fs::write(&file_path, b"concurrent test\n").unwrap();
+
+    let output = lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", file_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let object_id = stdout.split_whitespace().last().expect("object id").to_string();
+
+    // Start watchd daemon in foreground
+    let mut daemon = std::process::Command::new(assert_cmd::cargo::cargo_bin!("lfs"))
+        .env("LATTICE_HOME", &lattice_home)
+        .env("XDG_CONFIG_HOME", &xdg_home)
+        .env("LFS_KEY_PASSWORD", "test-password")
+        .args(["watchd", "start", "--foreground"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn watchd");
+
+    // Wait for daemon to fully start
+    std::thread::sleep(Duration::from_secs(2));
+
+    // Verify daemon is still alive
+    assert!(daemon.try_wait().unwrap().is_none(), "daemon crashed on startup");
+
+    // Run CLI commands while daemon is running — these should all succeed
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["tags", &object_id])
+        .assert()
+        .success();
+
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["meta", &object_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("concurrent test"));
+
+    // Add another file while daemon is running
+    let file2 = temp.path().join("second.txt");
+    fs::write(&file2, b"second file\n").unwrap();
+    lfs_cmd(&lattice_home, &xdg_home)
+        .args(["add", file2.to_str().unwrap()])
+        .assert()
+        .success();
+
+    // Clean up daemon
+    daemon.kill().ok();
+    daemon.wait().ok();
 }
