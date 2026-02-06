@@ -139,6 +139,14 @@ async fn main() -> Result<()> {
             let repo = commands::common::open_repo(cli.repo.clone())?;
             commands::stats::run(repo, cmd.command).await?;
         }
+        commands::Command::Edit(args) => {
+            let repo = commands::common::open_repo(cli.repo.clone())?;
+            commands::edit::run(repo, args).await?;
+        }
+        commands::Command::Watchd(args) => {
+            let repo = commands::common::open_repo(cli.repo.clone())?;
+            commands::watchd::run(repo, args).await?;
+        }
         commands::Command::Mount(args) => {
             if !cli.fuse {
                 return Err(anyhow::anyhow!(

@@ -1,5 +1,5 @@
+use crate::config::Config;
 use crate::error::{LatticeError, Result};
-use crate::repo::LatticeRepo;
 use bytes::BytesMut;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
@@ -8,6 +8,7 @@ pub mod proto {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/ipc/proto.rs"));
 }
 
+pub mod client;
 pub mod server;
 
 /// Maximum IPC message size (100 MiB).
@@ -29,6 +30,14 @@ pub enum MessageType {
     StatusResponse = 302,
     ShutdownRequest = 303,
     ShutdownResponse = 304,
+    WatchRegisterRequest = 401,
+    WatchRegisterResponse = 402,
+    WatchUnregisterRequest = 403,
+    WatchUnregisterResponse = 404,
+    WatchListRequest = 405,
+    WatchListResponse = 406,
+    WatchStatusRequest = 407,
+    WatchStatusResponse = 408,
     Error = 999,
 }
 
@@ -48,6 +57,14 @@ impl MessageType {
             302 => MessageType::StatusResponse,
             303 => MessageType::ShutdownRequest,
             304 => MessageType::ShutdownResponse,
+            401 => MessageType::WatchRegisterRequest,
+            402 => MessageType::WatchRegisterResponse,
+            403 => MessageType::WatchUnregisterRequest,
+            404 => MessageType::WatchUnregisterResponse,
+            405 => MessageType::WatchListRequest,
+            406 => MessageType::WatchListResponse,
+            407 => MessageType::WatchStatusRequest,
+            408 => MessageType::WatchStatusResponse,
             999 => MessageType::Error,
             _ => return Err(LatticeError::InvalidPredicate(format!("Unknown message type: {}", value))),
         };
@@ -91,18 +108,19 @@ pub async fn recv_message(stream: &mut UnixStream) -> Result<(MessageType, Bytes
 }
 
 /// Start the IPC server.
-pub async fn start_ipc_server(repo: LatticeRepo) -> Result<()> {
-    server::run_ipc_server(repo).await
+pub async fn start_ipc_server(mut config: Config) -> Result<()> {
+    config.ipc.verbose = true;
+    server::run_ipc_server(config).await
 }
 
-/// Get IPC socket path for the current repo config.
-pub fn socket_path(repo: &LatticeRepo) -> std::path::PathBuf {
-    repo.config.socket_path()
+/// Get IPC socket path for the given config.
+pub fn socket_path(config: &Config) -> std::path::PathBuf {
+    config.socket_path()
 }
 
 /// Bind and start a UnixListener on the IPC socket.
-pub async fn bind_listener(repo: &LatticeRepo) -> Result<UnixListener> {
-    let socket_path = socket_path(repo);
+pub async fn bind_listener(config: &Config) -> Result<UnixListener> {
+    let socket_path = socket_path(config);
 
     if socket_path.exists() {
         tokio::fs::remove_file(&socket_path).await?;
