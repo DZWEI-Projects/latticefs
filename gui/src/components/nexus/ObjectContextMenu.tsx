@@ -12,6 +12,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { BadgePlus, FolderOpen, Shield, Tag, Trash2 } from "lucide-react";
+import { TRUST_PRESETS } from "@/lib/trustConstants";
 
 interface ObjectContextMenuProps {
   object: ObjectInfo;
@@ -22,16 +23,6 @@ interface ObjectContextMenuProps {
   onSetTrust: (object: ObjectInfo, trust: number | null) => void;
   children: ReactNode;
 }
-
-const trustOptions = [
-  { label: "Bestätigt", value: 100 },
-  { label: "Hoch", value: 85 },
-  { label: "Mittel", value: 65 },
-  { label: "Niedrig", value: 40 },
-  { label: "Quarantäne", value: 25 },
-  { label: "Kritisch", value: 15 },
-  { label: "Nicht gesetzt", value: null },
-];
 
 export const ObjectContextMenu = ({
   object,
@@ -92,7 +83,7 @@ export const ObjectContextMenu = ({
             Sicherheitsgrad setzen
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-44">
-            {trustOptions.map((option) => (
+            {TRUST_PRESETS.map((option) => (
               <ContextMenuItem
                 key={option.label}
                 onSelect={() => onSetTrust(object, option.value)}

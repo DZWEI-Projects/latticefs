@@ -15,12 +15,13 @@ import {
   X,
   AlertTriangle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { ObjectInfoSection } from "@/components/nexus/ObjectInfoSection";
 import { TagDetailsSection } from "@/components/nexus/TagDetailsSection";
 import { formatExifFieldLabel } from "@/lib/metadataDisplay";
+import { DEFAULT_TRUST_LEVEL, QUARANTINE_TRUST_LEVEL } from "@/lib/trustConstants";
 
 interface ObjectDetailPanelProps {
   object: ObjectInfo;
@@ -45,8 +46,6 @@ function isSystemTag(tag: TagInfo) {
 
 const ID3_PREFIX = "auto:id3:";
 const EXIF_PREFIX = "auto:exif:";
-const QUARANTINE_TRUST_LEVEL = 25;
-const DEFAULT_TRUST_LEVEL = 75;
 
 function parseTagInput(keyInput: string, valueInput: string): TagInfo | null {
   const key = keyInput.trim();
@@ -77,7 +76,8 @@ export const ObjectDetailPanel = ({
   onOpenVersions,
   onOpenEditor,
 }: ObjectDetailPanelProps) => {
-  const [trustValue, setTrustValue] = useState<number>(object.trustLevel ?? 70);
+  const [trustValue, setTrustValue] = useState<number>(object.trustLevel ?? DEFAULT_TRUST_LEVEL);
+  const priorTrustRef = useRef<number | null>(null);
   const { userTags, systemTags, id3Tags, exifTags, mimeType } = useMemo(() => {
     const user: TagInfo[] = [];
     const system: TagInfo[] = [];
@@ -113,7 +113,7 @@ export const ObjectDetailPanel = ({
   }, [object.tags]);
 
   useEffect(() => {
-    setTrustValue(object.trustLevel ?? 70);
+    setTrustValue(object.trustLevel ?? DEFAULT_TRUST_LEVEL);
   }, [object.id, object.trustLevel]);
 
   const handleCopyId = async () => {
@@ -141,7 +141,7 @@ export const ObjectDetailPanel = ({
     () => Math.max(0, Math.min(100, trustValue)),
     [trustValue],
   );
-  const isQuarantined = clampedTrust <= QUARANTINE_TRUST_LEVEL;
+  const isQuarantined = clampedTrust === QUARANTINE_TRUST_LEVEL;
 
   return (
     <aside className="w-80 xl:w-[400px] 2xl:w-[470px] border-l border-border/50 bg-background/80 flex flex-col">
@@ -277,7 +277,16 @@ export const ObjectDetailPanel = ({
             variant="outline"
             className="h-7 text-xs"
             onClick={() => {
-              const nextTrust = isQuarantined ? DEFAULT_TRUST_LEVEL : QUARANTINE_TRUST_LEVEL;
+              let nextTrust: number;
+              if (isQuarantined) {
+                // Restore prior trust level or use default
+                nextTrust = priorTrustRef.current ?? DEFAULT_TRUST_LEVEL;
+                priorTrustRef.current = null;
+              } else {
+                // Save current trust level before quarantining
+                priorTrustRef.current = clampedTrust;
+                nextTrust = QUARANTINE_TRUST_LEVEL;
+              }
               setTrustValue(nextTrust);
               onSetTrust(object, nextTrust);
             }}
