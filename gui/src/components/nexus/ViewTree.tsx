@@ -19,6 +19,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/animate-ui/components/radix/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Delete02Icon,
+  PencilEdit02Icon,
+  SubnodeAddIcon,
+} from "@hugeicons/core-free-icons";
 import { ChevronRight, MoreVertical } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -85,10 +91,18 @@ const ViewActions = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onSelect={() => onCreateSubView(view.id)}>
+            <HugeiconsIcon
+              icon={SubnodeAddIcon}
+              className="size-3.5 shrink-0 text-current"
+            />
             Neue Teilperspektive
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => onEditView(view)}>
+            <HugeiconsIcon
+              icon={PencilEdit02Icon}
+              className="size-3.5 shrink-0 text-current"
+            />
             Bearbeiten
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -96,6 +110,10 @@ const ViewActions = ({
             className="text-destructive focus:text-destructive"
             onSelect={() => onDeleteView(view)}
           >
+            <HugeiconsIcon
+              icon={Delete02Icon}
+              className="size-3 shrink-0 text-current"
+            />
             Löschen
           </DropdownMenuItem>
         </DropdownMenuContent>
