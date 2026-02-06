@@ -9,7 +9,7 @@ use latticefs_base::query::{parse, QueryEvaluator};
 use latticefs_base::views::{
     BuiltinView, BuiltinViews, EffectiveQueryOptions, Locale, ViewID, ViewJoinOperator,
 };
-use latticefs_base::{is_quarantined_executable, LatticeRepo, Permission, State, VersionID};
+use latticefs_base::{is_quarantined_executable, mount_fs, LatticeRepo, Permission, State, VersionID};
 use serde::{Deserialize, Serialize};
 use similar::TextDiff;
 use std::collections::{HashMap, HashSet};
@@ -62,6 +62,14 @@ pub struct OnboardingGraphData {
     pub files: Vec<OnboardingFile>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct MountStatus {
+    pub available: bool,
+    pub mounted: bool,
+    pub mount_point: String,
+    pub reason: Option<String>,
+}
+
 fn repo_info() -> Result<RepoInfo, String> {
     let config = Config::load_or_default().map_err(|err| err.to_string())?;
     let root = config.storage_path();
@@ -107,6 +115,100 @@ fn load_or_create_identity() -> Result<Identity, String> {
     }
 }
 
+fn fuse_availability() -> (bool, Option<String>) {
+    if !cfg!(feature = "fuse") {
+        return (
+            false,
+            Some("FUSE-Unterstützung ist nicht aktiviert. Bitte die GUI mit dem Feature \"fuse\" neu bauen und libfuse/macFUSE installieren.".to_string()),
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if !Path::new("/dev/fuse").exists() {
+            return (
+                false,
+                Some("FUSE-Gerät /dev/fuse wurde nicht gefunden.".to_string()),
+            );
+        }
+        return (true, None);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if !Path::new("/dev/osxfuse").exists() && !Path::new("/dev/macfuse").exists() {
+            return (
+                false,
+                Some("macFUSE ist nicht verfügbar (kein /dev/osxfuse oder /dev/macfuse).".to_string()),
+            );
+        }
+        return (true, None);
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        return (
+            false,
+            Some("FUSE wird auf dieser Plattform nicht unterstützt.".to_string()),
+        );
+    }
+}
+
+fn is_mount_point_active(mount_point: &Path) -> bool {
+    let mount_str = mount_point.to_string_lossy();
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(mounts) = std::fs::read_to_string("/proc/self/mounts") {
+            for line in mounts.lines() {
+                let mut parts = line.split_whitespace();
+                let _source = parts.next();
+                if let Some(target) = parts.next() {
+                    let target = target.replace("\\040", " ");
+                    if target == mount_str {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(output) = std::process::Command::new("mount").output() {
+            if output.status.success() {
+                let output = String::from_utf8_lossy(&output.stdout);
+                let needle = format!(" on {} (", mount_str);
+                return output.lines().any(|line| line.contains(&needle));
+            }
+        }
+        return false;
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        return false;
+    }
+}
+
+fn current_mount_status(repo: &LatticeRepo) -> MountStatus {
+    let mount_point = repo.config.mount_point();
+    let (available, reason) = fuse_availability();
+    let mounted = if available {
+        is_mount_point_active(&mount_point)
+    } else {
+        false
+    };
+
+    MountStatus {
+        available,
+        mounted,
+        mount_point: mount_point.to_string_lossy().to_string(),
+        reason,
+    }
+}
+
 #[tauri::command]
 pub fn get_repo_info() -> Result<RepoInfo, String> {
     repo_info()
@@ -132,6 +234,79 @@ pub fn check_initialized() -> bool {
     };
     let meta_path = config.storage_path().join("meta");
     meta_path.exists()
+}
+
+#[tauri::command]
+pub fn get_mount_status() -> Result<MountStatus, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    Ok(current_mount_status(&repo))
+}
+
+#[tauri::command]
+pub fn mount_repo(app: tauri::AppHandle) -> Result<MountStatus, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let status = current_mount_status(&repo);
+    if !status.available {
+        return Err(
+            status
+                .reason
+                .unwrap_or_else(|| "FUSE ist nicht verfügbar.".to_string()),
+        );
+    }
+    if status.mounted {
+        return Ok(status);
+    }
+
+    let mount_point = repo.config.mount_point();
+    let fuse_config = repo.config.fuse.clone();
+    let app_handle = app.clone();
+    std::thread::spawn(move || {
+        let result = mount_fs(repo, &mount_point, &fuse_config);
+        if let Err(err) = result {
+            let _ = app_handle.emit("mount_error", err.to_string());
+        } else {
+            let _ = app_handle.emit(
+                "mount_stopped",
+                mount_point.to_string_lossy().to_string(),
+            );
+        }
+    });
+
+    Ok(status)
+}
+
+#[tauri::command]
+pub fn unmount_repo() -> Result<MountStatus, String> {
+    let repo = LatticeRepo::init().map_err(|err| err.to_string())?;
+    let mount_point = repo.config.mount_point();
+    unmount_path(&mount_point)?;
+    Ok(current_mount_status(&repo))
+}
+
+fn unmount_path(path: &PathBuf) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("umount")
+            .arg(path)
+            .status()
+            .map_err(|err| err.to_string())?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("fusermount")
+            .arg("-u")
+            .arg(path)
+            .status()
+            .map_err(|err| err.to_string())?;
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        return Err("Unmount not supported on this platform".to_string());
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

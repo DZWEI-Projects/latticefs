@@ -29,3 +29,7 @@ base64 = "0.22"
 latticefs-base = { package = "base", path = "../../base" }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 similar = "2.7.0"
+
+[features]
+default = []
+fuse = ["latticefs-base/fuse"]

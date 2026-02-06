@@ -9,6 +9,7 @@ import type {
   ImportProgress,
   SampleFilesResult,
   OnboardingGraphData,
+  MountStatus,
   ViewInfo,
   ObjectInfo,
   CreateViewArgs,
@@ -23,6 +24,12 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Event handlers for simulated progress
 let progressHandlers: ((p: ImportProgress) => void)[] = [];
+let mountStatus: MountStatus = {
+  available: true,
+  mounted: false,
+  mountPoint: "~/Lattice",
+  reason: null,
+};
 
 export const mockGetRepoInfo = async (): Promise<RepoInfo> => {
   await delay(150);
@@ -43,6 +50,35 @@ export const mockInitRepo = async (): Promise<RepoInfo> => {
 export const mockCheckInitialized = async (): Promise<boolean> => {
   await delay(100);
   return false;
+};
+
+export const mockGetMountStatus = async (): Promise<MountStatus> => {
+  await delay(80);
+  return { ...mountStatus };
+};
+
+export const mockMountRepo = async (): Promise<MountStatus> => {
+  await delay(200);
+  mountStatus = { ...mountStatus, mounted: true };
+  return { ...mountStatus };
+};
+
+export const mockUnmountRepo = async (): Promise<MountStatus> => {
+  await delay(200);
+  mountStatus = { ...mountStatus, mounted: false };
+  return { ...mountStatus };
+};
+
+export const mockOnMountError = async (
+  _handler: (message: string) => void
+): Promise<() => void> => {
+  return () => {};
+};
+
+export const mockOnMountStopped = async (
+  _handler: (mountPoint: string) => void
+): Promise<() => void> => {
+  return () => {};
 };
 
 export const mockImportPaths = async (

@@ -30,6 +30,13 @@ export interface SampleFilesResult {
   files: string[];
 }
 
+export interface MountStatus {
+  available: boolean;
+  mounted: boolean;
+  mountPoint: string;
+  reason?: string | null;
+}
+
 export interface OnboardingFile {
   id: string;
   name: string;
@@ -151,6 +158,80 @@ export const initRepo = async (): Promise<RepoInfo> => {
 export const checkInitialized = async (): Promise<boolean> => {
   if (isTauriApp()) return invoke<boolean>("check_initialized");
   return (await getMocks()).mockCheckInitialized();
+};
+
+// --- FUSE Mount Operations ---
+
+export const getMountStatus = async (): Promise<MountStatus> => {
+  if (isTauriApp()) {
+    const status = await invoke<{
+      available: boolean;
+      mounted: boolean;
+      mount_point: string;
+      reason?: string | null;
+    }>("get_mount_status");
+    return {
+      available: status.available,
+      mounted: status.mounted,
+      mountPoint: status.mount_point,
+      reason: status.reason ?? null,
+    };
+  }
+  return (await getMocks()).mockGetMountStatus();
+};
+
+export const mountRepo = async (): Promise<MountStatus> => {
+  if (isTauriApp()) {
+    const status = await invoke<{
+      available: boolean;
+      mounted: boolean;
+      mount_point: string;
+      reason?: string | null;
+    }>("mount_repo");
+    return {
+      available: status.available,
+      mounted: status.mounted,
+      mountPoint: status.mount_point,
+      reason: status.reason ?? null,
+    };
+  }
+  return (await getMocks()).mockMountRepo();
+};
+
+export const unmountRepo = async (): Promise<MountStatus> => {
+  if (isTauriApp()) {
+    const status = await invoke<{
+      available: boolean;
+      mounted: boolean;
+      mount_point: string;
+      reason?: string | null;
+    }>("unmount_repo");
+    return {
+      available: status.available,
+      mounted: status.mounted,
+      mountPoint: status.mount_point,
+      reason: status.reason ?? null,
+    };
+  }
+  return (await getMocks()).mockUnmountRepo();
+};
+
+export const onMountError = async (
+  handler: (message: string) => void,
+): Promise<UnlistenFn> => {
+  if (isTauriApp()) {
+    return listen<string>("mount_error", (e) => handler(e.payload));
+  }
+  return (await getMocks()).mockOnMountError(handler);
+};
+
+export const onMountStopped = async (
+  handler: (mountPoint: string) => void,
+): Promise<UnlistenFn> => {
+  if (isTauriApp()) {
+    return listen<string>("mount_stopped", (e) => handler(e.payload));
+  }
+  return (await getMocks()).mockOnMountStopped(handler);
 };
 
 export const importPaths = async (
