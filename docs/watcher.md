@@ -45,6 +45,16 @@ Communication uses the existing IPC protocol (Unix domain socket) with message t
 
 The daemon does **not** hold the Sled database open permanently. Instead, both the file watcher and the IPC server store a `Config` and open `LatticeRepo` on demand for each operation (file change event, IPC request). The database handle is dropped after each operation, releasing the exclusive Sled file lock. This allows other CLI commands to access the same repository concurrently.
 
+### Path canonicalization
+
+The watcher **canonicalizes all file paths** before storing or looking them up in the registry. This ensures consistent path matching across different representations:
+
+- Resolves symlinks (e.g., `/tmp` → `/private/tmp` on macOS)
+- Handles relative paths and `.` / `..` components
+- Prevents registry misses due to path variations
+
+Both registration (via `lfs edit`) and change detection use `std::path::Path::canonicalize()` to ensure the same canonical path is used for HashMap lookups. This is critical on systems where the watch directory may be accessed through symlinks.
+
 ## Change Detection
 
 The watcher uses a two-level deduplication strategy:
@@ -151,8 +161,15 @@ If you see this error, it most likely means an older version of the daemon is ru
 
 - Verify the daemon is running: `lfs watchd status`
 - Check that the file is registered (shown in status output)
+- Run the daemon in foreground with debug logs to see detailed events:
+  ```bash
+  RUST_LOG=debug lfs watchd start --foreground
+  ```
+- Look for "File not in registry" messages (should not appear for registered files)
 - Some editors use atomic saves (write to temp, rename) which may need a longer debounce
 - Increase `debounce_ms` in config if changes are missed
+
+**Note**: If you see "File not in registry, skipping" for files you've opened with `lfs edit`, the file path may not exist or cannot be canonicalized. Ensure the watch directory (`watch_dir` in config) is accessible and not on a network mount.
 
 ### Object sealed error
 

@@ -110,27 +110,38 @@ impl FileWatcher {
             return Ok(());
         }
 
-        // Look up in registry
-        let entry = match self.registry.get(path) {
+        // Canonicalize path to handle symlinks (e.g., /tmp -> /private/tmp on macOS).
+        // The OS reports file changes using the canonical path, so we must canonicalize
+        // here to match the canonicalized path stored during registration.
+        let canonical_path = match path.canonicalize() {
+            Ok(p) => p,
+            Err(e) => {
+                debug!("Failed to canonicalize path {}: {}", path.display(), e);
+                return Ok(());
+            }
+        };
+
+        // Look up in registry using canonical path
+        let entry = match self.registry.get(&canonical_path) {
             Some(entry) => entry,
             None => {
-                debug!("File not in registry, skipping: {}", path.display());
+                debug!("File not in registry, skipping: {}", canonical_path.display());
                 return Ok(());
             }
         };
 
         // Read file content — if deleted, unregister
-        let data = match std::fs::read(path) {
+        let data = match std::fs::read(&canonical_path) {
             Ok(data) => data,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                info!("Watched file deleted, unregistering: {}", path.display());
-                self.registry.unregister(path);
+                info!("Watched file deleted, unregistering: {}", canonical_path.display());
+                self.registry.unregister(&canonical_path);
                 self.persist.save(&self.registry)?;
                 // Open repo briefly to emit event
                 if let Ok(repo) = LatticeRepo::open(self.config.clone()) {
                     repo.events.emit_sync(Event::watch_file_removed(
                         &entry.object_id,
-                        path.display().to_string(),
+                        canonical_path.display().to_string(),
                         "file_deleted".to_string(),
                     ));
                 }
@@ -142,12 +153,12 @@ impl FileWatcher {
         // Compute hash — skip if identical to last known
         let new_hash = compute_hash(&data);
         if new_hash == entry.last_known_hash {
-            debug!("No content change (hash match), skipping: {}", path.display());
+            debug!("No content change (hash match), skipping: {}", canonical_path.display());
             return Ok(());
         }
 
         // Format commit message
-        let message = self.format_commit_message(path, &entry.object_id);
+        let message = self.format_commit_message(&canonical_path, &entry.object_id);
 
         // Open repo on demand for the database operation, then drop it to
         // release the Sled file lock so CLI commands can access the repo.
@@ -161,29 +172,29 @@ impl FileWatcher {
             Ok(version) => {
                 info!(
                     "Auto-created version {} for object {} from {}",
-                    version.id, entry.object_id, path.display()
+                    version.id, entry.object_id, canonical_path.display()
                 );
-                self.registry.update_hash(path, new_hash);
+                self.registry.update_hash(&canonical_path, new_hash);
                 self.persist.save(&self.registry)?;
                 repo.events.emit_sync(Event::auto_version_created(
                     &entry.object_id,
                     &version.id,
-                    path.display().to_string(),
+                    canonical_path.display().to_string(),
                     entry.actor_id,
                 ));
             }
             Err(LatticeError::ObjectSealed { id }) => {
-                warn!("Object {} is sealed, unregistering watcher for {}", id, path.display());
-                self.registry.unregister(path);
+                warn!("Object {} is sealed, unregistering watcher for {}", id, canonical_path.display());
+                self.registry.unregister(&canonical_path);
                 self.persist.save(&self.registry)?;
                 repo.events.emit_sync(Event::watch_file_removed(
                     &entry.object_id,
-                    path.display().to_string(),
+                    canonical_path.display().to_string(),
                     "object_sealed".to_string(),
                 ));
             }
             Err(e) => {
-                error!("Failed to create version for {}: {}", path.display(), e);
+                error!("Failed to create version for {}: {}", canonical_path.display(), e);
             }
         }
 

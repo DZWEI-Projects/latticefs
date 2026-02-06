@@ -490,8 +490,22 @@ fn handle_watch_register(
         }
     };
 
+    // Canonicalize path to handle symlinks (e.g., /tmp -> /private/tmp on macOS).
+    // This ensures consistent HashMap lookups in the registry, since the OS may
+    // report file changes using the canonical path while registration uses the symlinked path.
+    let temp_path = std::path::PathBuf::from(&request.temp_path);
+    let canonical_path = match temp_path.canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            return pb::WatchRegisterResponse {
+                success: false,
+                message: format!("Failed to canonicalize path {}: {}", temp_path.display(), e),
+            };
+        }
+    };
+
     let entry = crate::watcher::WatchEntry {
-        temp_path: std::path::PathBuf::from(&request.temp_path),
+        temp_path: canonical_path,
         object_id,
         actor_id,
         original_hash: content_hash,
