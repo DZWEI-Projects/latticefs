@@ -73,8 +73,8 @@ function FolderTrigger({
               )}
             >
               <FolderIconPrimitive
-                closeIcon={<FolderIcon className="size-4.5" />}
-                openIcon={<FolderOpenIcon className="size-4.5" />}
+                closeIcon={<FolderIcon className="size-4" />}
+                openIcon={<FolderOpenIcon className="size-4" />}
               />
               <FileLabelPrimitive
                 className={cn('text-sm', className)}
@@ -105,7 +105,7 @@ type FolderContentProps = FolderContentPrimitiveProps;
 
 function FolderContent(props: FolderContentProps) {
   return (
-    <div className="relative ml-6 before:absolute before:-left-2 before:inset-y-0 before:w-px before:h-full before:bg-border">
+    <div className="relative ml-4 before:absolute before:-left-1 before:inset-y-0 before:w-px before:h-full before:bg-border">
       <FolderContentPrimitive {...props} />
     </div>
   );
@@ -127,15 +127,15 @@ function FileItem({
     <FileHighlightPrimitive>
       <FilePrimitive
         className={cn(
-          'flex items-center justify-between gap-2 p-2 pointer-events-none',
+          'flex items-center justify-between gap-1.5 px-1.5 py-1.5 pointer-events-none',
           gitStatus === 'untracked' && 'text-green-400',
           gitStatus === 'modified' && 'text-amber-400',
           gitStatus === 'deleted' && 'text-red-400',
         )}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <FileIconPrimitive>
-            <Icon className="size-4.5" />
+            <Icon className="size-4" />
           </FileIconPrimitive>
           <FileLabelPrimitive className={cn('text-sm', className)} {...props}>
             {children}

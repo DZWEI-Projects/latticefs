@@ -5,9 +5,12 @@ import {
   Files,
   FolderContent,
   FolderItem,
-  FolderTrigger,
   SubFiles,
 } from "@/components/animate-ui/components/radix/files";
+import {
+  FolderHeader as FolderHeaderPrimitive,
+  FolderTrigger as FolderTriggerPrimitive,
+} from "@/components/animate-ui/primitives/radix/files";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical } from "lucide-react";
+import { ChevronRight, MoreVertical } from "lucide-react";
 import { useMemo } from "react";
 
 interface ViewTreeProps {
@@ -37,6 +40,8 @@ interface ViewTreeNodeProps {
   onDeleteView: (view: ViewInfo) => void;
   onCreateSubView: (parentId: string) => void;
 }
+
+const NoIcon = () => null;
 
 const ViewActions = ({
   view,
@@ -98,7 +103,7 @@ const ViewTreeNode = ({
     .map((child) => child.id);
 
   const meta = (
-    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1">
+    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex items-center gap-1">
       <span
         className={cn(
           "text-xs tabular-nums pointer-events-none",
@@ -123,13 +128,17 @@ const ViewTreeNode = ({
 
   if (!hasChildren) {
     return (
-      <div className="group relative">
+      <div className="group relative flex items-center gap-0.5">
+        <div className="w-5 shrink-0" />
         <button
           type="button"
           className="w-full text-left rounded-md"
           onClick={() => onViewSelect(view.id)}
         >
-          <FileItem className={cn("pr-16", isActive && "text-primary font-medium")}>
+          <FileItem
+            icon={NoIcon}
+            className={cn("pr-16", isActive && "text-primary font-medium")}
+          >
             {view.name}
           </FileItem>
         </button>
@@ -140,15 +149,25 @@ const ViewTreeNode = ({
 
   return (
     <FolderItem value={view.id}>
-      <div className="group relative" onClick={() => onViewSelect(view.id)}>
-        <FolderTrigger
-          className={cn(
-            "w-full flex items-center justify-between pr-16",
-            isActive && "text-primary font-medium"
-          )}
+      <div className="group relative flex items-center gap-0.5">
+        <FolderHeaderPrimitive className="w-5 shrink-0">
+          <FolderTriggerPrimitive className="h-7 w-5 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors [&[data-state=open]>svg]:rotate-90">
+            <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200" />
+            <span className="sr-only">Toggle {view.name}</span>
+          </FolderTriggerPrimitive>
+        </FolderHeaderPrimitive>
+        <button
+          type="button"
+          className="w-full text-left rounded-md"
+          onClick={() => onViewSelect(view.id)}
         >
-          {view.name}
-        </FolderTrigger>
+          <FileItem
+            icon={NoIcon}
+            className={cn("pr-16", isActive && "text-primary font-medium")}
+          >
+            {view.name}
+          </FileItem>
+        </button>
         {meta}
       </div>
       <FolderContent>

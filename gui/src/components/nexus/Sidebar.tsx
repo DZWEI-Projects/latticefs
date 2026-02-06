@@ -88,6 +88,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   const queryClient = useQueryClient();
   const [builtinOpen, setBuiltinOpen] = useState(true);
   const [dynamicOpen, setDynamicOpen] = useState(true);
+  const [viewTreeKey, setViewTreeKey] = useState(0);
   const [newViewDialogOpen, setNewViewDialogOpen] = useState(false);
   const [newSubViewParentId, setNewSubViewParentId] = useState<string | null>(null);
   const [editingView, setEditingView] = useState<ViewInfo | null>(null);
@@ -114,6 +115,8 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   const handleViewCreated = (viewId: string) => {
     onViewSelect(viewId);
     setDynamicOpen(true);
+    // Re-mount tree so nested folders expand immediately for the new selection.
+    setViewTreeKey((current) => current + 1);
     setNewSubViewParentId(null);
   };
 
@@ -166,7 +169,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
   }, [pendingDelete, confirm, queryClient, currentViewId, onViewSelect]);
 
   return (
-    <div className="w-60 flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
+    <div className="w-60 xl:w-72 2xl:w-[21rem] transition-width duration-200 flex-shrink-0 border-r border-border/50 flex flex-col bg-background/50">
       <ScrollArea className="flex-1 py-2">
         <Collapsible open={builtinOpen} onOpenChange={setBuiltinOpen}>
           <CollapsibleTrigger className="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
@@ -209,6 +212,7 @@ export const Sidebar = ({ currentViewId, onViewSelect, onOpenSettings }: Sidebar
             </CollapsibleTrigger>
             <CollapsibleContent className="px-2 overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
               <ViewTree
+                key={viewTreeKey}
                 views={dynamicViews}
                 currentViewId={currentViewId}
                 onViewSelect={onViewSelect}
