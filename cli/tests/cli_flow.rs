@@ -106,7 +106,7 @@ fn cli_flow_basic() {
         .success();
 
     lfs_cmd(&lattice_home, &xdg_home)
-        .args(["stats", "view", "ImageAuto"])
+        .args(["info", "view", "ImageAuto"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Objects: 1"));
@@ -399,7 +399,7 @@ fn cli_flow_nested_views() {
 
     // Verify nested view query works (should only match file1, not file2 or file3)
     lfs_cmd(&lattice_home, &xdg_home)
-        .args(["stats", "view", "PhoenixDocs"])
+        .args(["info", "view", "PhoenixDocs"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Parent: PhoenixProject"))
