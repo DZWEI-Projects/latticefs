@@ -40,16 +40,16 @@ cargo build -p cli --release
 
 ```bash
 # Development server (Vite)
-cd gui && npm run dev
+cd gui && bun run dev
 
 # Tauri development (hot-reload)
-cd gui && npm run dev:tauri
+cd gui && bun run dev:tauri
 
 # Build Tauri app
-cd gui && npm run build:tauri
+cd gui && bun run build:tauri
 
 # Build frontend only
-cd gui && npm run build
+cd gui && bun run build
 ```
 
 ### All workspace
@@ -129,8 +129,8 @@ cargo test --workspace
 Frontend tests:
 
 ```bash
-cd gui && npm run test
-cd gui && npm run test:watch
+cd gui && bun run test
+cd gui && bun run test:watch
 ```
 
 Property-based tests (base library):
