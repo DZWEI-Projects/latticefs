@@ -7,12 +7,14 @@ import { StatusBar } from "./StatusBar";
 import type { ObjectInfo, TagInfo, VersionInfo } from "@/lib/lfs";
 import { addObjectTag, removeObjectTag, setObjectTrustLevel, openObject, isTextEditable } from "@/lib/lfs";
 import { useViewObjects } from "@/hooks/useViewObjects";
+import { useViews } from "@/hooks/useViews";
 import { toast } from "sonner";
 import { ObjectDetailPanel } from "./ObjectDetailPanel";
 import { NexusSettingsDialog } from "./NexusSettingsDialog";
 import { VersionHistoryDialog } from "./VersionHistoryDialog";
 import { VersionDiffDialog } from "./VersionDiffDialog";
 import { TextEditorDialog } from "./TextEditorDialog";
+import { ObjectRenameDialog } from "./ObjectRenameDialog";
 
 export type ViewMode = "graph" | "grid" | "list";
 export type SortField =
@@ -69,7 +71,9 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
   const [diffObject, setDiffObject] = useState<ObjectInfo | null>(null);
   const [diffVersionA, setDiffVersionA] = useState<VersionInfo | null>(null);
   const [diffVersionB, setDiffVersionB] = useState<VersionInfo | null>(null);
+  const [renameObject, setRenameObject] = useState<ObjectInfo | null>(null);
 
+  const { data: views = [] } = useViews();
   const { data, isLoading, error } = useViewObjects(currentViewId || "recent");
   const [objects, setObjects] = useState<ObjectInfo[]>([]);
 
@@ -220,6 +224,63 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
     setDetailPanelOpen(true);
   }, []);
 
+  const handleRequestRename = useCallback((object: ObjectInfo) => {
+    setActiveObjectId(object.id);
+    setSelectedObjects([object.id]);
+    setRenameObject(object);
+  }, []);
+
+  const encodeBase64Url = (value: string) => {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return btoa(binary)
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  };
+
+  const handleRenameObject = useCallback(
+    async (object: ObjectInfo, name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        toast.error("Der Name darf nicht leer sein.");
+        return;
+      }
+
+      const encoded = encodeBase64Url(trimmed);
+      const previous = object.tags.find((tag) => tag.key === "auto:filename_b64");
+      const nextTag: TagInfo = { key: "auto:filename_b64", value: encoded };
+
+      try {
+        if (previous) {
+          await removeObjectTag(object.id, previous);
+        }
+        const updated = await addObjectTag(object.id, nextTag);
+        setObjects((prev) =>
+          prev.map((obj) => {
+            if (obj.id !== object.id) return obj;
+            if (updated) return { ...obj, ...updated, views: obj.views };
+            const filtered = obj.tags.filter(
+              (tag) => !(tag.key === "auto:filename_b64" && tag.value === previous?.value)
+            );
+            const exists = filtered.some(
+              (tag) => tag.key === nextTag.key && tag.value === nextTag.value
+            );
+            return { ...obj, name: trimmed, tags: exists ? filtered : [...filtered, nextTag] };
+          })
+        );
+        toast.success("Dateiname aktualisiert");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Dateiname konnte nicht aktualisiert werden");
+        throw err;
+      }
+    },
+    []
+  );
+
   const handleOpenVersions = useCallback((object: ObjectInfo) => {
     setVersionHistoryObject(object);
   }, []);
@@ -309,6 +370,11 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
               onRemoveTag={handleRemoveTag}
               onSetTrust={handleSetTrust}
               onShowDetails={handleShowDetails}
+              onOpenVersions={handleOpenVersions}
+              onOpenEditor={handleOpenEditor}
+              onRenameObject={handleRequestRename}
+              views={views}
+              onViewSelect={onViewChange}
               sort={sort}
               onSortChange={setSort}
               filters={filters}
@@ -383,6 +449,15 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
           onOpenChange={(open) => { if (!open) setEditorObject(null); }}
           object={editorObject}
           onObjectUpdated={handleEditorObjectUpdated}
+        />
+      )}
+
+      {renameObject && (
+        <ObjectRenameDialog
+          open={!!renameObject}
+          onOpenChange={(open) => { if (!open) setRenameObject(null); }}
+          object={renameObject}
+          onRename={handleRenameObject}
         />
       )}
     </div>

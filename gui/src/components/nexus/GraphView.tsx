@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ObjectNode } from "./ObjectNode";
-import type { ObjectInfo, TagInfo } from "@/lib/lfs";
+import type { ObjectInfo, TagInfo, ViewInfo } from "@/lib/lfs";
 import { ObjectContextMenu } from "./ObjectContextMenu";
 import { GraphLegend } from "./GraphLegend";
 import {
@@ -22,6 +22,11 @@ interface GraphViewProps {
   onRemoveTag: (object: ObjectInfo, tag: TagInfo) => void;
   onSetTrust: (object: ObjectInfo, trust: number | null) => void;
   onShowDetails: (object: ObjectInfo) => void;
+  onOpenVersions: (object: ObjectInfo) => void;
+  onOpenEditor: (object: ObjectInfo) => void;
+  onRenameObject: (object: ObjectInfo) => void;
+  views: ViewInfo[];
+  onViewSelect: (viewId: string) => void;
 }
 
 // Graph container dimensions
@@ -41,6 +46,11 @@ export const GraphView = ({
   onRemoveTag,
   onSetTrust,
   onShowDetails,
+  onOpenVersions,
+  onOpenEditor,
+  onRenameObject,
+  views,
+  onViewSelect,
 }: GraphViewProps) => {
   const [hoveredObject, setHoveredObject] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -236,8 +246,13 @@ export const GraphView = ({
             <ObjectContextMenu
               key={obj.id}
               object={obj}
+              views={views}
+              onViewSelect={onViewSelect}
               onOpen={onObjectOpen}
               onShowDetails={onShowDetails}
+              onOpenVersions={onOpenVersions}
+              onOpenEditor={onOpenEditor}
+              onRename={onRenameObject}
               onRequestAddTag={onRequestAddTag}
               onRemoveTag={onRemoveTag}
               onSetTrust={onSetTrust}

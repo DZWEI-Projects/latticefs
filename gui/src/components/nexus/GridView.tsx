@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ObjectCard } from "./ObjectCard";
 import { ObjectContextMenu } from "./ObjectContextMenu";
-import type { ObjectInfo, TagInfo } from "@/lib/lfs";
+import type { ObjectInfo, TagInfo, ViewInfo } from "@/lib/lfs";
 
 interface GridViewProps {
   objects: ObjectInfo[];
@@ -14,6 +14,11 @@ interface GridViewProps {
   onRemoveTag: (object: ObjectInfo, tag: TagInfo) => void;
   onSetTrust: (object: ObjectInfo, trust: number | null) => void;
   onShowDetails: (object: ObjectInfo) => void;
+  onOpenVersions: (object: ObjectInfo) => void;
+  onOpenEditor: (object: ObjectInfo) => void;
+  onRenameObject: (object: ObjectInfo) => void;
+  views: ViewInfo[];
+  onViewSelect: (viewId: string) => void;
 }
 
 export const GridView = ({
@@ -26,6 +31,11 @@ export const GridView = ({
   onRemoveTag,
   onSetTrust,
   onShowDetails,
+  onOpenVersions,
+  onOpenEditor,
+  onRenameObject,
+  views,
+  onViewSelect,
 }: GridViewProps) => {
   const handleClick = useCallback(
     (obj: ObjectInfo, e: React.MouseEvent) => {
@@ -60,8 +70,13 @@ export const GridView = ({
             <ObjectContextMenu
               key={obj.id}
               object={obj}
+              views={views}
+              onViewSelect={onViewSelect}
               onOpen={onObjectOpen}
               onShowDetails={onShowDetails}
+              onOpenVersions={onOpenVersions}
+              onOpenEditor={onOpenEditor}
+              onRename={onRenameObject}
               onRequestAddTag={onRequestAddTag}
               onRemoveTag={onRemoveTag}
               onSetTrust={onSetTrust}

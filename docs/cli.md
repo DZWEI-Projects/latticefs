@@ -321,6 +321,19 @@ Example output:
 Untagged <object-id>
 ```
 
+### `lfs rename <ref> <name>`
+Update the `auto:filename_b64` tag for an object (used as the display name in the GUI).
+
+Example:
+```bash
+lfs rename <object-id> "Report Final (v1).txt"
+```
+
+Example output:
+```text
+Renamed <object-id> to Report Final (v1).txt
+```
+
 ### `lfs link <object-a> <link-type> <object-b>`
 Create a typed link between objects.
 
