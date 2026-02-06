@@ -516,11 +516,7 @@ fn object_to_info(
         .unwrap_or(object.created_at);
 
     // Get trust level from tags
-    let trust_level = object
-        .tags
-        .iter()
-        .find(|t| t.key == "trust")
-        .and_then(|t| t.value.parse::<u8>().ok());
+    let trust_level = trust_level_from_tags(&object.tags);
 
     // Convert tags
     let tags: Vec<TagInfo> = object
@@ -528,7 +524,7 @@ fn object_to_info(
         .iter()
         // Do NOT show system tags, for security reasons. System tags (keys starting with "system:") are for internal use only;
         // other tags, including auto: tags, may be shown in the GUI.
-        .filter(|t| !t.key.starts_with("system:"))
+        .filter(|t| !t.key.starts_with("system:") && !t.key.starts_with("sys:"))
         .map(|t| TagInfo {
             key: t.key.clone(),
             value: t.value.clone(),
@@ -566,6 +562,13 @@ fn object_to_info(
         current_version_state: current_state,
         is_sealed,
     })
+}
+
+fn trust_level_from_tags(tags: &[Tag]) -> Option<u8> {
+    tags.iter()
+        .find(|t| t.key == "sys:trust")
+        .or_else(|| tags.iter().find(|t| t.key == "trust"))
+        .and_then(|t| t.value.parse::<u8>().ok())
 }
 
 #[tauri::command]
@@ -768,12 +771,14 @@ pub fn set_object_trust_level(
     let removed_trust_tags: Vec<String> = object
         .tags
         .iter()
-        .filter(|existing| existing.key == "trust")
+        .filter(|existing| existing.key == "sys:trust" || existing.key == "trust")
         .map(|existing| existing.full_path())
         .collect();
 
     if !removed_trust_tags.is_empty() {
-        object.tags.retain(|existing| existing.key != "trust");
+        object
+            .tags
+            .retain(|existing| existing.key != "sys:trust" && existing.key != "trust");
         for tag_path in &removed_trust_tags {
             repo.metadata
                 .remove_from_tag_index(tag_path, object_id.as_bytes())
@@ -782,7 +787,7 @@ pub fn set_object_trust_level(
     }
 
     if let Some(level) = trust_level {
-        let trust_tag = Tag::new("trust".to_string(), level.to_string(), actor);
+        let trust_tag = Tag::new("sys:trust".to_string(), level.to_string(), actor);
         let tag_path = trust_tag.full_path();
         object.add_tag(trust_tag);
         repo.metadata

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "./Sidebar";
 import { Toolbar } from "./Toolbar";
@@ -70,6 +71,7 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
   const [diffVersionA, setDiffVersionA] = useState<VersionInfo | null>(null);
   const [diffVersionB, setDiffVersionB] = useState<VersionInfo | null>(null);
 
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useViewObjects(currentViewId || "recent");
   const [objects, setObjects] = useState<ObjectInfo[]>([]);
 
@@ -121,6 +123,11 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
     setDetailPanelOpen(true);
   }, []);
 
+  const refreshViews = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["views"] });
+    await queryClient.invalidateQueries({ queryKey: ["view-objects"] });
+  }, [queryClient]);
+
   const handleAddTag = useCallback(async (object: ObjectInfo, tag: TagInfo) => {
     try {
       const updated = await addObjectTag(object.id, tag);
@@ -135,11 +142,12 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
         })
       );
       toast.success("Eigenschaft hinzugefügt");
+      await refreshViews();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht hinzugefügt werden");
       throw err;
     }
-  }, []);
+  }, [refreshViews]);
 
   const handleRemoveTag = useCallback(async (object: ObjectInfo, tag: TagInfo) => {
     try {
@@ -160,10 +168,11 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
         )
       );
       toast.success("Eigenschaft entfernt");
+      await refreshViews();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht entfernt werden");
     }
-  }, []);
+  }, [refreshViews]);
 
   const handleUpdateTag = useCallback(
     async (object: ObjectInfo, previous: TagInfo, next: TagInfo) => {
@@ -188,12 +197,13 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
           })
         );
         toast.success("Eigenschaft aktualisiert");
+        await refreshViews();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Eigenschaft konnte nicht aktualisiert werden");
         throw err;
       }
     },
-    []
+    [refreshViews]
   );
 
   const handleSetTrust = useCallback(async (object: ObjectInfo, trust: number | null) => {
@@ -209,10 +219,11 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
         )
       );
       toast.success("Sicherheitsgrad aktualisiert");
+      await refreshViews();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sicherheitsgrad konnte nicht aktualisiert werden");
     }
-  }, []);
+  }, [refreshViews]);
 
   const handleShowDetails = useCallback((object: ObjectInfo) => {
     setActiveObjectId(object.id);
