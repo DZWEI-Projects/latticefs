@@ -17,6 +17,9 @@ LatticeFS includes several built-in views that are always available:
 
 **Localization**: Built-in view names and descriptions are automatically displayed in your system's locale. English and German are currently supported, with German as the default for non-English locales. Both English and German names work in CLI commands (e.g., `lfs info view recent` or `lfs info view neueste`). See [Localization](i18n-localization.md) for details.
 
+## Dynamic updates
+Views are always computed from their LQL queries. When tags or trust levels change, the query results are refreshed so the view contents and counts stay accurate. Trust predicates (`trust >= 50`) are backed by the `sys:trust` tag, which is maintained by the trust-setting commands.
+
 ## What you can do with views
 - Create a view from an LQL query
 - List built‑in and dynamic views
