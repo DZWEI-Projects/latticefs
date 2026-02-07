@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Nexus from "./pages/Nexus";
 import NotFound from "./pages/NotFound";
+import OnboardingCompletePlayground from "./pages/OnboardingCompletePlayground";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/nexus" element={<Nexus />} />
           <Route path="/nexus/:viewId" element={<Nexus />} />
+          <Route path="/flexus" element={<OnboardingCompletePlayground />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
