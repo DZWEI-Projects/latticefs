@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 
 export type OnboardingStage = 1 | 2 | 3 | 4 | 5 | "complete";
 
+const COMPLETE_REST_BEFORE_EXIT_MS = 6500;
+const COMPLETE_EXIT_DURATION_MS = 2200;
+
 interface OnboardingContainerProps {
   onComplete?: () => void;
 }
@@ -45,7 +48,7 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
     if (stage === "complete" && !isExiting) {
       const timer = setTimeout(() => {
         setIsExiting(true);
-      }, 5500);
+      }, COMPLETE_REST_BEFORE_EXIT_MS);
       return () => clearTimeout(timer);
     }
   }, [stage, isExiting]);
@@ -53,10 +56,9 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
   // Navigate after exit animation completes
   useEffect(() => {
     if (isExiting) {
-      // Wait a bit to not have it jump too hard
       const timer = setTimeout(() => {
         navigate("/nexus");
-      }, 1995);
+      }, COMPLETE_EXIT_DURATION_MS);
       return () => clearTimeout(timer);
     }
   }, [isExiting, navigate]);
@@ -91,33 +93,90 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
       case "complete":
         return (
           <motion.div 
-            className="flex items-center justify-center min-h-screen"
+            className="relative flex items-center justify-center min-h-screen overflow-hidden"
             initial={{ opacity: 0 }}
             animate={isExiting ? { opacity: 0 } : { opacity: 1 }}
             transition={{ 
-              duration: 2.0, 
-              delay: isExiting ? 0 : 1.0, 
+              duration: 2.2,
+              delay: isExiting ? 0 : 0.35,
               ease: [0.16, 1, 0.3, 1] 
             }}
           >
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={isExiting ? { opacity: 0, scale: 1.08 } : { opacity: 1, scale: 1 }}
+              transition={{ duration: 2.0, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                background:
+                  "radial-gradient(circle at center, hsl(var(--primary) / 0.2) 0%, hsl(var(--background) / 0) 65%)",
+              }}
+            />
             <motion.div 
-              className="text-center"
+              className="text-center relative z-10"
               initial="hidden"
               animate={isExiting ? "exit" : "visible"}
               variants={{
                 visible: {
                   transition: {
-                    staggerChildren: 0.6,
-                    delayChildren: 1.0,
+                    staggerChildren: 0.35,
+                    delayChildren: 0.6,
                   },
                 },
                 exit: {
                   transition: {
-                    staggerChildren: 0.15,
+                    staggerChildren: 0.12,
+                    staggerDirection: -1,
                   },
                 },
               }}
             >
+              <motion.div
+                className="mx-auto mb-8 w-40 h-40 md:w-48 md:h-48"
+                variants={{
+                  hidden: {
+                    opacity: 0,
+                    y: 42,
+                    scale: 0.72,
+                    rotate: -10,
+                    filter: "blur(18px)",
+                  },
+                  visible: {
+                    opacity: 1,
+                    y: 0,
+                    scale: 1,
+                    rotate: 0,
+                    filter: "blur(0px)",
+                    transition: {
+                      duration: 1.45,
+                      ease: [0.18, 1, 0.3, 1],
+                    },
+                  },
+                  exit: {
+                    opacity: 0,
+                    y: -44,
+                    scale: 1.12,
+                    rotate: 8,
+                    filter: "blur(14px)",
+                    transition: {
+                      duration: 1.05,
+                      ease: [0.7, 0, 0.84, 0],
+                    },
+                  },
+                }}
+              >
+                <motion.img
+                  src="/neural.svg"
+                  alt="NeuralFS Logo"
+                  className="w-full h-full object-contain drop-shadow-[0_0_42px_hsl(var(--primary)/0.34)]"
+                  initial={{ scale: 0.9 }}
+                  animate={isExiting ? { scale: 1.08 } : { scale: 1 }}
+                  transition={{
+                    duration: isExiting ? 0.95 : 1.8,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                />
+              </motion.div>
               <motion.h1 
                 className="text-3xl font-bold tracking-tighter mb-3 text-foreground"
                 variants={{
@@ -157,10 +216,10 @@ export const OnboardingContainer = ({ onComplete }: OnboardingContainerProps) =>
                 }}
                 style={{ perspective: 800 }}
               >
-                Willkommen in deinem Lattice
+                Willkommen in deinem Workspace
               </motion.h1>
               <motion.p 
-                className="text-muted-foreground"
+                className="text-muted-foreground text-[18px]"
                 variants={{
                   hidden: { 
                     opacity: 0, 

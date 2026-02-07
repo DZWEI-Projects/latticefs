@@ -273,9 +273,16 @@ export const NexusLayout = ({ currentViewId, onViewChange }: NexusLayoutProps) =
         className="h-10 flex-shrink-0 flex items-center justify-center border-b border-border/50 select-none cursor-default"
         onMouseDown={handleDragStart}
       >
-        <span className="text-xs font-medium text-muted-foreground tracking-wide">
-          NeuralFS
-        </span>
+        <div className="flex items-center gap-2">
+          <img
+            src="/neural.svg"
+            alt="NeuralFS Logo"
+            className="w-4 h-4 object-contain opacity-90"
+          />
+          <span className="text-xs font-medium text-muted-foreground tracking-wide">
+            NeuralFS
+          </span>
+        </div>
       </div>
 
       {/* Main content area */}
