@@ -28,6 +28,7 @@ const trustOptions = [
   { label: "Hoch", value: 85 },
   { label: "Mittel", value: 65 },
   { label: "Niedrig", value: 40 },
+  { label: "Quarantäne", value: 25 },
   { label: "Kritisch", value: 15 },
   { label: "Nicht gesetzt", value: null },
 ];

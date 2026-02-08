@@ -13,6 +13,7 @@ import {
   Plus,
   Trash2,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -44,6 +45,8 @@ function isSystemTag(tag: TagInfo) {
 
 const ID3_PREFIX = "auto:id3:";
 const EXIF_PREFIX = "auto:exif:";
+const QUARANTINE_TRUST_LEVEL = 25;
+const DEFAULT_TRUST_LEVEL = 75;
 
 function parseTagInput(keyInput: string, valueInput: string): TagInfo | null {
   const key = keyInput.trim();
@@ -138,6 +141,7 @@ export const ObjectDetailPanel = ({
     () => Math.max(0, Math.min(100, trustValue)),
     [trustValue],
   );
+  const isQuarantined = clampedTrust <= QUARANTINE_TRUST_LEVEL;
 
   return (
     <aside className="w-80 xl:w-[400px] 2xl:w-[470px] border-l border-border/50 bg-background/80 flex flex-col">
@@ -256,6 +260,33 @@ export const ObjectDetailPanel = ({
           </section>
         )}
 
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-foreground/75 uppercase tracking-wider">
+              Quarantäne
+            </h3>
+            <Badge variant={isQuarantined ? "destructive" : "outline"} className="text-[10px] uppercase">
+              {isQuarantined ? "Aktiv" : "Inaktiv"}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Markiert verdächtige Objekte als unsicher, sodass ausführbare Dateien blockiert bleiben.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={() => {
+              const nextTrust = isQuarantined ? DEFAULT_TRUST_LEVEL : QUARANTINE_TRUST_LEVEL;
+              setTrustValue(nextTrust);
+              onSetTrust(object, nextTrust);
+            }}
+          >
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            {isQuarantined ? "Quarantäne aufheben" : "In Quarantäne verschieben"}
+          </Button>
+        </section>
+
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold text-foreground/75 uppercase tracking-wider">
@@ -273,7 +304,7 @@ export const ObjectDetailPanel = ({
                       : "text-red-500",
               )}
             >
-              {clampedTrust}%
+              {isQuarantined ? "Quarantäne" : `${clampedTrust}%`}
             </span>
           </div>
           <div className="space-y-2">
